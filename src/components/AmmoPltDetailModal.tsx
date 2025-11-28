@@ -1,4 +1,4 @@
-import { Pod, RSV, RoundType } from '../types'
+import { Pod, RSV } from '../types'
 import { X, Package, Truck } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'

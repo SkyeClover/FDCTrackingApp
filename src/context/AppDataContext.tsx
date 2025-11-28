@@ -109,7 +109,6 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     const initialState = loaded || defaultState
     
     // Clean up invalid launcher states on load
-    const validTaskIds = new Set(initialState.tasks.map((t) => t.id))
     const cleanedLaunchers = initialState.launchers.map((l) => {
       if (l.currentTask) {
         const task = initialState.tasks.find((t) => t.id === l.currentTask?.id)

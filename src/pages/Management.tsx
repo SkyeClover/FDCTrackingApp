@@ -525,12 +525,10 @@ AssignmentSections.displayName = 'AssignmentSections'
 
 // Editable item component for metadata editing
 const EditableItem = memo(({
-  id,
   name,
   onUpdate,
   label,
 }: {
-  id: string
   name: string
   onUpdate: (name: string) => void
   label: string
@@ -676,8 +674,6 @@ export default function Management() {
     pods,
     rsvs,
     taskTemplates,
-    assignLauncherToPOC,
-    assignPOCToBOC,
     addRSV,
     addTaskTemplate,
     updateTaskTemplate,
