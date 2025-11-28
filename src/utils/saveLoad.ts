@@ -126,8 +126,6 @@ export function importFromFile(file: File): Promise<AppState> {
   })
 }
 
-import { DEFAULT_ROUND_TYPES } from '../constants/roundTypes'
-
 export function getDefaultState(): AppState {
   return {
     bocs: [],
@@ -171,6 +169,7 @@ export function getDefaultState(): AppState {
     roundTypes: { ...DEFAULT_ROUND_TYPES },
     version: APP_VERSION,
     currentUserRole: undefined,
+    hasSeenFirstTimeGuide: false,
   }
 }
 

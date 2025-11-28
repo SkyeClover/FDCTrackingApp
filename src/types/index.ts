@@ -101,4 +101,5 @@ export interface AppState {
   version: string
   lastSaved?: Date
   currentUserRole?: CurrentUserRole
+  hasSeenFirstTimeGuide?: boolean // Track if user has seen the first-time guide
 }

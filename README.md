@@ -2,6 +2,8 @@
 
 A modern web application for tracking rounds, pods, and launchers. Designed for AFATDS Operators to manage ammunition tracking and report generation.
 
+**Author:** Jacob Walker
+
 ## Features
 
 - **Dashboard**: Overview of all assets (BOCs, POCs, Launchers, Pods, RSVs, Ammo PLT) with quick stats
@@ -133,6 +135,49 @@ FDCTrackingApp/
 ### Round Types
 - Configurable round types (default: M28A1, M26, M31, M30)
 - Custom round types can be added and enabled/disabled
+
+## Deployment to Vercel
+
+📖 **For detailed step-by-step instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md)**
+
+📋 **Quick checklist: [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)**
+
+### Quick Start
+
+1. **Push your code to GitHub**:
+   ```bash
+   git add .
+   git commit -m "Prepare for deployment"
+   git push origin main
+   ```
+
+2. **Connect to Vercel**:
+   - Go to [vercel.com](https://vercel.com) and sign in
+   - Click "Add New Project"
+   - Import repository: `SkyeClover/FDCTrackingApp`
+   - **IMPORTANT**: Add environment variables before deploying:
+     - `VITE_AUTH_USERNAME` = your username
+     - `VITE_AUTH_PASSWORD` = your password
+     - Enable for Production, Preview, and Development
+   - Click "Deploy"
+
+3. **Test**: Visit your deployment URL and verify the login screen appears
+
+### Local Development
+
+For local testing, the default credentials are:
+- Username: `admin`
+- Password: `changeme`
+
+To customize, create a `.env` file:
+```env
+VITE_AUTH_USERNAME=your_username
+VITE_AUTH_PASSWORD=your_password
+```
+
+### Security Note
+
+The password protection uses client-side authentication, suitable for testing and sharing with friends. For production use with sensitive data, consider server-side authentication.
 
 ## Version
 

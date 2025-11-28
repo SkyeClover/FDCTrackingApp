@@ -8,6 +8,26 @@ import {
   getDefaultState,
 } from '../utils/saveLoad'
 
+// Funny completion messages based on "Funny Stuff.md"
+const FUNNY_COMPLETION_MESSAGES = [
+  "FIRE MISSION! Task complete!",
+  "Put that OE-254 Up time MEOW! Mission done!",
+  "Walk-easy with this app! Task finished!",
+  "2400N is Better than 4800N - and this task is done!",
+  "We're getting up UltraLink! Task complete!",
+  "Getting up Dcomms! Mission accomplished!",
+  "Anywayysss... task finished!",
+  "Hwello?! Task complete!",
+  "Sponsored by Pain! Steel Pain!! Task done!",
+  "SSG Ames is Sick - but this task is healthy and complete!",
+  "SGT Muller would be proud - task complete!",
+]
+
+const getRandomCompletionMessage = (baseMessage: string): string => {
+  const funnyMessage = FUNNY_COMPLETION_MESSAGES[Math.floor(Math.random() * FUNNY_COMPLETION_MESSAGES.length)]
+  return `${baseMessage} ${funnyMessage}`
+}
+
 interface AppDataContextType {
   bocs: BOC[]
   pocs: POC[]
@@ -63,6 +83,8 @@ interface AppDataContextType {
   addRoundType: (name: string) => void
   updateRoundType: (name: string, enabled: boolean) => void
   deleteRoundType: (name: string) => void
+  markFirstTimeGuideAsSeen: () => void
+  hasSeenFirstTimeGuide: boolean
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined)
@@ -437,7 +459,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
                 if (l.currentTask?.id === newTask.id) {
                   addLog({
                     type: 'success',
-                    message: `Task "${task.name}" completed on launcher "${l.name}"`,
+                    message: getRandomCompletionMessage(`Task "${task.name}" completed on launcher "${l.name}".`),
                   })
                   return {
                     ...l,
@@ -562,7 +584,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
                 if (l.currentTask?.id === newTask.id) {
                   addLog({
                     type: 'success',
-                    message: `Task "${task.name}" completed on launcher "${l.name}"`,
+                    message: getRandomCompletionMessage(`Task "${task.name}" completed on launcher "${l.name}".`),
                   })
                   return {
                     ...l,
@@ -1075,7 +1097,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         if (l.currentTask?.id === taskId) {
           addLog({
             type: 'success',
-            message: `Fire Mission completed on launcher "${l.name}"`,
+            message: getRandomCompletionMessage(`Fire Mission completed on launcher "${l.name}".`),
           })
           return {
             ...l,
@@ -1300,6 +1322,13 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     addLog({ type: 'info', message: `User assigned to ${role.type.toUpperCase()} "${role.name}"` })
   }, [addLog])
 
+  const markFirstTimeGuideAsSeen = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      hasSeenFirstTimeGuide: true,
+    }))
+  }, [])
+
   const addRoundType = useCallback((name: string) => {
     const trimmedName = name.trim().toUpperCase()
     if (!trimmedName) return
@@ -1441,6 +1470,8 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         addRoundType,
         updateRoundType,
         deleteRoundType,
+        markFirstTimeGuideAsSeen,
+        hasSeenFirstTimeGuide: state.hasSeenFirstTimeGuide ?? false,
       }}
     >
       {children}

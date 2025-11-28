@@ -90,6 +90,9 @@ export default function StartupRoleModal({ isOpen, onClose }: StartupRoleModalPr
           <h2 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-primary)' }}>
             Welcome to FDC Tracker
           </h2>
+          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+            Walk-easy with this app!
+          </p>
         </div>
 
         <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: '1.6' }}>

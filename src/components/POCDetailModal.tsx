@@ -1,4 +1,4 @@
-import { POC, Pod, Launcher, RSV, BOC, RoundType } from '../types'
+import { POC, Pod, Launcher, RSV, BOC } from '../types'
 import { X, Package, Truck } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
@@ -15,14 +15,33 @@ interface POCDetailModalProps {
 }
 
 export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs = [], isOpen, onClose }: POCDetailModalProps) {
-  const { roundTypes } = useAppData()
-  const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
+  // Hooks must be called at the top level - but only access when modal is open
+  const { roundTypes = {} } = useAppData()
+  const roundTypeOptions = useMemo(() => {
+    try {
+      return getEnabledRoundTypeOptions(roundTypes || {})
+    } catch (error) {
+      console.error('Error getting round type options:', error)
+      return []
+    }
+  }, [roundTypes])
   
   if (!isOpen) return null
+  
+  // Safety check - ensure poc exists
+  if (!poc) {
+    return null
+  }
+  
+  // Ensure arrays are defined
+  const safePods = pods || []
+  const safeLaunchers = launchers || []
+  const safeRSVs = rsvs || []
+  const safeBOCs = bocs || []
 
   // Get RSV's assigned to this POC, or to the POC's BOC (battery level slants)
-  const pocBOC = bocs.find((b) => b.id === poc.bocId)
-  const pocRSVs = rsvs.filter((r) => {
+  const pocBOC = safeBOCs.find((b) => b.id === poc.bocId)
+  const pocRSVs = safeRSVs.filter((r) => {
     if (r.pocId === poc.id) return true
     // Battery level slants - RSV's assigned to BOC
     if (r.bocId === poc.bocId) return true
@@ -34,16 +53,16 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
   // Get pods assigned to this POC (both explicitly and via common sense)
   // Common sense: pods on launchers belong to that launcher's POC
   // Also include pods on RSVs assigned to this POC
-  const pocPods = pods.filter((p) => {
+  const pocPods = safePods.filter((p) => {
     if (p.pocId === poc.id) return true
     // If pod is on a launcher that belongs to this POC, it belongs to this POC
     if (p.launcherId) {
-      const launcher = launchers.find((l) => l.id === p.launcherId)
+      const launcher = safeLaunchers.find((l) => l.id === p.launcherId)
       return launcher?.pocId === poc.id
     }
     // If pod is on an RSV assigned to this POC, it belongs to this POC
     if (p.rsvId) {
-      const rsv = rsvs.find((r) => r.id === p.rsvId)
+      const rsv = safeRSVs.find((r) => r.id === p.rsvId)
       if (rsv) {
         if (rsv.pocId === poc.id) return true
         if (rsv.bocId === poc.bocId) return true
@@ -61,17 +80,16 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
   // Pods on launchers
   const podsOnLaunchers = pocPods.filter((p) => p.launcherId)
 
-  // Group pods by round type
+  // Group pods by round type - dynamically based on enabled round types
   const podsByRoundType = (podList: Pod[]) => {
-    const grouped: Record<RoundType, Pod[]> = {
-      M28A1: [],
-      M26: [],
-      M31: [],
-      M30: [],
-    }
+    const grouped: Record<string, Pod[]> = {}
+    // Initialize with enabled round types
+    roundTypeOptions.forEach((option) => {
+      grouped[option.value] = []
+    })
     podList.forEach((pod) => {
       const roundType = pod.rounds[0]?.type
-      if (roundType && grouped[roundType]) {
+      if (roundType && grouped[roundType] !== undefined) {
         grouped[roundType].push(pod)
       }
     })
@@ -81,18 +99,17 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
   const onGroundByType = podsByRoundType(podsOnGround)
   const onLaunchersByType = podsByRoundType(podsOnLaunchers)
 
-  // Calculate total rounds by type
+  // Calculate total rounds by type - dynamically based on enabled round types
   const calculateRoundsByType = (podList: Pod[]) => {
-    const totals: Record<RoundType, { available: number; used: number; total: number }> = {
-      M28A1: { available: 0, used: 0, total: 0 },
-      M26: { available: 0, used: 0, total: 0 },
-      M31: { available: 0, used: 0, total: 0 },
-      M30: { available: 0, used: 0, total: 0 },
-    }
+    const totals: Record<string, { available: number; used: number; total: number }> = {}
+    // Initialize with enabled round types
+    roundTypeOptions.forEach((option) => {
+      totals[option.value] = { available: 0, used: 0, total: 0 }
+    })
     podList.forEach((pod) => {
       pod.rounds.forEach((round) => {
         const type = round.type
-        if (totals[type]) {
+        if (totals[type] !== undefined) {
           totals[type].total++
           if (round.status === 'available') {
             totals[type].available++
@@ -108,6 +125,9 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
   const roundsOnGround = calculateRoundsByType(podsOnGround)
   const roundsOnLaunchers = calculateRoundsByType(podsOnLaunchers)
   const roundsTotal = calculateRoundsByType(pocPods)
+
+  // Ensure we have a valid poc name
+  const pocName = poc?.name || 'Unknown POC'
 
   return (
     <div
@@ -132,10 +152,15 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
           borderRadius: '12px',
           padding: '2rem',
           maxWidth: '900px',
+          minWidth: '400px',
           width: '100%',
           maxHeight: '90vh',
+          minHeight: '200px',
           overflow: 'auto',
           border: '2px solid var(--border)',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+          position: 'relative',
+          zIndex: 1001,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -157,7 +182,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
                 marginBottom: '0.5rem',
               }}
             >
-              {poc.name} - Ammunition Inventory
+              {pocName} - Ammunition Inventory
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
               Platoon Operations Center (PLT FDC)
@@ -214,7 +239,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
               }}
             >
               {pocRSVs.map((rsv) => {
-                const rsvPods = pods.filter((p) => p.rsvId === rsv.id)
+                const rsvPods = safePods.filter((p) => p.rsvId === rsv.id)
                 return (
                   <div
                     key={rsv.id}
@@ -293,6 +318,27 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
           </div>
         </div>
 
+        {/* Show message if no data at all */}
+        {pocPods.length === 0 && pocRSVs.length === 0 && (
+          <div
+            style={{
+              padding: '2rem',
+              backgroundColor: 'var(--bg-secondary)',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              marginBottom: '2rem',
+              textAlign: 'center',
+            }}
+          >
+            <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginBottom: '0.5rem' }}>
+              No pods or RSVs assigned to this POC yet.
+            </p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              Go to Inventory to assign pods and RSVs to this POC.
+            </p>
+          </div>
+        )}
+
         {/* Pods by Round Type - On Ground */}
         <div style={{ marginBottom: '2rem' }}>
           <h3
@@ -309,15 +355,21 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
             <Package size={20} />
             Pods On Ground (Available for Reload)
           </h3>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '1rem',
-            }}
-          >
+          {roundTypeOptions.length === 0 ? (
+            <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', padding: '1rem' }}>
+              No round types enabled. Enable round types in Settings to see pod breakdowns.
+            </p>
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '1rem',
+              }}
+            >
             {roundTypeOptions.map((option) => {
-              const podsOfType = onGroundByType[option.value]
+              const podsOfType = onGroundByType[option.value] || []
+              const rounds = roundsOnGround[option.value] || { total: 0, available: 0, used: 0 }
               return (
                 <div
                   key={option.value}
@@ -335,12 +387,13 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
                     {podsOfType.length} {podsOfType.length === 1 ? 'Pod' : 'Pods'}
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                    {roundsOnGround[option.value].total} rounds total
+                    {rounds.total} rounds total
                   </div>
                 </div>
               )
             })}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Pods by Round Type - On Launchers */}
@@ -359,15 +412,21 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
             <Package size={20} />
             Pods On Launchers
           </h3>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '1rem',
-            }}
-          >
+          {roundTypeOptions.length === 0 ? (
+            <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', padding: '1rem' }}>
+              No round types enabled. Enable round types in Settings to see pod breakdowns.
+            </p>
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '1rem',
+              }}
+            >
             {roundTypeOptions.map((option) => {
-              const podsOfType = onLaunchersByType[option.value]
+              const podsOfType = onLaunchersByType[option.value] || []
+              const rounds = roundsOnLaunchers[option.value] || { total: 0, available: 0, used: 0 }
               return (
                 <div
                   key={option.value}
@@ -385,12 +444,13 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
                     {podsOfType.length} {podsOfType.length === 1 ? 'Pod' : 'Pods'}
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                    {roundsOnLaunchers[option.value].total} rounds total
+                    {rounds.total} rounds total
                   </div>
                 </div>
               )
             })}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Individual Rounds Breakdown */}
@@ -405,59 +465,65 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
           >
             Individual Rounds Summary
           </h3>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-              gap: '1rem',
-            }}
-          >
+          {roundTypeOptions.length === 0 ? (
+            <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', padding: '1rem' }}>
+              No round types enabled. Enable round types in Settings to see rounds breakdown.
+            </p>
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: '1rem',
+              }}
+            >
             {roundTypeOptions.map((option) => {
-              const totals = roundsTotal[option.value]
+              const totals = roundsTotal[option.value] || { total: 0, available: 0, used: 0 }
               return (
-                <div
-                  key={option.value}
-                  style={{
-                    padding: '1rem',
-                    backgroundColor: 'var(--bg-secondary)',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                  }}
-                >
                   <div
+                    key={option.value}
                     style={{
-                      fontSize: '0.9rem',
-                      fontWeight: '600',
-                      color: 'var(--text-primary)',
-                      marginBottom: '0.75rem',
+                      padding: '1rem',
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
                     }}
                   >
-                    {option.label}
+                    <div
+                      style={{
+                        fontSize: '0.9rem',
+                        fontWeight: '600',
+                        color: 'var(--text-primary)',
+                        marginBottom: '0.75rem',
+                      }}
+                    >
+                      {option.label}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Total:</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                          {totals.total}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--success)' }}>Available:</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--success)' }}>
+                          {totals.available}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>Used:</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--danger)' }}>
+                          {totals.used}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Total:</span>
-                      <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)' }}>
-                        {totals.total}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--success)' }}>Available:</span>
-                      <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--success)' }}>
-                        {totals.available}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--danger)' }}>Used:</span>
-                      <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--danger)' }}>
-                        {totals.used}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

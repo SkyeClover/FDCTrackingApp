@@ -154,17 +154,28 @@ export default function Dashboard() {
         onClose={() => setIsFireMissionModalOpen(false)}
       />
 
-      {selectedPOC && (
-        <POCDetailModal
-          poc={pocs.find((p) => p.id === selectedPOC)!}
-          pods={pods}
-          launchers={launchers}
-          rsvs={rsvs}
-          bocs={bocs}
-          isOpen={!!selectedPOC}
-          onClose={() => setSelectedPOC(null)}
-        />
-      )}
+      {selectedPOC && (() => {
+        const selectedPOCData = pocs.find((p) => p.id === selectedPOC)
+        if (!selectedPOCData) {
+          return null
+        }
+        try {
+          return (
+            <POCDetailModal
+              poc={selectedPOCData}
+              pods={pods}
+              launchers={launchers}
+              rsvs={rsvs}
+              bocs={bocs}
+              isOpen={!!selectedPOC}
+              onClose={() => setSelectedPOC(null)}
+            />
+          )
+        } catch (error) {
+          console.error('Error rendering POCDetailModal:', error)
+          return null
+        }
+      })()}
 
       <AmmoPltDetailModal
         pods={pods}

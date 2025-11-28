@@ -8,11 +8,12 @@ import Settings from './pages/Settings'
 import { AppDataProvider, useAppData } from './context/AppDataContext'
 import { ProgressProvider, useProgress } from './context/ProgressContext'
 import StartupRoleModal from './components/StartupRoleModal'
+import FirstTimeGuideModal from './components/FirstTimeGuideModal'
+import PasswordProtection from './components/PasswordProtection'
 
 type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings'
 
 function AppContent() {
-  const [currentPage, setCurrentPage] = useState<Page>('dashboard')
   const { updateProgress, removeProgress } = useProgress()
 
   return (
@@ -24,8 +25,9 @@ function AppContent() {
 
 function AppContentWithData() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard')
-  const { bocs, pocs, currentUserRole } = useAppData()
+  const { bocs, pocs, currentUserRole, hasSeenFirstTimeGuide, markFirstTimeGuideAsSeen } = useAppData()
   const [showStartupModal, setShowStartupModal] = useState(false)
+  const [showFirstTimeGuide, setShowFirstTimeGuide] = useState(false)
 
   // Check if app is empty (no BOCs or POCs) and show startup modal
   useEffect(() => {
@@ -38,9 +40,38 @@ function AppContentWithData() {
     }
   }, [bocs.length, pocs.length, currentUserRole])
 
+  // Show first-time guide after user creates and assigns themselves to first BOC/POC
+  useEffect(() => {
+    // Show guide if user has a role assigned but hasn't seen the guide yet
+    if (currentUserRole && !hasSeenFirstTimeGuide && !showStartupModal) {
+      // Small delay to ensure startup modal is closed first
+      const timer = setTimeout(() => {
+        setShowFirstTimeGuide(true)
+      }, 300)
+      return () => clearTimeout(timer)
+    } else if (hasSeenFirstTimeGuide) {
+      // Reset guide state if it's been marked as seen
+      setShowFirstTimeGuide(false)
+    }
+  }, [currentUserRole, hasSeenFirstTimeGuide, showStartupModal])
+
+  const handleCloseFirstTimeGuide = () => {
+    setShowFirstTimeGuide(false)
+    markFirstTimeGuideAsSeen()
+  }
+
+  const handleNavigateToSettings = () => {
+    setCurrentPage('settings')
+  }
+
   return (
     <>
       <StartupRoleModal isOpen={showStartupModal} onClose={() => setShowStartupModal(false)} />
+      <FirstTimeGuideModal
+        isOpen={showFirstTimeGuide}
+        onClose={handleCloseFirstTimeGuide}
+        onNavigateToSettings={handleNavigateToSettings}
+      />
       <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
         <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
         <main style={{ flex: 1, overflow: 'auto', padding: '2rem' }}>
@@ -57,9 +88,11 @@ function AppContentWithData() {
 
 function App() {
   return (
-    <ProgressProvider>
-      <AppContent />
-    </ProgressProvider>
+    <PasswordProtection>
+      <ProgressProvider>
+        <AppContent />
+      </ProgressProvider>
+    </PasswordProtection>
   )
 }
 
