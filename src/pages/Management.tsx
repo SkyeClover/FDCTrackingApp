@@ -525,7 +525,6 @@ AssignmentSections.displayName = 'AssignmentSections'
 
 export default function Management() {
   const {
-    bocs,
     pocs,
     launchers,
     taskTemplates,
