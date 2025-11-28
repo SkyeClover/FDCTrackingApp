@@ -56,6 +56,9 @@ interface AppDataContextType {
   deleteTaskTemplate: (id: string) => void
   startTaskFromTemplate: (templateId: string, launcherId: string) => void
   startTaskFromTemplateForPOC: (templateId: string, pocId: string) => void
+  cancelTask: (taskId: string) => void
+  updateBOC: (id: string, updates: Partial<BOC>) => void
+  updatePOC: (id: string, updates: Partial<POC>) => void
   updateLauncher: (id: string, updates: Partial<Launcher>) => void
   updatePod: (id: string, updates: Partial<Pod>) => void
   updateRSV: (id: string, updates: Partial<RSV>) => void
@@ -103,7 +106,30 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     if (loaded && !loaded.rsvs) {
       loaded.rsvs = []
     }
-    return loaded || defaultState
+    const initialState = loaded || defaultState
+    
+    // Clean up invalid launcher states on load
+    const validTaskIds = new Set(initialState.tasks.map((t) => t.id))
+    const cleanedLaunchers = initialState.launchers.map((l) => {
+      if (l.currentTask) {
+        const task = initialState.tasks.find((t) => t.id === l.currentTask?.id)
+        // If launcher has currentTask but task doesn't exist or is completed, clean it up
+        if (!task || task.status === 'completed') {
+          return {
+            ...l,
+            status: 'idle' as const,
+            currentTask: undefined,
+            lastIdleTime: l.lastIdleTime || new Date(),
+          }
+        }
+      }
+      return l
+    })
+    
+    return {
+      ...initialState,
+      launchers: cleanedLaunchers,
+    }
   })
   
   // Store intervals to cleanup
@@ -114,6 +140,131 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   useEffect(() => {
     stateRef.current = state
   }, [state])
+
+  // Resume or complete active tasks on mount (after refresh)
+  useEffect(() => {
+    // Resume active tasks
+    const activeTasks = state.tasks.filter((t) => t.status === 'in-progress' && t.startTime)
+    
+    activeTasks.forEach((task) => {
+      if (!task.startTime || !task.duration) return
+      
+      const elapsed = (Date.now() - task.startTime.getTime()) / 1000
+      const progress = Math.min(100, (elapsed / task.duration) * 100)
+      
+      // If task is already complete, mark it as completed
+      if (progress >= 100) {
+        setState((prev) => {
+          const updatedLaunchers = prev.launchers.map((l) => {
+            if (l.currentTask?.id === task.id) {
+              addLog({
+                type: 'info',
+                message: `Task "${task.name}" was completed while app was closed on launcher "${l.name}"`,
+              })
+              return {
+                ...l,
+                status: 'idle' as const,
+                currentTask: undefined,
+                lastIdleTime: new Date(),
+              }
+            }
+            return l
+          })
+          return {
+            ...prev,
+            tasks: prev.tasks.map((t) =>
+              t.id === task.id ? { ...t, status: 'completed' as const, progress: 100 } : t
+            ),
+            launchers: updatedLaunchers,
+          }
+        })
+        if (removeProgress) {
+          removeProgress(task.id)
+        }
+        return
+      }
+      
+      // Resume the task interval
+      if (updateProgress) {
+        updateProgress(task.id, progress)
+      }
+      
+      const interval = setInterval(() => {
+        const currentState = stateRef.current
+        const currentTask = currentState.tasks.find((t) => t.id === task.id)
+        if (!currentTask || currentTask.status === 'completed') {
+          const intervalToClear = intervalsRef.current.get(task.id)
+          if (intervalToClear) {
+            clearInterval(intervalToClear)
+            intervalsRef.current.delete(task.id)
+          }
+          if (removeProgress) {
+            removeProgress(task.id)
+          }
+          return
+        }
+
+        if (!currentTask.startTime || !currentTask.duration) return
+
+        const currentElapsed = (Date.now() - currentTask.startTime.getTime()) / 1000
+        const currentProgress = Math.min(100, (currentElapsed / currentTask.duration) * 100)
+
+        if (updateProgress) {
+          updateProgress(task.id, currentProgress)
+        }
+
+        if (currentProgress >= 100) {
+          const intervalToClear = intervalsRef.current.get(task.id)
+          if (intervalToClear) {
+            clearInterval(intervalToClear)
+            intervalsRef.current.delete(task.id)
+          }
+          if (removeProgress) {
+            removeProgress(task.id)
+          }
+          
+          setState((state) => {
+            const updatedLaunchers = state.launchers.map((l) => {
+              if (l.currentTask?.id === task.id) {
+                addLog({
+                  type: 'success',
+                  message: getRandomCompletionMessage(`Task "${currentTask.name}" completed on launcher "${l.name}".`),
+                })
+                return {
+                  ...l,
+                  status: 'idle' as const,
+                  currentTask: undefined,
+                  lastIdleTime: new Date(),
+                }
+              }
+              return l
+            })
+            return {
+              ...state,
+              tasks: state.tasks.map((t) =>
+                t.id === task.id ? { ...t, status: 'completed' as const, progress: 100 } : t
+              ),
+              launchers: updatedLaunchers,
+            }
+          })
+        }
+      }, 500)
+      
+      intervalsRef.current.set(task.id, interval)
+    })
+    
+    // Cleanup function
+    return () => {
+      activeTasks.forEach((task) => {
+        const interval = intervalsRef.current.get(task.id)
+        if (interval) {
+          clearInterval(interval)
+          intervalsRef.current.delete(task.id)
+        }
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run on mount - we intentionally don't include dependencies to run once
 
   // Auto-save to localStorage whenever state changes
   useEffect(() => {
@@ -181,11 +332,21 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
 
   const addLauncher = useCallback((launcher: Launcher) => {
     // Set lastIdleTime if launcher is created in idle state
-    const launcherWithIdleTime = launcher.status === 'idle' && !launcher.lastIdleTime
+    let launcherWithIdleTime = launcher.status === 'idle' && !launcher.lastIdleTime
       ? { ...launcher, lastIdleTime: new Date() }
       : launcher
-    setState((prev) => ({ ...prev, launchers: [...prev.launchers, launcherWithIdleTime] }))
-    addLog({ type: 'info', message: `Launcher "${launcher.name}" created` })
+    
+    // Assign to current user's POC by default if not already assigned and user is a POC
+    setState((prev) => {
+      let finalLauncher = launcherWithIdleTime
+      if (!finalLauncher.pocId && prev.currentUserRole?.type === 'poc') {
+        finalLauncher = { ...finalLauncher, pocId: prev.currentUserRole.id }
+        addLog({ type: 'info', message: `Launcher "${launcher.name}" created and assigned to ${prev.currentUserRole.name}` })
+      } else {
+        addLog({ type: 'info', message: `Launcher "${launcher.name}" created` })
+      }
+      return { ...prev, launchers: [...prev.launchers, finalLauncher] }
+    })
   }, [addLog])
 
   const addPod = useCallback((pod: Pod) => {
@@ -194,8 +355,13 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   }, [addLog])
 
   const addRSV = useCallback((rsv: RSV) => {
-    setState((prev) => ({ ...prev, rsvs: [...prev.rsvs, rsv] }))
-    addLog({ type: 'info', message: `RSV "${rsv.name}" created` })
+    const AMMO_PLT_ID = 'ammo-plt-1'
+    // Assign to ammo plt by default if not already assigned
+    const rsvWithDefault = rsv.ammoPltId || rsv.pocId || rsv.bocId 
+      ? rsv 
+      : { ...rsv, ammoPltId: AMMO_PLT_ID }
+    setState((prev) => ({ ...prev, rsvs: [...prev.rsvs, rsvWithDefault] }))
+    addLog({ type: 'info', message: `RSV "${rsv.name}" created${rsvWithDefault.ammoPltId ? ' and assigned to Ammo PLT' : ''}` })
   }, [addLog])
 
   const deleteBOC = useCallback((bocId: string) => {
@@ -629,26 +795,112 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     [addLog]
   )
 
+  const cancelTask = useCallback((taskId: string) => {
+    // Clear the interval for this task
+    const intervalToClear = intervalsRef.current.get(taskId)
+    if (intervalToClear) {
+      clearInterval(intervalToClear)
+      intervalsRef.current.delete(taskId)
+    }
+    
+    // Remove progress tracking
+    if (removeProgress) {
+      removeProgress(taskId)
+    }
+    
+    // Update state to cancel the task
+    setState((prev) => {
+      const task = prev.tasks.find((t) => t.id === taskId)
+      const updatedLaunchers = prev.launchers.map((l) => {
+        if (l.currentTask?.id === taskId) {
+          addLog({
+            type: 'info',
+            message: `Task "${task?.name || 'Unknown'}" cancelled on launcher "${l.name}"`,
+          })
+          return {
+            ...l,
+            status: 'idle' as const,
+            currentTask: undefined,
+            lastIdleTime: new Date(),
+          }
+        }
+        return l
+      })
+      
+      return {
+        ...prev,
+        tasks: prev.tasks.map((t) =>
+          t.id === taskId ? { ...t, status: 'completed' as const } : t
+        ),
+        launchers: updatedLaunchers,
+      }
+    })
+  }, [addLog, removeProgress])
+
+  const updateBOC = useCallback((id: string, updates: Partial<BOC>) => {
+    setState((prev) => {
+      const boc = prev.bocs.find((b) => b.id === id)
+      if (boc && updates.name) {
+        addLog({ type: 'info', message: `BOC "${boc.name}" renamed to "${updates.name}"` })
+      }
+      return {
+        ...prev,
+        bocs: prev.bocs.map((b) => (b.id === id ? { ...b, ...updates } : b)),
+      }
+    })
+  }, [addLog])
+
+  const updatePOC = useCallback((id: string, updates: Partial<POC>) => {
+    setState((prev) => {
+      const poc = prev.pocs.find((p) => p.id === id)
+      if (poc && updates.name) {
+        addLog({ type: 'info', message: `POC "${poc.name}" renamed to "${updates.name}"` })
+      }
+      return {
+        ...prev,
+        pocs: prev.pocs.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+      }
+    })
+  }, [addLog])
+
   const updateLauncher = useCallback((id: string, updates: Partial<Launcher>) => {
-    setState((prev) => ({
-      ...prev,
-      launchers: prev.launchers.map((l) => (l.id === id ? { ...l, ...updates } : l)),
-    }))
-  }, [])
+    setState((prev) => {
+      const launcher = prev.launchers.find((l) => l.id === id)
+      if (launcher && updates.name) {
+        addLog({ type: 'info', message: `Launcher "${launcher.name}" renamed to "${updates.name}"` })
+      }
+      return {
+        ...prev,
+        launchers: prev.launchers.map((l) => (l.id === id ? { ...l, ...updates } : l)),
+      }
+    })
+  }, [addLog])
 
   const updatePod = useCallback((id: string, updates: Partial<Pod>) => {
-    setState((prev) => ({
-      ...prev,
-      pods: prev.pods.map((p) => (p.id === id ? { ...p, ...updates } : p)),
-    }))
-  }, [])
+    setState((prev) => {
+      const pod = prev.pods.find((p) => p.id === id)
+      if (pod && updates.name) {
+        addLog({ type: 'info', message: `Pod "${pod.name}" renamed to "${updates.name}"` })
+      }
+      return {
+        ...prev,
+        pods: prev.pods.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+      }
+    })
+  }, [addLog])
 
   const updateRSV = useCallback((id: string, updates: Partial<RSV>) => {
-    setState((prev) => ({
-      ...prev,
-      rsvs: prev.rsvs.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-    }))
-  }, [])
+    setState((prev) => {
+      const rsv = prev.rsvs.find((r) => r.id === id)
+      if (rsv && updates.name) {
+        addLog({ type: 'info', message: `RSV "${rsv.name}" renamed to "${updates.name}"` })
+      }
+      return {
+        ...prev,
+        rsvs: prev.rsvs.map((r) => (r.id === id ? { ...r, ...updates } : r)),
+      }
+    })
+  }, [addLog])
 
   const assignPodToPOC = useCallback((podId: string, pocId: string) => {
     setState((prev) => {
@@ -1442,6 +1694,9 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         deleteTaskTemplate,
         startTaskFromTemplate,
         startTaskFromTemplateForPOC,
+        cancelTask,
+        updateBOC,
+        updatePOC,
         updateLauncher,
         updatePod,
         updateRSV,

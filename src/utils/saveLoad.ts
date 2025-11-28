@@ -11,6 +11,10 @@ function serializeState(state: AppState): string {
     launchers: state.launchers.map((launcher) => ({
       ...launcher,
       lastIdleTime: launcher.lastIdleTime ? launcher.lastIdleTime.toISOString() : undefined,
+      currentTask: launcher.currentTask ? {
+        ...launcher.currentTask,
+        startTime: launcher.currentTask.startTime ? launcher.currentTask.startTime.toISOString() : undefined,
+      } : undefined,
     })),
     tasks: state.tasks.map((task) => ({
       ...task,
@@ -57,6 +61,10 @@ function deserializeState(json: string): AppState {
     launchers: parsed.launchers?.map((launcher: any) => ({
       ...launcher,
       lastIdleTime: launcher.lastIdleTime ? new Date(launcher.lastIdleTime) : undefined,
+      currentTask: launcher.currentTask ? {
+        ...launcher.currentTask,
+        startTime: launcher.currentTask.startTime ? new Date(launcher.currentTask.startTime) : undefined,
+      } : undefined,
     })) || [],
     tasks: parsed.tasks?.map((task: any) => ({
       ...task,

@@ -39,17 +39,15 @@ export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: Ammo
   // Only show pods not on launchers (ground pods)
   const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
 
-  // Group pods by round type
+  // Group pods by round type - dynamically handle all round types
   const podsByRoundType = (podList: Pod[]) => {
-    const grouped: Record<RoundType, Pod[]> = {
-      M28A1: [],
-      M26: [],
-      M31: [],
-      M30: [],
-    }
+    const grouped: Record<string, Pod[]> = {}
     podList.forEach((pod) => {
       const roundType = pod.rounds[0]?.type
-      if (roundType && grouped[roundType]) {
+      if (roundType) {
+        if (!grouped[roundType]) {
+          grouped[roundType] = []
+        }
         grouped[roundType].push(pod)
       }
     })
@@ -58,24 +56,20 @@ export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: Ammo
 
   const onGroundByType = podsByRoundType(podsOnGround)
 
-  // Calculate total rounds by type
+  // Calculate total rounds by type - dynamically handle all round types
   const calculateRoundsByType = (podList: Pod[]) => {
-    const totals: Record<RoundType, { available: number; used: number; total: number }> = {
-      M28A1: { available: 0, used: 0, total: 0 },
-      M26: { available: 0, used: 0, total: 0 },
-      M31: { available: 0, used: 0, total: 0 },
-      M30: { available: 0, used: 0, total: 0 },
-    }
+    const totals: Record<string, { available: number; used: number; total: number }> = {}
     podList.forEach((pod) => {
       pod.rounds.forEach((round) => {
         const type = round.type
-        if (totals[type]) {
-          totals[type].total++
-          if (round.status === 'available') {
-            totals[type].available++
-          } else if (round.status === 'used') {
-            totals[type].used++
-          }
+        if (!totals[type]) {
+          totals[type] = { available: 0, used: 0, total: 0 }
+        }
+        totals[type].total++
+        if (round.status === 'available') {
+          totals[type].available++
+        } else if (round.status === 'used') {
+          totals[type].used++
         }
       })
     })
@@ -280,7 +274,8 @@ export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: Ammo
             }}
           >
             {roundTypeOptions.map((option) => {
-              const podsOfType = onGroundByType[option.value]
+              const podsOfType = onGroundByType[option.value] || []
+              const rounds = roundsOnGround[option.value] || { available: 0, used: 0, total: 0 }
               return (
                 <div
                   key={option.value}
@@ -298,7 +293,7 @@ export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: Ammo
                     {podsOfType.length} {podsOfType.length === 1 ? 'Pod' : 'Pods'}
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                    {roundsOnGround[option.value].total} rounds total
+                    {rounds.total} rounds total
                   </div>
                 </div>
               )
@@ -326,7 +321,7 @@ export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: Ammo
             }}
           >
             {roundTypeOptions.map((option) => {
-              const totals = roundsTotal[option.value]
+              const totals = roundsTotal[option.value] || { available: 0, used: 0, total: 0 }
               return (
                 <div
                   key={option.value}

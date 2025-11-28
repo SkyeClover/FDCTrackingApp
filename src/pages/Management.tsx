@@ -1,7 +1,7 @@
 import { useState, useMemo, memo, useCallback } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { useProgress } from '../context/ProgressContext'
-import { Plus, Trash2, Edit, X, Check, Rocket, Target } from 'lucide-react'
+import { Plus, Trash2, Edit, X, Check, Rocket, Target, FileText } from 'lucide-react'
 import { TaskTemplate } from '../types'
 import RSVsManagement from '../components/RSVsManagement'
 
@@ -194,10 +194,41 @@ const AssignmentItem = memo(({
 
 AssignmentItem.displayName = 'AssignmentItem'
 
-const TaskProgressBar = memo(({ taskId, taskName, taskProgress }: { taskId: string; taskName: string; taskProgress: { [key: string]: number } }) => {
+const TaskProgressBar = memo(({ taskId, taskName, taskProgress, onCancel }: { taskId: string; taskName: string; taskProgress: { [key: string]: number }; onCancel?: (taskId: string) => void }) => {
   const progress = taskProgress[taskId] ?? 0
   return (
     <div style={{ marginTop: '0.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+        <p
+          style={{
+            fontSize: '0.85rem',
+            color: 'var(--text-secondary)',
+            margin: 0,
+          }}
+        >
+          {progress.toFixed(0)}% - {taskName}
+        </p>
+        {onCancel && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onCancel(taskId)
+            }}
+            style={{
+              padding: '0.25rem 0.5rem',
+              backgroundColor: 'var(--danger)',
+              border: 'none',
+              borderRadius: '4px',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              fontWeight: '500',
+            }}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
       <div
         style={{
           width: '100%',
@@ -217,15 +248,6 @@ const TaskProgressBar = memo(({ taskId, taskName, taskProgress }: { taskId: stri
           }}
         />
       </div>
-      <p
-        style={{
-          fontSize: '0.85rem',
-          color: 'var(--text-secondary)',
-          marginTop: '0.25rem',
-        }}
-      >
-        {progress.toFixed(0)}% - {taskName}
-      </p>
     </div>
   )
 })
@@ -371,11 +393,288 @@ const TaskTemplateForm = memo(({
 
 TaskTemplateForm.displayName = 'TaskTemplateForm'
 
+// AssignmentCard component - must be defined before AssignmentSections
+const AssignmentCard = memo(({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string
+  icon?: any
+  children: React.ReactNode
+}) => (
+  <div
+    style={{
+      backgroundColor: 'var(--bg-secondary)',
+      border: '1px solid var(--border)',
+      borderRadius: '8px',
+      padding: '1.5rem',
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem',
+        marginBottom: '1.5rem',
+      }}
+    >
+      {Icon && <Icon size={24} color="var(--accent)" />}
+      <h2
+        style={{
+          fontSize: '1.25rem',
+          fontWeight: 'bold',
+          color: 'var(--text-primary)',
+        }}
+      >
+        {title}
+      </h2>
+    </div>
+    {children}
+  </div>
+))
+
+AssignmentCard.displayName = 'AssignmentCard'
+
+// Separate component for assignment sections to prevent re-renders from task progress
+const AssignmentSections = memo(() => {
+  const {
+    bocs,
+    pocs,
+    launchers,
+    assignLauncherToPOC,
+    assignPOCToBOC,
+  } = useAppData()
+  
+  const bocsMemo = useMemo(() => bocs, [bocs])
+  const pocsMemo = useMemo(() => pocs, [pocs])
+  const launchersMemo = useMemo(() => launchers, [launchers])
+  
+  return (
+    <>
+      <AssignmentCard title="Assign Launchers to POCs" icon={Target}>
+        <div
+          style={{
+            fontSize: '0.85rem',
+            color: 'var(--text-secondary)',
+            marginBottom: '1rem',
+            fontStyle: 'italic',
+          }}
+        >
+          Platoon Operations Center (PLT FDC)
+        </div>
+        {launchersMemo.length === 0 || pocsMemo.length === 0 ? (
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Create launchers and POCs in Inventory first
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {launchersMemo.map((launcher) => (
+              <AssignmentItem
+                key={launcher.id}
+                item={launcher}
+                options={pocsMemo}
+                currentValue={launcher.pocId}
+                onAssign={assignLauncherToPOC}
+                onUnassign={(id) => assignLauncherToPOC(id, '')}
+                itemLabel="Launcher"
+                optionLabel="POC"
+              />
+            ))}
+          </div>
+        )}
+      </AssignmentCard>
+
+      <AssignmentCard title="Assign POCs to BOCs" icon={Target}>
+        <div
+          style={{
+            fontSize: '0.85rem',
+            color: 'var(--text-secondary)',
+            marginBottom: '1rem',
+            fontStyle: 'italic',
+          }}
+        >
+          Battery Operations Center (FDC)
+        </div>
+        {pocsMemo.length === 0 || bocsMemo.length === 0 ? (
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Create POCs and BOCs in Inventory first
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {pocsMemo.map((poc) => (
+              <AssignmentItem
+                key={poc.id}
+                item={poc}
+                options={bocsMemo}
+                currentValue={poc.bocId}
+                onAssign={assignPOCToBOC}
+                onUnassign={(id) => assignPOCToBOC(id, '')}
+                itemLabel="POC"
+                optionLabel="BOC"
+              />
+            ))}
+          </div>
+        )}
+      </AssignmentCard>
+    </>
+  )
+})
+
+AssignmentSections.displayName = 'AssignmentSections'
+
+// Editable item component for metadata editing
+const EditableItem = memo(({
+  id,
+  name,
+  onUpdate,
+  label,
+}: {
+  id: string
+  name: string
+  onUpdate: (name: string) => void
+  label: string
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(name)
+
+  const handleSave = () => {
+    if (editValue.trim() && editValue.trim() !== name) {
+      onUpdate(editValue.trim())
+    }
+    setIsEditing(false)
+    setEditValue(name)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(name)
+  }
+
+  return (
+    <div
+      style={{
+        padding: '0.75rem',
+        backgroundColor: 'var(--bg-tertiary)',
+        borderRadius: '6px',
+        border: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem',
+      }}
+    >
+      <div style={{ flex: 1 }}>
+        <div
+          style={{
+            fontSize: '0.7rem',
+            color: 'var(--text-secondary)',
+            textTransform: 'uppercase',
+            marginBottom: '0.25rem',
+          }}
+        >
+          {label}
+        </div>
+        {isEditing ? (
+          <input
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSave()
+              } else if (e.key === 'Escape') {
+                handleCancel()
+              }
+            }}
+            autoFocus
+            style={{
+              width: '100%',
+              padding: '0.4rem 0.5rem',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--accent)',
+              borderRadius: '4px',
+              color: 'var(--text-primary)',
+              fontSize: '0.9rem',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              fontSize: '0.95rem',
+              fontWeight: '500',
+              color: 'var(--text-primary)',
+            }}
+          >
+            {name}
+          </div>
+        )}
+      </div>
+      {isEditing ? (
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            onClick={handleSave}
+            style={{
+              padding: '0.35rem',
+              backgroundColor: 'var(--success)',
+              border: 'none',
+              borderRadius: '4px',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            title="Save"
+          >
+            <Check size={16} />
+          </button>
+          <button
+            onClick={handleCancel}
+            style={{
+              padding: '0.35rem',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            title="Cancel"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setIsEditing(true)}
+          style={{
+            padding: '0.35rem',
+            backgroundColor: 'var(--bg-primary)',
+            border: '1px solid var(--border)',
+            borderRadius: '4px',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+          }}
+          title="Edit"
+        >
+          <Edit size={16} />
+        </button>
+      )}
+    </div>
+  )
+})
+
+EditableItem.displayName = 'EditableItem'
+
 export default function Management() {
   const {
     bocs,
     pocs,
     launchers,
+    pods,
+    rsvs,
     taskTemplates,
     assignLauncherToPOC,
     assignPOCToBOC,
@@ -385,6 +684,12 @@ export default function Management() {
     deleteTaskTemplate,
     startTaskFromTemplate,
     startTaskFromTemplateForPOC,
+    cancelTask,
+    updateBOC,
+    updatePOC,
+    updateLauncher,
+    updatePod,
+    updateRSV,
   } = useAppData()
   
   const { taskProgress } = useProgress()
@@ -418,53 +723,10 @@ export default function Management() {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  const AssignmentCard = memo(({
-    title,
-    icon: Icon,
-    children,
-  }: {
-    title: string
-    icon?: any
-    children: React.ReactNode
-  }) => (
-    <div
-      style={{
-        backgroundColor: 'var(--bg-secondary)',
-        border: '1px solid var(--border)',
-        borderRadius: '8px',
-        padding: '1.5rem',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          marginBottom: '1.5rem',
-        }}
-      >
-        {Icon && <Icon size={24} color="var(--accent)" />}
-        <h2
-          style={{
-            fontSize: '1.25rem',
-            fontWeight: 'bold',
-            color: 'var(--text-primary)',
-          }}
-        >
-          {title}
-        </h2>
-      </div>
-      {children}
-    </div>
-  ))
-
-  AssignmentCard.displayName = 'AssignmentCard'
-
   // Memoize arrays to prevent re-renders
-  const bocsMemo = useMemo(() => bocs, [bocs])
-  const pocsMemo = useMemo(() => pocs, [pocs])
-  const launchersMemo = useMemo(() => launchers, [launchers])
   const taskTemplatesMemo = useMemo(() => taskTemplates, [taskTemplates])
+  const launchersMemo = useMemo(() => launchers, [launchers])
+  const pocsMemo = useMemo(() => pocs, [pocs])
 
   const handleAddRSV = useCallback(
     (data: { name: string }) => {
@@ -712,6 +974,7 @@ export default function Management() {
                       taskId={launcher.currentTask.id}
                       taskName={launcher.currentTask.name}
                       taskProgress={taskProgress}
+                      onCancel={cancelTask}
                     />
                   ) : (
                     <div>
@@ -1013,71 +1276,131 @@ export default function Management() {
           )}
         </AssignmentCard>
 
-        <AssignmentCard title="Assign Launchers to POCs" icon={Target}>
-          <div
-            style={{
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
-              marginBottom: '1rem',
-              fontStyle: 'italic',
-            }}
-          >
-            Platoon Operations Center (PLT FDC)
-          </div>
-          {launchersMemo.length === 0 || pocsMemo.length === 0 ? (
-            <p style={{ color: 'var(--text-secondary)' }}>
-              Create launchers and POCs in Inventory first
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {launchersMemo.map((launcher) => (
-                <AssignmentItem
-                  key={launcher.id}
-                  item={launcher}
-                  options={pocsMemo}
-                  currentValue={launcher.pocId}
-                  onAssign={assignLauncherToPOC}
-                  onUnassign={(id) => assignLauncherToPOC(id, '')}
-                  itemLabel="Launcher"
-                  optionLabel="POC"
-                />
-              ))}
-            </div>
-          )}
-        </AssignmentCard>
+        <AssignmentSections />
 
-        <AssignmentCard title="Assign POCs to BOCs" icon={Target}>
-          <div
-            style={{
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
-              marginBottom: '1rem',
-              fontStyle: 'italic',
-            }}
-          >
-            Battery Operations Center (FDC)
-          </div>
-          {pocsMemo.length === 0 || bocsMemo.length === 0 ? (
-            <p style={{ color: 'var(--text-secondary)' }}>
-              Create POCs and BOCs in Inventory first
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {pocsMemo.map((poc) => (
-                <AssignmentItem
-                  key={poc.id}
-                  item={poc}
-                  options={bocsMemo}
-                  currentValue={poc.bocId}
-                  onAssign={assignPOCToBOC}
-                  onUnassign={(id) => assignPOCToBOC(id, '')}
-                  itemLabel="POC"
-                  optionLabel="BOC"
-                />
-              ))}
+        {/* Metadata Editing Section */}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <AssignmentCard title="Edit Metadata" icon={FileText}>
+            <div
+              style={{
+                fontSize: '0.85rem',
+                color: 'var(--text-secondary)',
+                marginBottom: '1.5rem',
+                fontStyle: 'italic',
+              }}
+            >
+              Edit names and metadata for all objects
             </div>
-          )}
-        </AssignmentCard>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {/* BOCs */}
+              {bocs.length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    BOCs ({bocs.length})
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {bocs.map((boc) => (
+                      <EditableItem
+                        key={boc.id}
+                        id={boc.id}
+                        name={boc.name}
+                        onUpdate={(name) => updateBOC(boc.id, { name })}
+                        label="BOC"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* POCs */}
+              {pocs.length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    POCs ({pocs.length})
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {pocs.map((poc) => (
+                      <EditableItem
+                        key={poc.id}
+                        id={poc.id}
+                        name={poc.name}
+                        onUpdate={(name) => updatePOC(poc.id, { name })}
+                        label="POC"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Launchers */}
+              {launchers.length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    Launchers ({launchers.length})
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {launchers.map((launcher) => (
+                      <EditableItem
+                        key={launcher.id}
+                        id={launcher.id}
+                        name={launcher.name}
+                        onUpdate={(name) => updateLauncher(launcher.id, { name })}
+                        label="Launcher"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pods */}
+              {pods.length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    Pods ({pods.length})
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {pods.map((pod) => (
+                      <EditableItem
+                        key={pod.id}
+                        id={pod.id}
+                        name={pod.name}
+                        onUpdate={(name) => updatePod(pod.id, { name })}
+                        label="Pod"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* RSVs */}
+              {rsvs.length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                    RSVs ({rsvs.length})
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {rsvs.map((rsv) => (
+                      <EditableItem
+                        key={rsv.id}
+                        id={rsv.id}
+                        name={rsv.name}
+                        onUpdate={(name) => updateRSV(rsv.id, { name })}
+                        label="RSV"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {bocs.length === 0 && pocs.length === 0 && launchers.length === 0 && pods.length === 0 && rsvs.length === 0 && (
+                <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center', padding: '2rem' }}>
+                  No objects to edit. Create objects in the Inventory page first.
+                </p>
+              )}
+            </div>
+          </AssignmentCard>
+        </div>
 
         {/* RSV Management - Full Width */}
         <div style={{ gridColumn: '1 / -1' }}>

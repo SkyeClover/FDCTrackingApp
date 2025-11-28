@@ -625,6 +625,27 @@ export default function Settings() {
           </div>
         </div>
       </div>
+      
+      {/* Credit */}
+      <div
+        style={{
+          marginTop: '3rem',
+          paddingTop: '2rem',
+          borderTop: '1px solid var(--border)',
+          textAlign: 'center',
+        }}
+      >
+        <p
+          style={{
+            fontSize: '0.75rem',
+            color: 'var(--text-secondary)',
+            margin: 0,
+            opacity: 0.6,
+          }}
+        >
+          Created by Jacob Walker
+        </p>
+      </div>
     </div>
   )
 }

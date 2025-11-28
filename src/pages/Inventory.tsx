@@ -537,6 +537,7 @@ export default function Inventory() {
       const quantity = data.quantity || 1
       const roundCount = data.roundCount || 0
       const roundType = data.roundType || 'M28A1'
+      const AMMO_PLT_ID = 'ammo-plt-1'
       
       for (let i = 0; i < quantity; i++) {
         const podName = quantity > 1 ? `${data.name} ${i + 1}` : data.name
@@ -552,9 +553,10 @@ export default function Inventory() {
           uuid: crypto.randomUUID(),
           name: podName,
           rounds: newRounds,
+          ammoPltId: AMMO_PLT_ID, // Assign to ammo plt by default
         }
         addPod(newPod)
-        // Assign to POC if specified
+        // Assign to POC if specified (this will override ammo plt assignment)
         if (data.pocId) {
           assignPodToPOC(timestamp.toString(), data.pocId)
         }
