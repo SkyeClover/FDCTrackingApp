@@ -1,7 +1,7 @@
 import { useState, useMemo, memo, useCallback } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { useProgress } from '../context/ProgressContext'
-import { Plus, Trash2, Edit, X, Check, Rocket, Target, FileText } from 'lucide-react'
+import { Plus, Trash2, Edit, X, Check, Rocket, Target } from 'lucide-react'
 import { TaskTemplate } from '../types'
 import RSVsManagement from '../components/RSVsManagement'
 
@@ -523,156 +523,11 @@ const AssignmentSections = memo(() => {
 
 AssignmentSections.displayName = 'AssignmentSections'
 
-// Editable item component for metadata editing
-const EditableItem = memo(({
-  name,
-  onUpdate,
-  label,
-}: {
-  name: string
-  onUpdate: (name: string) => void
-  label: string
-}) => {
-  const [isEditing, setIsEditing] = useState(false)
-  const [editValue, setEditValue] = useState(name)
-
-  const handleSave = () => {
-    if (editValue.trim() && editValue.trim() !== name) {
-      onUpdate(editValue.trim())
-    }
-    setIsEditing(false)
-    setEditValue(name)
-  }
-
-  const handleCancel = () => {
-    setIsEditing(false)
-    setEditValue(name)
-  }
-
-  return (
-    <div
-      style={{
-        padding: '0.75rem',
-        backgroundColor: 'var(--bg-tertiary)',
-        borderRadius: '6px',
-        border: '1px solid var(--border)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
-      }}
-    >
-      <div style={{ flex: 1 }}>
-        <div
-          style={{
-            fontSize: '0.7rem',
-            color: 'var(--text-secondary)',
-            textTransform: 'uppercase',
-            marginBottom: '0.25rem',
-          }}
-        >
-          {label}
-        </div>
-        {isEditing ? (
-          <input
-            type="text"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleSave()
-              } else if (e.key === 'Escape') {
-                handleCancel()
-              }
-            }}
-            autoFocus
-            style={{
-              width: '100%',
-              padding: '0.4rem 0.5rem',
-              backgroundColor: 'var(--bg-primary)',
-              border: '1px solid var(--accent)',
-              borderRadius: '4px',
-              color: 'var(--text-primary)',
-              fontSize: '0.9rem',
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              fontSize: '0.95rem',
-              fontWeight: '500',
-              color: 'var(--text-primary)',
-            }}
-          >
-            {name}
-          </div>
-        )}
-      </div>
-      {isEditing ? (
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={handleSave}
-            style={{
-              padding: '0.35rem',
-              backgroundColor: 'var(--success)',
-              border: 'none',
-              borderRadius: '4px',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-            title="Save"
-          >
-            <Check size={16} />
-          </button>
-          <button
-            onClick={handleCancel}
-            style={{
-              padding: '0.35rem',
-              backgroundColor: 'var(--bg-primary)',
-              border: '1px solid var(--border)',
-              borderRadius: '4px',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-            title="Cancel"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={() => setIsEditing(true)}
-          style={{
-            padding: '0.35rem',
-            backgroundColor: 'var(--bg-primary)',
-            border: '1px solid var(--border)',
-            borderRadius: '4px',
-            color: 'var(--text-primary)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-          }}
-          title="Edit"
-        >
-          <Edit size={16} />
-        </button>
-      )}
-    </div>
-  )
-})
-
-EditableItem.displayName = 'EditableItem'
-
 export default function Management() {
   const {
     bocs,
     pocs,
     launchers,
-    pods,
-    rsvs,
     taskTemplates,
     addRSV,
     addTaskTemplate,
@@ -681,11 +536,6 @@ export default function Management() {
     startTaskFromTemplate,
     startTaskFromTemplateForPOC,
     cancelTask,
-    updateBOC,
-    updatePOC,
-    updateLauncher,
-    updatePod,
-    updateRSV,
   } = useAppData()
   
   const { taskProgress } = useProgress()
@@ -1273,125 +1123,6 @@ export default function Management() {
         </AssignmentCard>
 
         <AssignmentSections />
-
-        {/* Metadata Editing Section */}
-        <div style={{ gridColumn: '1 / -1' }}>
-          <AssignmentCard title="Edit Metadata" icon={FileText}>
-            <div
-              style={{
-                fontSize: '0.85rem',
-                color: 'var(--text-secondary)',
-                marginBottom: '1.5rem',
-                fontStyle: 'italic',
-              }}
-            >
-              Edit names and metadata for all objects
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              {/* BOCs */}
-              {bocs.length > 0 && (
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                    BOCs ({bocs.length})
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {bocs.map((boc) => (
-                      <EditableItem
-                        key={boc.id}
-                        name={boc.name}
-                        onUpdate={(name) => updateBOC(boc.id, { name })}
-                        label="BOC"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* POCs */}
-              {pocs.length > 0 && (
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                    POCs ({pocs.length})
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {pocs.map((poc) => (
-                      <EditableItem
-                        key={poc.id}
-                        name={poc.name}
-                        onUpdate={(name) => updatePOC(poc.id, { name })}
-                        label="POC"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Launchers */}
-              {launchers.length > 0 && (
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                    Launchers ({launchers.length})
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {launchers.map((launcher) => (
-                      <EditableItem
-                        key={launcher.id}
-                        name={launcher.name}
-                        onUpdate={(name) => updateLauncher(launcher.id, { name })}
-                        label="Launcher"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Pods */}
-              {pods.length > 0 && (
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                    Pods ({pods.length})
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {pods.map((pod) => (
-                      <EditableItem
-                        key={pod.id}
-                        name={pod.name}
-                        onUpdate={(name) => updatePod(pod.id, { name })}
-                        label="Pod"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* RSVs */}
-              {rsvs.length > 0 && (
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                    RSVs ({rsvs.length})
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {rsvs.map((rsv) => (
-                      <EditableItem
-                        key={rsv.id}
-                        name={rsv.name}
-                        onUpdate={(name) => updateRSV(rsv.id, { name })}
-                        label="RSV"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {bocs.length === 0 && pocs.length === 0 && launchers.length === 0 && pods.length === 0 && rsvs.length === 0 && (
-                <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center', padding: '2rem' }}>
-                  No objects to edit. Create objects in the Inventory page first.
-                </p>
-              )}
-            </div>
-          </AssignmentCard>
-        </div>
 
         {/* RSV Management - Full Width */}
         <div style={{ gridColumn: '1 / -1' }}>

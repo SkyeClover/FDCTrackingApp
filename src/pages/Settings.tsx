@@ -1,14 +1,121 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { useAppData } from '../context/AppDataContext'
-import { Plus, Trash2, Check, X as XIcon } from 'lucide-react'
+import { Plus, Trash2, Check, X as XIcon, Edit, ChevronDown, ChevronUp, Bug } from 'lucide-react'
 import { getAllRoundTypeOptions } from '../constants/roundTypes'
 
+// Compact editable item component for debug section
+const CompactEditableItem = memo(({
+  name,
+  onUpdate,
+}: {
+  name: string
+  onUpdate: (name: string) => void
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(name)
+
+  const handleSave = () => {
+    if (editValue.trim() && editValue.trim() !== name) {
+      onUpdate(editValue.trim())
+    }
+    setIsEditing(false)
+    setEditValue(name)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(name)
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0' }}>
+      {isEditing ? (
+        <>
+          <input
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSave()
+              else if (e.key === 'Escape') handleCancel()
+            }}
+            autoFocus
+            style={{
+              flex: 1,
+              padding: '0.25rem 0.5rem',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--accent)',
+              borderRadius: '4px',
+              color: 'var(--text-primary)',
+              fontSize: '0.85rem',
+            }}
+          />
+          <button
+            onClick={handleSave}
+            style={{
+              padding: '0.25rem',
+              backgroundColor: 'var(--success)',
+              border: 'none',
+              borderRadius: '3px',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            title="Save"
+          >
+            <Check size={12} />
+          </button>
+          <button
+            onClick={handleCancel}
+            style={{
+              padding: '0.25rem',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: '3px',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            title="Cancel"
+          >
+            <XIcon size={12} />
+          </button>
+        </>
+      ) : (
+        <>
+          <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-primary)' }}>{name}</span>
+          <button
+            onClick={() => setIsEditing(true)}
+            style={{
+              padding: '0.25rem',
+              backgroundColor: 'transparent',
+              border: 'none',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            title="Edit"
+          >
+            <Edit size={12} />
+          </button>
+        </>
+      )}
+    </div>
+  )
+})
+
+CompactEditableItem.displayName = 'CompactEditableItem'
+
 export default function Settings() {
-  const { currentUserRole, bocs, pocs, setCurrentUserRole, roundTypes, addRoundType, updateRoundType, deleteRoundType } = useAppData()
+  const { currentUserRole, bocs, pocs, launchers, pods, rsvs, setCurrentUserRole, roundTypes, addRoundType, updateRoundType, deleteRoundType, updateBOC, updatePOC, updateLauncher, updatePod, updateRSV } = useAppData()
   const [selectedRoleType, setSelectedRoleType] = useState<'boc' | 'poc' | ''>('')
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
   const [newRoundTypeName, setNewRoundTypeName] = useState('')
   const [showAddRoundType, setShowAddRoundType] = useState(false)
+  const [showDebugSection, setShowDebugSection] = useState(false)
 
   const handleRoleChange = () => {
     if (!selectedRoleType || !selectedRoleId) return
@@ -626,10 +733,147 @@ export default function Settings() {
         </div>
       </div>
       
-      {/* Credit */}
+      {/* Debug Section - Collapsible */}
       <div
         style={{
           marginTop: '3rem',
+          paddingTop: '2rem',
+          borderTop: '1px solid var(--border)',
+        }}
+      >
+        <button
+          onClick={() => setShowDebugSection(!showDebugSection)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.75rem',
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontSize: '0.85rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Bug size={16} />
+            <span>Debug: Edit Metadata</span>
+          </div>
+          {showDebugSection ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+
+        {showDebugSection && (
+          <div
+            style={{
+              marginTop: '1rem',
+              padding: '1rem',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              fontSize: '0.8rem',
+            }}
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+              {/* BOCs */}
+              {bocs.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                    BOCs ({bocs.length})
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {bocs.map((boc) => (
+                      <CompactEditableItem
+                        key={boc.id}
+                        name={boc.name}
+                        onUpdate={(name) => updateBOC(boc.id, { name })}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* POCs */}
+              {pocs.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                    POCs ({pocs.length})
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {pocs.map((poc) => (
+                      <CompactEditableItem
+                        key={poc.id}
+                        name={poc.name}
+                        onUpdate={(name) => updatePOC(poc.id, { name })}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Launchers */}
+              {launchers.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                    Launchers ({launchers.length})
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '200px', overflowY: 'auto' }}>
+                    {launchers.map((launcher) => (
+                      <CompactEditableItem
+                        key={launcher.id}
+                        name={launcher.name}
+                        onUpdate={(name) => updateLauncher(launcher.id, { name })}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pods */}
+              {pods.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                    Pods ({pods.length})
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '200px', overflowY: 'auto' }}>
+                    {pods.map((pod) => (
+                      <CompactEditableItem
+                        key={pod.id}
+                        name={pod.name}
+                        onUpdate={(name) => updatePod(pod.id, { name })}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* RSVs */}
+              {rsvs.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                    RSVs ({rsvs.length})
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {rsvs.map((rsv) => (
+                      <CompactEditableItem
+                        key={rsv.id}
+                        name={rsv.name}
+                        onUpdate={(name) => updateRSV(rsv.id, { name })}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Credit */}
+      <div
+        style={{
+          marginTop: '2rem',
           paddingTop: '2rem',
           borderTop: '1px solid var(--border)',
           textAlign: 'center',
