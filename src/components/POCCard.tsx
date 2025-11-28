@@ -1,7 +1,9 @@
 import { POC, Launcher, Pod, RSV, BOC, RoundType } from '../types'
 import LauncherCard from './LauncherCard'
 import { Truck } from 'lucide-react'
-import { ROUND_TYPE_OPTIONS } from '../constants/roundTypes'
+import { useAppData } from '../context/AppDataContext'
+import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
+import { useMemo } from 'react'
 
 interface POCCardProps {
   poc: POC
@@ -22,6 +24,8 @@ export default function POCCard({
   onReload,
   onClick,
 }: POCCardProps) {
+  const { roundTypes } = useAppData()
+  const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
   const pocLaunchers = launchers.filter((l) => l.pocId === poc.id)
   
   // Get RSV's assigned to this POC, or to the POC's BOC (battery level slants)
@@ -35,9 +39,14 @@ export default function POCCard({
     return false
   })
   
-  // Get pods on RSV's assigned to this POC
+  // Get pods on RSV's assigned to this POC, or directly assigned to Ammo PLT
   const podsOnRSVs = pods.filter((p) => {
-    if (!p.rsvId || p.launcherId) return false
+    if (p.launcherId) return false
+    
+    // Pod directly assigned to Ammo PLT (available to all)
+    if (p.ammoPltId) return true
+    
+    if (!p.rsvId) return false
     const rsv = rsvs.find((r) => r.id === p.rsvId)
     if (!rsv) return false
     if (rsv.pocId === poc.id) return true
@@ -95,7 +104,6 @@ export default function POCCard({
           justifyContent: 'space-between',
           alignItems: 'center',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         <h3
           style={{
@@ -117,7 +125,6 @@ export default function POCCard({
             borderRadius: '6px',
             border: '1px solid var(--border)',
           }}
-          onClick={(e) => e.stopPropagation()}
         >
           <div
             style={{
@@ -135,12 +142,26 @@ export default function POCCard({
           </div>
           <div
             style={{
+              fontSize: '0.7rem',
+              color: 'var(--text-secondary)',
+              marginBottom: '0.5rem',
+            }}
+          >
+            {pocRSVs.map((rsv, idx) => (
+              <span key={rsv.id}>
+                {rsv.name}
+                {idx < pocRSVs.length - 1 ? ', ' : ''}
+              </span>
+            ))}
+          </div>
+          <div
+            style={{
               display: 'flex',
               flexWrap: 'wrap',
               gap: '0.5rem',
             }}
           >
-            {ROUND_TYPE_OPTIONS.map((option) => {
+            {roundTypeOptions.map((option) => {
               const count = podsByRoundType[option.value]
               if (count === 0) return null
               return (
@@ -185,6 +206,7 @@ export default function POCCard({
             gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
             gap: '0.75rem',
           }}
+          onClick={(e) => e.stopPropagation()}
         >
           {pocLaunchers.map((launcher) => {
             const pod = pods.find((p) => p.launcherId === launcher.id)

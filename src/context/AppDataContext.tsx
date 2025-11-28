@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react'
-import { BOC, POC, Launcher, Pod, RSV, Round, Task, TaskTemplate, LogEntry, AppState } from '../types'
+import { BOC, POC, Launcher, Pod, RSV, Round, Task, TaskTemplate, LogEntry, AppState, CurrentUserRole, RoundTypeConfig } from '../types'
 import {
   saveToLocalStorage,
   loadFromLocalStorage,
@@ -18,23 +18,31 @@ interface AppDataContextType {
   tasks: Task[]
   taskTemplates: TaskTemplate[]
   logs: LogEntry[]
+  roundTypes: Record<string, RoundTypeConfig>
   addBOC: (boc: BOC) => void
   addPOC: (poc: POC) => void
   addLauncher: (launcher: Launcher) => void
   addPod: (pod: Pod) => void
   addRSV: (rsv: RSV) => void
+  deleteBOC: (bocId: string) => void
+  deletePOC: (pocId: string) => void
+  deleteLauncher: (launcherId: string) => void
+  deletePod: (podId: string) => void
+  deleteRSV: (rsvId: string) => void
   addRound: (round: Round) => void
   addTask: (task: Task) => void
   addTaskTemplate: (template: TaskTemplate) => void
   updateTaskTemplate: (id: string, updates: Partial<TaskTemplate>) => void
   deleteTaskTemplate: (id: string) => void
   startTaskFromTemplate: (templateId: string, launcherId: string) => void
+  startTaskFromTemplateForPOC: (templateId: string, pocId: string) => void
   updateLauncher: (id: string, updates: Partial<Launcher>) => void
   updatePod: (id: string, updates: Partial<Pod>) => void
   updateRSV: (id: string, updates: Partial<RSV>) => void
   assignPodToPOC: (podId: string, pocId: string) => void
   assignPodToRSV: (podId: string, rsvId: string) => void
   assignPodToLauncher: (podId: string, launcherId: string) => void
+  assignPodToAmmoPlt: (podId: string, ammoPltId: string) => void
   assignLauncherToPOC: (launcherId: string, pocId: string) => void
   assignPOCToBOC: (pocId: string, bocId: string) => void
   assignRSVToPOC: (rsvId: string, pocId: string) => void
@@ -50,6 +58,11 @@ interface AppDataContextType {
   loadFromFile: (file: File) => Promise<void>
   clearAllData: () => void
   addLog: (entry: Omit<LogEntry, 'id' | 'timestamp'>) => void
+  currentUserRole?: CurrentUserRole
+  setCurrentUserRole: (role: CurrentUserRole) => void
+  addRoundType: (name: string) => void
+  updateRoundType: (name: string, enabled: boolean) => void
+  deleteRoundType: (name: string) => void
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined)
@@ -113,6 +126,27 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     }))
   }, [])
 
+  // Validate currentUserRole - clear it if the referenced BOC/POC no longer exists
+  useEffect(() => {
+    if (!state.currentUserRole) return
+    
+    const { type, id } = state.currentUserRole
+    const exists = type === 'boc' 
+      ? state.bocs.some((b) => b.id === id)
+      : state.pocs.some((p) => p.id === id)
+    
+    if (!exists) {
+      setState((prev) => ({
+        ...prev,
+        currentUserRole: undefined,
+      }))
+      addLog({ 
+        type: 'warning', 
+        message: 'Your assigned role was cleared because the referenced unit no longer exists' 
+      })
+    }
+  }, [state.bocs.length, state.pocs.length, state.currentUserRole?.id, addLog])
+
   const addBOC = useCallback((boc: BOC) => {
     setState((prev) => ({ ...prev, bocs: [...prev.bocs, boc] }))
     addLog({ type: 'info', message: `BOC "${boc.name}" created` })
@@ -124,7 +158,11 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   }, [addLog])
 
   const addLauncher = useCallback((launcher: Launcher) => {
-    setState((prev) => ({ ...prev, launchers: [...prev.launchers, launcher] }))
+    // Set lastIdleTime if launcher is created in idle state
+    const launcherWithIdleTime = launcher.status === 'idle' && !launcher.lastIdleTime
+      ? { ...launcher, lastIdleTime: new Date() }
+      : launcher
+    setState((prev) => ({ ...prev, launchers: [...prev.launchers, launcherWithIdleTime] }))
     addLog({ type: 'info', message: `Launcher "${launcher.name}" created` })
   }, [addLog])
 
@@ -136,6 +174,166 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   const addRSV = useCallback((rsv: RSV) => {
     setState((prev) => ({ ...prev, rsvs: [...prev.rsvs, rsv] }))
     addLog({ type: 'info', message: `RSV "${rsv.name}" created` })
+  }, [addLog])
+
+  const deleteBOC = useCallback((bocId: string) => {
+    setState((prev) => {
+      const boc = prev.bocs.find((b) => b.id === bocId)
+      if (!boc) return prev
+
+      // Unassign all POCs from this BOC
+      const updatedPOCs = prev.pocs.map((poc) => 
+        poc.bocId === bocId ? { ...poc, bocId: undefined } : poc
+      )
+
+      // Clear currentUserRole if user is assigned to this BOC
+      const updatedUserRole = prev.currentUserRole?.type === 'boc' && prev.currentUserRole?.id === bocId
+        ? undefined
+        : prev.currentUserRole
+
+      addLog({ type: 'info', message: `BOC "${boc.name}" deleted` })
+      if (updatedUserRole !== prev.currentUserRole) {
+        addLog({ type: 'warning', message: 'Your assigned role was cleared because the BOC was deleted' })
+      }
+
+      return {
+        ...prev,
+        bocs: prev.bocs.filter((b) => b.id !== bocId),
+        pocs: updatedPOCs,
+        currentUserRole: updatedUserRole,
+      }
+    })
+  }, [addLog])
+
+  const deletePOC = useCallback((pocId: string) => {
+    setState((prev) => {
+      const poc = prev.pocs.find((p) => p.id === pocId)
+      if (!poc) return prev
+
+      // Unassign all launchers from this POC
+      const updatedLaunchers = prev.launchers.map((launcher) =>
+        launcher.pocId === pocId ? { ...launcher, pocId: undefined } : launcher
+      )
+
+      // Unassign all pods from this POC
+      const updatedPods = prev.pods.map((pod) =>
+        pod.pocId === pocId ? { ...pod, pocId: undefined } : pod
+      )
+
+      // Unassign all RSVs from this POC
+      const updatedRSVs = prev.rsvs.map((rsv) =>
+        rsv.pocId === pocId ? { ...rsv, pocId: undefined } : rsv
+      )
+
+      // Clear currentUserRole if user is assigned to this POC
+      const updatedUserRole = prev.currentUserRole?.type === 'poc' && prev.currentUserRole?.id === pocId
+        ? undefined
+        : prev.currentUserRole
+
+      addLog({ type: 'info', message: `POC "${poc.name}" deleted` })
+      if (updatedUserRole !== prev.currentUserRole) {
+        addLog({ type: 'warning', message: 'Your assigned role was cleared because the POC was deleted' })
+      }
+
+      return {
+        ...prev,
+        pocs: prev.pocs.filter((p) => p.id !== pocId),
+        launchers: updatedLaunchers,
+        pods: updatedPods,
+        rsvs: updatedRSVs,
+        currentUserRole: updatedUserRole,
+      }
+    })
+  }, [addLog])
+
+  const deleteLauncher = useCallback((launcherId: string) => {
+    setState((prev) => {
+      const launcher = prev.launchers.find((l) => l.id === launcherId)
+      if (!launcher) return prev
+
+      // Unassign pod from launcher (return to POC inventory)
+      const updatedPods = prev.pods.map((pod) => {
+        if (pod.launcherId === launcherId) {
+          return {
+            ...pod,
+            launcherId: undefined,
+            pocId: launcher.pocId, // Return to POC if it had one
+          }
+        }
+        return pod
+      })
+
+      // Cancel any active tasks on this launcher
+      const updatedTasks = prev.tasks.map((task) => {
+        if (task.launcherIds?.includes(launcherId) && task.status === 'in-progress') {
+          // Stop the task
+          const interval = intervalsRef.current.get(task.id)
+          if (interval) {
+            clearInterval(interval)
+            intervalsRef.current.delete(task.id)
+          }
+          if (removeProgress) {
+            removeProgress(task.id)
+          }
+          return { ...task, status: 'completed' as const, progress: 100 }
+        }
+        return task
+      })
+
+      addLog({ type: 'info', message: `Launcher "${launcher.name}" deleted` })
+
+      return {
+        ...prev,
+        launchers: prev.launchers.filter((l) => l.id !== launcherId),
+        pods: updatedPods,
+        tasks: updatedTasks,
+      }
+    })
+  }, [addLog, removeProgress])
+
+  const deletePod = useCallback((podId: string) => {
+    setState((prev) => {
+      const pod = prev.pods.find((p) => p.id === podId)
+      if (!pod) return prev
+
+      // Remove all rounds associated with this pod
+      const roundIds = pod.rounds.map((r) => r.id)
+      const updatedRounds = prev.rounds.filter((r) => !roundIds.includes(r.id))
+
+      // Unassign pod from launcher if it's on one
+      const updatedLaunchers = prev.launchers.map((launcher) =>
+        launcher.podId === podId ? { ...launcher, podId: undefined } : launcher
+      )
+
+      addLog({ type: 'info', message: `Pod "${pod.name}" deleted` })
+
+      return {
+        ...prev,
+        pods: prev.pods.filter((p) => p.id !== podId),
+        rounds: updatedRounds,
+        launchers: updatedLaunchers,
+      }
+    })
+  }, [addLog])
+
+  const deleteRSV = useCallback((rsvId: string) => {
+    setState((prev) => {
+      const rsv = prev.rsvs.find((r) => r.id === rsvId)
+      if (!rsv) return prev
+
+      // Unassign all pods from this RSV
+      const updatedPods = prev.pods.map((pod) =>
+        pod.rsvId === rsvId ? { ...pod, rsvId: undefined } : pod
+      )
+
+      addLog({ type: 'info', message: `RSV "${rsv.name}" deleted` })
+
+      return {
+        ...prev,
+        rsvs: prev.rsvs.filter((r) => r.id !== rsvId),
+        pods: updatedPods,
+      }
+    })
   }, [addLog])
 
   const addRound = useCallback((round: Round) => {
@@ -245,6 +443,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
                     ...l,
                     status: 'idle' as const,
                     currentTask: undefined,
+                    lastIdleTime: new Date(),
                   }
                 }
                 return l
@@ -271,6 +470,133 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
                 ...l,
                 currentTask: newTask,
                 status: 'active' as const,
+                // Clear lastIdleTime when task starts
+                lastIdleTime: undefined,
+              }
+            }
+            return l
+          }),
+        }
+      })
+    },
+    [addLog]
+  )
+
+  const startTaskFromTemplateForPOC = useCallback(
+    (templateId: string, pocId: string) => {
+      setState((prev) => {
+        const template = prev.taskTemplates.find((t) => t.id === templateId)
+        if (!template) return prev
+
+        const poc = prev.pocs.find((p) => p.id === pocId)
+        if (!poc) return prev
+
+        // Get all launchers in this POC
+        const pocLaunchers = prev.launchers.filter((l) => l.pocId === pocId)
+        if (pocLaunchers.length === 0) {
+          addLog({
+            type: 'warning',
+            message: `No launchers found in POC "${poc.name}"`,
+          })
+          return prev
+        }
+
+        // Create a single task for the POC
+        const newTask: Task = {
+          id: Date.now().toString(),
+          name: template.name,
+          description: template.description,
+          status: 'in-progress',
+          progress: 0,
+          startTime: new Date(),
+          duration: template.duration,
+          templateId: template.id,
+          pocIds: [pocId],
+          launcherIds: pocLaunchers.map((l) => l.id),
+        }
+
+        addLog({
+          type: 'success',
+          message: `Task "${template.name}" started on POC "${poc.name}" (${pocLaunchers.length} launchers)`,
+        })
+
+        // Start progress timer - use separate progress state to avoid re-renders
+        const interval = setInterval(() => {
+          const currentState = stateRef.current
+          const task = currentState.tasks.find((t) => t.id === newTask.id)
+          if (!task || task.status === 'completed') {
+            const intervalToClear = intervalsRef.current.get(newTask.id)
+            if (intervalToClear) {
+              clearInterval(intervalToClear)
+              intervalsRef.current.delete(newTask.id)
+            }
+            if (removeProgress) {
+              removeProgress(newTask.id)
+            }
+            return
+          }
+
+          const elapsed = task.startTime
+            ? (Date.now() - task.startTime.getTime()) / 1000
+            : 0
+          const progress = Math.min(100, (elapsed / (task.duration || 168)) * 100)
+
+          // Update progress via callback (doesn't trigger full context re-render)
+          if (updateProgress) {
+            updateProgress(newTask.id, progress)
+          }
+
+          if (progress >= 100) {
+            const intervalToClear = intervalsRef.current.get(newTask.id)
+            if (intervalToClear) {
+              clearInterval(intervalToClear)
+              intervalsRef.current.delete(newTask.id)
+            }
+            if (removeProgress) {
+              removeProgress(newTask.id)
+            }
+            
+            // Complete the task - update main state
+            setState((state) => {
+              const updatedLaunchers = state.launchers.map((l) => {
+                if (l.currentTask?.id === newTask.id) {
+                  addLog({
+                    type: 'success',
+                    message: `Task "${task.name}" completed on launcher "${l.name}"`,
+                  })
+                  return {
+                    ...l,
+                    status: 'idle' as const,
+                    currentTask: undefined,
+                    lastIdleTime: new Date(),
+                  }
+                }
+                return l
+              })
+              return {
+                ...state,
+                tasks: state.tasks.map((t) =>
+                  t.id === newTask.id ? { ...t, status: 'completed' as const, progress: 100 } : t
+                ),
+                launchers: updatedLaunchers,
+              }
+            })
+          }
+        }, 500) // Update every 500ms to reduce frequency
+        
+        intervalsRef.current.set(newTask.id, interval)
+
+        return {
+          ...prev,
+          tasks: [...prev.tasks, newTask],
+          launchers: prev.launchers.map((l) => {
+            if (l.pocId === pocId && l.status !== 'maintenance') {
+              return {
+                ...l,
+                currentTask: newTask,
+                status: 'active' as const,
+                // Clear lastIdleTime when task starts
+                lastIdleTime: undefined,
               }
             }
             return l
@@ -353,7 +679,33 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
 
       return {
         ...prev,
-        pods: prev.pods.map((p) => (p.id === podId ? { ...p, rsvId } : p)),
+        pods: prev.pods.map((p) => (p.id === podId ? { ...p, rsvId, pocId: undefined, ammoPltId: undefined } : p)),
+      }
+    })
+  }, [addLog])
+
+  const assignPodToAmmoPlt = useCallback((podId: string, ammoPltId: string) => {
+    setState((prev) => {
+      const pod = prev.pods.find((p) => p.id === podId)
+      
+      if (!ammoPltId) {
+        // Unassign pod from Ammo PLT
+        return {
+          ...prev,
+          pods: prev.pods.map((p) => (p.id === podId ? { ...p, ammoPltId: undefined } : p)),
+        }
+      }
+
+      if (pod) {
+        addLog({
+          type: 'success',
+          message: `Pod "${pod.name}" assigned to Ammo PLT "${ammoPltId}"`,
+        })
+      }
+
+      return {
+        ...prev,
+        pods: prev.pods.map((p) => (p.id === podId ? { ...p, ammoPltId, pocId: undefined, rsvId: undefined } : p)),
       }
     })
   }, [addLog])
@@ -625,6 +977,8 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
               ...l,
               currentTask: newTask,
               status: 'active' as const,
+              // Clear lastIdleTime when task starts
+              lastIdleTime: undefined,
             }
           }
           return l
@@ -727,6 +1081,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
             ...l,
             status: 'idle' as const,
             currentTask: undefined,
+            lastIdleTime: new Date(),
           }
         }
         return l
@@ -749,6 +1104,54 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
 
       const currentPod = prev.pods.find((p) => p.launcherId === launcherId)
       
+      // Special case: unload only (no new pod selected)
+      // Use null as sentinel value to distinguish unload from "reload with first available"
+      if (newPodId === null && currentPod) {
+        const poc = prev.pocs.find((p) => p.id === launcher.pocId)
+        if (!poc) {
+          addLog({
+            type: 'warning',
+            message: `Launcher "${launcher.name}" is not assigned to a POC`,
+          })
+          return prev
+        }
+
+        // Return current pod to POC inventory
+        const updatedPods = prev.pods.map((p) => {
+          if (p.id === currentPod.id) {
+            // Current pod goes back to POC inventory (keep pocId, remove launcherId)
+            return {
+              ...p,
+              launcherId: undefined,
+              pocId: launcher.pocId, // Ensure it's assigned to the POC
+              rounds: p.rounds.map((r) => ({ ...r, status: 'available' as const })),
+            }
+          }
+          return p
+        })
+
+        const updatedLaunchers = prev.launchers.map((l) => {
+          if (l.id === launcherId) {
+            return {
+              ...l,
+              podId: undefined,
+            }
+          }
+          return l
+        })
+
+        addLog({
+          type: 'success',
+          message: `Launcher "${launcher.name}" unloaded. Pod "${currentPod.name}" returned to ${poc.name} stock.`,
+        })
+
+        return {
+          ...prev,
+          pods: updatedPods,
+          launchers: updatedLaunchers,
+        }
+      }
+      
       // If launcher has no POC assigned, can't reload from POC inventory
       if (!launcher.pocId) {
         addLog({
@@ -759,9 +1162,12 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
       }
 
       // Find available pods from RSV's assigned to the POC, BOC, or Ammo PLT
-      // Also include pods directly assigned to POC (for backwards compatibility)
+      // Also include pods directly assigned to POC or Ammo PLT (for backwards compatibility)
       const availablePods = prev.pods.filter((p) => {
         if (p.launcherId) return false // Pod is on a launcher
+        
+        // Pod directly assigned to Ammo PLT (available to all)
+        if (p.ammoPltId) return true
         
         // Check if pod is on an RSV assigned to this POC's BOC, the POC itself, or Ammo PLT
         if (p.rsvId) {
@@ -795,7 +1201,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
 
       // If manual pod selection provided, validate it's available
       let selectedPod = newPodId 
-        ? prev.pods.find((p) => p.id === newPodId && p.pocId === launcher.pocId && !p.launcherId)
+        ? availablePods.find((p) => p.id === newPodId)
         : availablePods[0] // Otherwise use first available
 
       if (!selectedPod) {
@@ -810,12 +1216,14 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
 
       // Swap pods: remove current pod from launcher, assign new pod to launcher
       // If current pod exists, unassign it from launcher (it goes back to POC inventory)
+      const poc = prev.pocs.find((p) => p.id === launcher.pocId)
       const updatedPods = prev.pods.map((p) => {
         if (p.id === currentPod?.id) {
           // Current pod goes back to POC inventory (keep pocId, remove launcherId)
           return {
             ...p,
             launcherId: undefined,
+            pocId: launcher.pocId, // Ensure it's assigned to the POC
             rounds: p.rounds.map((r) => ({ ...r, status: 'available' as const })),
           }
         }
@@ -884,6 +1292,98 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     }
   }, [addLog])
 
+  const setCurrentUserRole = useCallback((role: CurrentUserRole) => {
+    setState((prev) => ({
+      ...prev,
+      currentUserRole: role,
+    }))
+    addLog({ type: 'info', message: `User assigned to ${role.type.toUpperCase()} "${role.name}"` })
+  }, [addLog])
+
+  const addRoundType = useCallback((name: string) => {
+    const trimmedName = name.trim().toUpperCase()
+    if (!trimmedName) return
+    
+    setState((prev) => {
+      if (prev.roundTypes[trimmedName]) {
+        addLog({ type: 'warning', message: `Round type "${trimmedName}" already exists` })
+        return prev
+      }
+      
+      addLog({ type: 'info', message: `Round type "${trimmedName}" added` })
+      return {
+        ...prev,
+        roundTypes: {
+          ...prev.roundTypes,
+          [trimmedName]: { name: trimmedName, enabled: true },
+        },
+      }
+    })
+  }, [addLog])
+
+  const updateRoundType = useCallback((name: string, enabled: boolean) => {
+    setState((prev) => {
+      if (!prev.roundTypes[name]) {
+        addLog({ type: 'warning', message: `Round type "${name}" not found` })
+        return prev
+      }
+      
+      // Check if there are any pods using this round type before disabling
+      if (!enabled) {
+        const podsUsingType = prev.pods.some((pod) => 
+          pod.rounds.some((round) => round.type === name)
+        )
+        if (podsUsingType) {
+          addLog({ 
+            type: 'warning', 
+            message: `Cannot disable "${name}" - there are pods using this round type. Remove or change those pods first.` 
+          })
+          return prev
+        }
+      }
+      
+      addLog({ 
+        type: 'info', 
+        message: `Round type "${name}" ${enabled ? 'enabled' : 'disabled'}` 
+      })
+      return {
+        ...prev,
+        roundTypes: {
+          ...prev.roundTypes,
+          [name]: { ...prev.roundTypes[name], enabled },
+        },
+      }
+    })
+  }, [addLog])
+
+  const deleteRoundType = useCallback((name: string) => {
+    setState((prev) => {
+      if (!prev.roundTypes[name]) {
+        addLog({ type: 'warning', message: `Round type "${name}" not found` })
+        return prev
+      }
+      
+      // Check if there are any pods using this round type
+      const podsUsingType = prev.pods.some((pod) => 
+        pod.rounds.some((round) => round.type === name)
+      )
+      if (podsUsingType) {
+        addLog({ 
+          type: 'error', 
+          message: `Cannot delete "${name}" - there are pods using this round type. Remove or change those pods first.` 
+        })
+        return prev
+      }
+      
+      const { [name]: deleted, ...remaining } = prev.roundTypes
+      addLog({ type: 'info', message: `Round type "${name}" deleted` })
+      return {
+        ...prev,
+        roundTypes: remaining,
+      }
+    })
+  }, [addLog])
+
   return (
     <AppDataContext.Provider
       value={{
@@ -896,22 +1396,30 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         tasks: state.tasks,
         taskTemplates: state.taskTemplates,
         logs: state.logs,
+        roundTypes: state.roundTypes,
         addBOC,
         addPOC,
         addLauncher,
         addPod,
         addRSV,
+        deleteBOC,
+        deletePOC,
+        deleteLauncher,
+        deletePod,
+        deleteRSV,
         addRound,
         addTask,
         addTaskTemplate,
         updateTaskTemplate,
         deleteTaskTemplate,
         startTaskFromTemplate,
+        startTaskFromTemplateForPOC,
         updateLauncher,
         updatePod,
         updateRSV,
         assignPodToPOC,
         assignPodToRSV,
+        assignPodToAmmoPlt,
         assignPodToLauncher,
         assignLauncherToPOC,
         assignPOCToBOC,
@@ -928,6 +1436,11 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         loadFromFile: loadFromFileHandler,
         clearAllData,
         addLog,
+        currentUserRole: state.currentUserRole,
+        setCurrentUserRole,
+        addRoundType,
+        updateRoundType,
+        deleteRoundType,
       }}
     >
       {children}

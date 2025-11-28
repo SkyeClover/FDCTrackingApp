@@ -1,8 +1,9 @@
 import { useState, useMemo, memo, useCallback } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { useProgress } from '../context/ProgressContext'
-import { Plus, Trash2, Edit, X, Check, Package, Rocket, Target, Truck } from 'lucide-react'
-import { TaskTemplate, Launcher, Pod, POC, BOC, RSV } from '../types'
+import { Plus, Trash2, Edit, X, Check, Rocket, Target } from 'lucide-react'
+import { TaskTemplate } from '../types'
+import RSVsManagement from '../components/RSVsManagement'
 
 // Memoized components to prevent re-renders during progress updates
 const AssignmentItem = memo(({
@@ -330,6 +331,7 @@ const TaskTemplateForm = memo(({
           <option value="reload">Reload</option>
           <option value="fire">Fire</option>
           <option value="maintenance">Maintenance</option>
+          <option value="jumping">Jumping</option>
           <option value="custom">Custom</option>
         </select>
       </div>
@@ -374,21 +376,15 @@ export default function Management() {
     bocs,
     pocs,
     launchers,
-    pods,
-    rsvs,
     taskTemplates,
-    assignPodToPOC,
-    assignPodToRSV,
-    assignPodToLauncher,
     assignLauncherToPOC,
     assignPOCToBOC,
-    assignRSVToPOC,
-    assignRSVToBOC,
-    assignRSVToAmmoPlt,
+    addRSV,
     addTaskTemplate,
     updateTaskTemplate,
     deleteTaskTemplate,
     startTaskFromTemplate,
+    startTaskFromTemplateForPOC,
   } = useAppData()
   
   const { taskProgress } = useProgress()
@@ -396,12 +392,9 @@ export default function Management() {
   const [showTaskTemplateForm, setShowTaskTemplateForm] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<TaskTemplate | null>(null)
   const [expandedTaskLauncher, setExpandedTaskLauncher] = useState<string | null>(null)
+  const [expandedTaskPOC, setExpandedTaskPOC] = useState<string | null>(null)
+  const [showRSVForm, setShowRSVForm] = useState(false)
 
-  // Memoize filtered data to prevent unnecessary recalculations
-  const availableLaunchers = useMemo(
-    () => launchers.filter((l) => l.status !== 'active'),
-    [launchers]
-  )
 
   const handleTaskTemplateSubmit = useCallback(
     (data: { name: string; description: string; duration: number; type: TaskTemplate['type'] }) => {
@@ -471,12 +464,18 @@ export default function Management() {
   const bocsMemo = useMemo(() => bocs, [bocs])
   const pocsMemo = useMemo(() => pocs, [pocs])
   const launchersMemo = useMemo(() => launchers, [launchers])
-  const podsMemo = useMemo(() => pods, [pods])
-  const rsvsMemo = useMemo(() => rsvs, [rsvs])
   const taskTemplatesMemo = useMemo(() => taskTemplates, [taskTemplates])
-  
-  // Ammo PLT ID - using a constant for now, could be made configurable
-  const AMMO_PLT_ID = 'ammo-plt-1'
+
+  const handleAddRSV = useCallback(
+    (data: { name: string }) => {
+      addRSV({
+        id: Date.now().toString(),
+        name: data.name,
+      })
+      setShowRSVForm(false)
+    },
+    [addRSV]
+  )
 
   return (
     <div>
@@ -816,7 +815,8 @@ export default function Management() {
           )}
         </AssignmentCard>
 
-        <AssignmentCard title="Assign Pods to POCs" icon={Package}>
+        {/* Assign Tasks from Templates to POCs */}
+        <AssignmentCard title="Assign Tasks to POCs" icon={Rocket}>
           <div
             style={{
               fontSize: '0.85rem',
@@ -825,59 +825,190 @@ export default function Management() {
               fontStyle: 'italic',
             }}
           >
-            Assign pods to POCs for "POCs On Ground" inventory
+            Assign tasks to entire POCs (affects all launchers in the POC)
           </div>
-          {podsMemo.length === 0 || pocsMemo.length === 0 ? (
+          {pocsMemo.length === 0 || taskTemplatesMemo.length === 0 ? (
             <p style={{ color: 'var(--text-secondary)' }}>
-              Create pods and POCs in Inventory first
+              Create POCs and task templates first
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {podsMemo.map((pod) => (
-                <AssignmentItem
-                  key={pod.id}
-                  item={pod}
-                  options={pocsMemo}
-                  currentValue={pod.pocId}
-                  onAssign={assignPodToPOC}
-                  onUnassign={(id) => assignPodToPOC(id, '')}
-                  itemLabel="Pod"
-                  optionLabel="POC"
-                />
-              ))}
-            </div>
-          )}
-        </AssignmentCard>
+              {pocsMemo.map((poc) => {
+                const pocLaunchers = launchers.filter((l) => l.pocId === poc.id)
+                const hasActiveLaunchers = pocLaunchers.some((l) => l.status === 'active')
+                const hasLaunchers = pocLaunchers.length > 0
+                
+                return (
+                  <div
+                    key={poc.id}
+                    style={{
+                      padding: '1rem',
+                      backgroundColor: 'var(--bg-tertiary)',
+                      borderRadius: '8px',
+                      border: `2px solid ${
+                        hasActiveLaunchers ? 'var(--accent)' : 'var(--border)'
+                      }`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '0.5rem',
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--text-secondary)',
+                            textTransform: 'uppercase',
+                            marginBottom: '0.25rem',
+                          }}
+                        >
+                          POC
+                        </div>
+                        <div
+                          style={{
+                            fontSize: '1rem',
+                            fontWeight: '600',
+                            color: 'var(--text-primary)',
+                          }}
+                        >
+                          {poc.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--text-secondary)',
+                            marginTop: '0.25rem',
+                          }}
+                        >
+                          {pocLaunchers.length} launcher{pocLaunchers.length !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                      {hasActiveLaunchers && (
+                        <span
+                          style={{
+                            padding: '0.25rem 0.75rem',
+                            backgroundColor: 'var(--accent)',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem',
+                            color: 'white',
+                            fontWeight: '500',
+                          }}
+                        >
+                          Active
+                        </span>
+                      )}
+                    </div>
 
-        <AssignmentCard title="Assign Pods to Launchers" icon={Package}>
-          <div
-            style={{
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
-              marginBottom: '1rem',
-              fontStyle: 'italic',
-            }}
-          >
-            Note: Pods should be assigned to POCs first. Reloading will automatically swap pods from POC inventory.
-          </div>
-          {podsMemo.length === 0 || launchersMemo.length === 0 ? (
-            <p style={{ color: 'var(--text-secondary)' }}>
-              Create pods and launchers in Inventory first
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {podsMemo.map((pod) => (
-                <AssignmentItem
-                  key={pod.id}
-                  item={pod}
-                  options={launchersMemo}
-                  currentValue={pod.launcherId}
-                  onAssign={assignPodToLauncher}
-                  onUnassign={(id) => assignPodToLauncher(id, '')}
-                  itemLabel="Pod"
-                  optionLabel="Launcher"
-                />
-              ))}
+                    {!hasLaunchers ? (
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                        No launchers assigned to this POC
+                      </p>
+                    ) : hasActiveLaunchers ? (
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
+                        POC has active launchers. Wait for tasks to complete.
+                      </p>
+                    ) : (
+                      <div>
+                        {expandedTaskPOC === poc.id ? (
+                          <div>
+                            <div
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                                gap: '0.5rem',
+                                marginBottom: '0.5rem',
+                              }}
+                            >
+                              {taskTemplatesMemo.map((template) => (
+                                <button
+                                  key={template.id}
+                                  onClick={() => {
+                                    startTaskFromTemplateForPOC(template.id, poc.id)
+                                    setExpandedTaskPOC(null)
+                                  }}
+                                  style={{
+                                    padding: '0.75rem',
+                                    backgroundColor: 'var(--bg-secondary)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '6px',
+                                    color: 'var(--text-primary)',
+                                    cursor: 'pointer',
+                                    fontSize: '0.85rem',
+                                    fontWeight: '500',
+                                    textAlign: 'left',
+                                    transition: 'all 0.2s',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--bg-primary)'
+                                    e.currentTarget.style.borderColor = 'var(--accent)'
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+                                    e.currentTarget.style.borderColor = 'var(--border)'
+                                  }}
+                                >
+                                  <div>{template.name}</div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.75rem',
+                                      color: 'var(--text-secondary)',
+                                      marginTop: '0.25rem',
+                                    }}
+                                  >
+                                    {formatDuration(template.duration)}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                            <button
+                              onClick={() => setExpandedTaskPOC(null)}
+                              style={{
+                                width: '100%',
+                                padding: '0.5rem',
+                                backgroundColor: 'transparent',
+                                border: '1px solid var(--border)',
+                                borderRadius: '4px',
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setExpandedTaskPOC(poc.id)}
+                            style={{
+                              width: '100%',
+                              padding: '0.75rem',
+                              backgroundColor: 'var(--accent)',
+                              border: 'none',
+                              borderRadius: '6px',
+                              color: 'white',
+                              cursor: 'pointer',
+                              fontSize: '0.9rem',
+                              fontWeight: '500',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem',
+                            }}
+                          >
+                            <Plus size={16} />
+                            Start Task for POC
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </AssignmentCard>
@@ -948,292 +1079,126 @@ export default function Management() {
           )}
         </AssignmentCard>
 
-        {/* Assign RSV's to POC/BOC/Ammo PLT */}
-        <AssignmentCard title="Assign RSV's" icon={Truck}>
+        {/* RSV Management - Full Width */}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <RSVsManagement onAddRSV={() => setShowRSVForm(true)} />
+        </div>
+
+        {/* RSV Creation Modal */}
+        {showRSVForm && (
           <div
             style={{
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
-              marginBottom: '1rem',
-              fontStyle: 'italic',
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
             }}
+            onClick={() => setShowRSVForm(false)}
           >
-            Assign RSV's (Reload Supply Vehicles) to POC, BOC (Battery level slants), or Ammo PLT
-          </div>
-          {rsvsMemo.length === 0 ? (
-            <p style={{ color: 'var(--text-secondary)' }}>
-              Create RSV's in Inventory first
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {rsvsMemo.map((rsv) => {
-                const assignmentType = rsv.pocId ? 'POC' : rsv.bocId ? 'BOC' : rsv.ammoPltId ? 'Ammo PLT' : 'None'
-                const assignmentId = rsv.pocId || rsv.bocId || rsv.ammoPltId || ''
-                
-                return (
-                  <div
-                    key={rsv.id}
+            <div
+              style={{
+                backgroundColor: 'var(--bg-secondary)',
+                borderRadius: '8px',
+                padding: '2rem',
+                maxWidth: '500px',
+                width: '90%',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '1.5rem',
+                }}
+              >
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                  Add RSV
+                </h2>
+                <button
+                  onClick={() => setShowRSVForm(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    padding: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const formData = new FormData(e.target as HTMLFormElement)
+                  const name = formData.get('name') as string
+                  if (name?.trim()) {
+                    handleAddRSV({ name: name.trim() })
+                  }
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+              >
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="RSV Name"
+                  required
+                  autoFocus
+                  style={{
+                    padding: '0.5rem',
+                    backgroundColor: 'var(--bg-primary)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '4px',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9rem',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    type="submit"
                     style={{
-                      padding: '1rem',
-                      backgroundColor: 'var(--bg-tertiary)',
-                      borderRadius: '8px',
-                      border: `2px solid ${assignmentId ? 'var(--accent)' : 'var(--border)'}`,
+                      flex: 1,
+                      padding: '0.5rem 1rem',
+                      backgroundColor: 'var(--success)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
                     }}
                   >
-                    <div style={{ marginBottom: '0.75rem' }}>
-                      <div
-                        style={{
-                          fontSize: '0.75rem',
-                          color: 'var(--text-secondary)',
-                          textTransform: 'uppercase',
-                          marginBottom: '0.25rem',
-                        }}
-                      >
-                        RSV
-                      </div>
-                      <div
-                        style={{
-                          fontSize: '1rem',
-                          fontWeight: '600',
-                          color: 'var(--text-primary)',
-                        }}
-                      >
-                        {rsv.name}
-                      </div>
-                      {assignmentId && (
-                        <div
-                          style={{
-                            marginTop: '0.5rem',
-                            padding: '0.5rem',
-                            backgroundColor: 'var(--bg-secondary)',
-                            borderRadius: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                          }}
-                        >
-                          <Check size={16} color="var(--success)" />
-                          <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                            {assignmentType}: <strong>
-                              {assignmentType === 'POC' && pocsMemo.find((p) => p.id === assignmentId)?.name}
-                              {assignmentType === 'BOC' && bocsMemo.find((b) => b.id === assignmentId)?.name}
-                              {assignmentType === 'Ammo PLT' && 'Ammo PLT'}
-                            </strong>
-                          </span>
-                          <button
-                            onClick={() => {
-                              if (rsv.pocId) assignRSVToPOC(rsv.id, '')
-                              else if (rsv.bocId) assignRSVToBOC(rsv.id, '')
-                              else if (rsv.ammoPltId) assignRSVToAmmoPlt(rsv.id, '')
-                            }}
-                            style={{
-                              marginLeft: 'auto',
-                              padding: '0.25rem 0.5rem',
-                              backgroundColor: 'var(--danger)',
-                              border: 'none',
-                              borderRadius: '4px',
-                              color: 'white',
-                              cursor: 'pointer',
-                              fontSize: '0.75rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                            }}
-                          >
-                            <X size={12} />
-                            Unassign
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {!assignmentId && (
-                      <div>
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                            gap: '0.5rem',
-                          }}
-                        >
-                          {pocsMemo.length > 0 && (
-                            <button
-                              onClick={() => {
-                                const selected = prompt(`Assign to POC:\n${pocsMemo.map((p, i) => `${i + 1}. ${p.name}`).join('\n')}\n\nEnter number:`)
-                                if (selected) {
-                                  const index = parseInt(selected) - 1
-                                  if (index >= 0 && index < pocsMemo.length) {
-                                    assignRSVToPOC(rsv.id, pocsMemo[index].id)
-                                  }
-                                }
-                              }}
-                              style={{
-                                padding: '0.5rem',
-                                backgroundColor: 'var(--bg-secondary)',
-                                border: '1px solid var(--border)',
-                                borderRadius: '4px',
-                                color: 'var(--text-primary)',
-                                cursor: 'pointer',
-                                fontSize: '0.85rem',
-                              }}
-                            >
-                              Assign to POC
-                            </button>
-                          )}
-                          {bocsMemo.length > 0 && (
-                            <button
-                              onClick={() => {
-                                const selected = prompt(`Assign to BOC:\n${bocsMemo.map((b, i) => `${i + 1}. ${b.name}`).join('\n')}\n\nEnter number:`)
-                                if (selected) {
-                                  const index = parseInt(selected) - 1
-                                  if (index >= 0 && index < bocsMemo.length) {
-                                    assignRSVToBOC(rsv.id, bocsMemo[index].id)
-                                  }
-                                }
-                              }}
-                              style={{
-                                padding: '0.5rem',
-                                backgroundColor: 'var(--bg-secondary)',
-                                border: '1px solid var(--border)',
-                                borderRadius: '4px',
-                                color: 'var(--text-primary)',
-                                cursor: 'pointer',
-                                fontSize: '0.85rem',
-                              }}
-                            >
-                              Assign to BOC
-                            </button>
-                          )}
-                          <button
-                            onClick={() => assignRSVToAmmoPlt(rsv.id, AMMO_PLT_ID)}
-                            style={{
-                              padding: '0.5rem',
-                              backgroundColor: 'var(--bg-secondary)',
-                              border: '1px solid var(--border)',
-                              borderRadius: '4px',
-                              color: 'var(--text-primary)',
-                              cursor: 'pointer',
-                              fontSize: '0.85rem',
-                            }}
-                          >
-                            Assign to Ammo PLT
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </AssignmentCard>
-
-        {/* Assign Pods to RSV's - Bulk Assignment */}
-        <AssignmentCard title="Assign Pods to RSV's" icon={Package}>
-          <div
-            style={{
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
-              marginBottom: '1rem',
-              fontStyle: 'italic',
-            }}
-          >
-            Assign pods to RSV's. Use bulk selection for Ammo PLT with many pods.
-          </div>
-          {rsvsMemo.length === 0 || podsMemo.length === 0 ? (
-            <p style={{ color: 'var(--text-secondary)' }}>
-              Create RSV's and pods in Inventory first
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {rsvsMemo.map((rsv) => {
-                const rsvPods = podsMemo.filter((p) => p.rsvId === rsv.id)
-                const unassignedPods = podsMemo.filter((p) => !p.rsvId && !p.launcherId)
-                
-                return (
-                  <div
-                    key={rsv.id}
+                    Create
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowRSVForm(false)}
                     style={{
-                      padding: '1rem',
-                      backgroundColor: 'var(--bg-tertiary)',
-                      borderRadius: '8px',
+                      padding: '0.5rem 1rem',
+                      backgroundColor: 'var(--bg-primary)',
+                      color: 'var(--text-primary)',
                       border: '1px solid var(--border)',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
                     }}
                   >
-                    <div style={{ marginBottom: '0.75rem' }}>
-                      <div
-                        style={{
-                          fontSize: '0.75rem',
-                          color: 'var(--text-secondary)',
-                          textTransform: 'uppercase',
-                          marginBottom: '0.25rem',
-                        }}
-                      >
-                        RSV: {rsv.name}
-                      </div>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                        {rsvPods.length} pod{rsvPods.length !== 1 ? 's' : ''} assigned
-                      </div>
-                    </div>
-                    
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <button
-                        onClick={() => {
-                          // Bulk assign - show modal-like interface
-                          const podIds = unassignedPods.map((p) => p.id)
-                          if (podIds.length === 0) {
-                            alert('No unassigned pods available')
-                            return
-                          }
-                          // Assign all unassigned pods
-                          podIds.forEach((podId) => assignPodToRSV(podId, rsv.id))
-                        }}
-                        style={{
-                          padding: '0.5rem 1rem',
-                          backgroundColor: 'var(--accent)',
-                          border: 'none',
-                          borderRadius: '4px',
-                          color: 'white',
-                          cursor: 'pointer',
-                          fontSize: '0.85rem',
-                          fontWeight: '500',
-                        }}
-                      >
-                        Bulk Assign All Unassigned ({unassignedPods.length})
-                      </button>
-                      <button
-                        onClick={() => {
-                          // Unassign all pods from this RSV
-                          rsvPods.forEach((pod) => assignPodToRSV(pod.id, ''))
-                        }}
-                        disabled={rsvPods.length === 0}
-                        style={{
-                          padding: '0.5rem 1rem',
-                          backgroundColor: rsvPods.length === 0 ? 'var(--bg-secondary)' : 'var(--danger)',
-                          border: 'none',
-                          borderRadius: '4px',
-                          color: 'white',
-                          cursor: rsvPods.length === 0 ? 'not-allowed' : 'pointer',
-                          fontSize: '0.85rem',
-                          fontWeight: '500',
-                          opacity: rsvPods.length === 0 ? 0.5 : 1,
-                        }}
-                      >
-                        Unassign All ({rsvPods.length})
-                      </button>
-                    </div>
-                    
-                    {rsvPods.length > 0 && (
-                      <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Pods: {rsvPods.map((p) => p.name).join(', ')}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                    Cancel
+                  </button>
+                </div>
+              </form>
             </div>
-          )}
-        </AssignmentCard>
+          </div>
+        )}
       </div>
     </div>
   )

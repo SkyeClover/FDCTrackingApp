@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { POC, BOC, Launcher, Pod, RoundType } from '../types'
 import { X, Copy, Printer } from 'lucide-react'
-import { ROUND_TYPE_OPTIONS } from '../constants/roundTypes'
+import { useAppData } from '../context/AppDataContext'
+import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
 
 interface ReportModalProps {
   bocs: BOC[]
@@ -13,8 +14,11 @@ interface ReportModalProps {
 }
 
 export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClose }: ReportModalProps) {
+  const { roundTypes } = useAppData()
   const [selectedBOC, setSelectedBOC] = useState<string>('')
   const [selectedPOC, setSelectedPOC] = useState<string>('')
+  
+  const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
   
   if (!isOpen) return null
 
@@ -68,7 +72,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
       report += `  Total Pods: ${pocPods.length}\n\n`
 
       // Pods by round type
-      ROUND_TYPE_OPTIONS.forEach((option) => {
+      roundTypeOptions.forEach((option) => {
         const podsOfType = pocPods.filter((p) => p.rounds[0]?.type === option.value)
         if (podsOfType.length > 0) {
           const totalRounds = podsOfType.reduce((sum, p) => sum + p.rounds.length, 0)
@@ -368,7 +372,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
                       gap: '0.5rem',
                     }}
                   >
-                    {ROUND_TYPE_OPTIONS.map((option) => {
+                    {roundTypeOptions.map((option) => {
                       const podsOfType = pocPods.filter((p) => p.rounds[0]?.type === option.value)
                       if (podsOfType.length === 0) return null
 

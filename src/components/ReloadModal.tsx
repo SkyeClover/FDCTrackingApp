@@ -29,10 +29,15 @@ export default function ReloadModal({
     onClose()
   }
 
-  // Group pods by RSV
+  // Group pods by RSV, Ammo PLT, or POC
   const podsByRSV = new Map<string, { rsv: RSV; pods: Pod[] }>()
+  const podsByAmmoPlt: Pod[] = []
+  const podsByPOC: Pod[] = []
+  
   availablePods.forEach((pod) => {
-    if (pod.rsvId) {
+    if (pod.ammoPltId) {
+      podsByAmmoPlt.push(pod)
+    } else if (pod.rsvId) {
       const rsv = rsvs.find((r) => r.id === pod.rsvId)
       if (rsv) {
         if (!podsByRSV.has(rsv.id)) {
@@ -40,10 +45,12 @@ export default function ReloadModal({
         }
         podsByRSV.get(rsv.id)!.pods.push(pod)
       }
+    } else if (pod.pocId) {
+      podsByPOC.push(pod)
     }
   })
   
-  const podsWithoutRSV = availablePods.filter((p) => !p.rsvId)
+  const podsWithoutRSV = availablePods.filter((p) => !p.rsvId && !p.ammoPltId && !p.pocId)
 
   return (
     <div
@@ -141,6 +148,31 @@ export default function ReloadModal({
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
               UUID: {currentPod.uuid}
             </div>
+            <button
+              onClick={() => handleReload(null as any)}
+              style={{
+                marginTop: '0.75rem',
+                padding: '0.5rem 1rem',
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                fontWeight: '500',
+                width: '100%',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--bg-primary)'
+                e.currentTarget.style.borderColor = 'var(--accent)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+                e.currentTarget.style.borderColor = 'var(--border)'
+              }}
+            >
+              Unload Pod (Return to {poc.name} Stock)
+            </button>
           </div>
         )}
 
@@ -256,7 +288,161 @@ export default function ReloadModal({
                 </div>
               ))}
               
-              {/* Pods without RSV */}
+              {/* Pods from Ammo PLT */}
+              {podsByAmmoPlt.length > 0 && (
+                <div>
+                  <div
+                    style={{
+                      fontSize: '0.85rem',
+                      fontWeight: '600',
+                      color: 'var(--accent)',
+                      marginBottom: '0.5rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    <Package size={14} />
+                    Ammo PLT ({podsByAmmoPlt.length} pods)
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginLeft: '1.5rem' }}>
+                    {podsByAmmoPlt.map((pod) => {
+                      const availableRounds = pod.rounds.filter((r) => r.status === 'available').length
+                      const roundType = pod.rounds[0]?.type || 'N/A'
+                      return (
+                        <button
+                          key={pod.id}
+                          onClick={() => handleReload(pod.id)}
+                          style={{
+                            padding: '0.75rem',
+                            backgroundColor: 'var(--bg-secondary)',
+                            border: '2px solid var(--border)',
+                            borderRadius: '6px',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--accent)'
+                            e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--border)'
+                            e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'start',
+                              marginBottom: '0.25rem',
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                                {pod.name}
+                              </div>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                                Type: {roundType}
+                              </div>
+                            </div>
+                            <div
+                              style={{
+                                fontSize: '0.85rem',
+                                fontWeight: '600',
+                                color: 'var(--accent)',
+                              }}
+                            >
+                              {availableRounds} / {pod.rounds.length} rounds
+                            </div>
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                            UUID: {pod.uuid}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Pods directly assigned to POC */}
+              {podsByPOC.length > 0 && (
+                <div>
+                  <div
+                    style={{
+                      fontSize: '0.85rem',
+                      fontWeight: '600',
+                      color: 'var(--text-secondary)',
+                      marginBottom: '0.5rem',
+                    }}
+                  >
+                    Direct POC Inventory ({podsByPOC.length} pods)
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginLeft: '1.5rem' }}>
+                    {podsByPOC.map((pod) => {
+                      const availableRounds = pod.rounds.filter((r) => r.status === 'available').length
+                      const roundType = pod.rounds[0]?.type || 'N/A'
+                      return (
+                        <button
+                          key={pod.id}
+                          onClick={() => handleReload(pod.id)}
+                          style={{
+                            padding: '0.75rem',
+                            backgroundColor: 'var(--bg-secondary)',
+                            border: '2px solid var(--border)',
+                            borderRadius: '6px',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--accent)'
+                            e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--border)'
+                            e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'start',
+                              marginBottom: '0.25rem',
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                                {pod.name}
+                              </div>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                                Type: {roundType}
+                              </div>
+                            </div>
+                            <div
+                              style={{
+                                fontSize: '0.85rem',
+                                fontWeight: '600',
+                                color: 'var(--accent)',
+                              }}
+                            >
+                              {availableRounds} / {pod.rounds.length} rounds
+                            </div>
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                            UUID: {pod.uuid}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Pods without RSV, POC, or Ammo PLT */}
               {podsWithoutRSV.length > 0 && (
                 <div>
                   <div

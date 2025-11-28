@@ -1,4 +1,9 @@
-export type RoundType = 'M28A1' | 'M26' | 'M31' | 'M30'
+export type RoundType = string // Allow any string for custom round types
+
+export interface RoundTypeConfig {
+  name: string
+  enabled: boolean
+}
 
 export interface Round {
   id: string
@@ -14,6 +19,7 @@ export interface Pod {
   launcherId?: string
   pocId?: string // POC that owns this pod (for "POCs On Ground" tracking)
   rsvId?: string // RSV (Reload Supply Vehicle) that carries this pod
+  ammoPltId?: string // Assigned to Ammo PLT
 }
 
 export interface RSV {
@@ -31,6 +37,7 @@ export interface Launcher {
   pocId?: string
   currentTask?: Task
   status: 'idle' | 'active' | 'maintenance'
+  lastIdleTime?: Date // When launcher became idle (for standby tracking)
 }
 
 export interface Task {
@@ -42,6 +49,7 @@ export interface Task {
   startTime?: Date
   duration?: number // in seconds
   launcherIds?: string[]
+  pocIds?: string[] // POC-level task assignments (affects all launchers in POC)
   templateId?: string // Reference to task template
 }
 
@@ -50,7 +58,7 @@ export interface TaskTemplate {
   name: string
   description: string
   duration: number // in seconds
-  type: 'reload' | 'fire' | 'maintenance' | 'custom'
+  type: 'reload' | 'fire' | 'maintenance' | 'jumping' | 'custom'
 }
 
 export interface POC {
@@ -73,6 +81,12 @@ export interface LogEntry {
   message: string
 }
 
+export interface CurrentUserRole {
+  type: 'boc' | 'poc'
+  id: string
+  name: string
+}
+
 export interface AppState {
   bocs: BOC[]
   pocs: POC[]
@@ -83,6 +97,8 @@ export interface AppState {
   tasks: Task[]
   taskTemplates: TaskTemplate[]
   logs: LogEntry[]
+  roundTypes: Record<string, RoundTypeConfig> // Map of round type name to config
   version: string
   lastSaved?: Date
+  currentUserRole?: CurrentUserRole
 }

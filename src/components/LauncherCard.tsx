@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Launcher, Pod } from '../types'
 import { RotateCcw } from 'lucide-react'
 import { useProgress } from '../context/ProgressContext'
@@ -10,10 +11,21 @@ interface LauncherCardProps {
 
 export default function LauncherCard({ launcher, pod, onReload }: LauncherCardProps) {
   const { taskProgress } = useProgress()
+  const [currentTime, setCurrentTime] = useState(new Date())
   const availableRounds = pod?.rounds.filter((r) => r.status === 'available').length || 0
   const usedRounds = pod?.rounds.filter((r) => r.status === 'used').length || 0
   const roundType = pod?.rounds[0]?.type || 'N/A'
   const maxRounds = 6 // Standard capacity
+
+  // Update time every second for standby time display
+  useEffect(() => {
+    if (launcher.status === 'idle' && launcher.lastIdleTime) {
+      const interval = setInterval(() => {
+        setCurrentTime(new Date())
+      }, 1000)
+      return () => clearInterval(interval)
+    }
+  }, [launcher.status, launcher.lastIdleTime])
 
   // Use live progress from separate state if available, otherwise use task progress
   const currentProgress = launcher.currentTask?.id 
@@ -26,11 +38,35 @@ export default function LauncherCard({ launcher, pod, onReload }: LauncherCardPr
   // Calculate elapsed time
   let taskElapsed = 0
   let taskTotal = taskDuration
+  let taskStartTime24h = ''
+  let taskEndTime24h = ''
   
   if (taskStartTime && launcher.currentTask) {
     const elapsedSeconds = Math.floor((Date.now() - taskStartTime.getTime()) / 1000)
     taskElapsed = Math.min(elapsedSeconds, taskDuration)
     taskTotal = taskDuration
+    
+    // Format start time in 24-hour format
+    const startDate = new Date(taskStartTime)
+    taskStartTime24h = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`
+    
+    // Calculate and format end time in 24-hour format
+    const endDate = new Date(taskStartTime.getTime() + (taskDuration * 1000))
+    taskEndTime24h = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`
+  }
+  
+  // Calculate standby time (time since launcher became idle) - updates with currentTime
+  let standbyTimeDisplay = ''
+  if (launcher.status === 'idle' && launcher.lastIdleTime) {
+    const standbySeconds = Math.floor((currentTime.getTime() - launcher.lastIdleTime.getTime()) / 1000)
+    const hours = Math.floor(standbySeconds / 3600)
+    const minutes = Math.floor((standbySeconds % 3600) / 60)
+    const seconds = standbySeconds % 60
+    if (hours > 0) {
+      standbyTimeDisplay = `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    } else {
+      standbyTimeDisplay = `${minutes}:${String(seconds).padStart(2, '0')}`
+    }
   }
 
   return (
@@ -203,6 +239,41 @@ export default function LauncherCard({ launcher, pod, onReload }: LauncherCardPr
         })}
       </div>
 
+      {/* Standby Time (when idle) */}
+      {launcher.status === 'idle' && launcher.lastIdleTime && (
+        <div
+          style={{
+            marginTop: '0.25rem',
+            padding: '0.5rem',
+            backgroundColor: 'var(--bg-secondary)',
+            borderRadius: '4px',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '0.7rem',
+              color: 'var(--text-secondary)',
+              marginBottom: '0.25rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}
+          >
+            Standby Time
+          </div>
+          <div
+            style={{
+              fontSize: '0.9rem',
+              fontFamily: 'monospace',
+              color: 'var(--text-primary)',
+              fontWeight: '600',
+            }}
+          >
+            {standbyTimeDisplay}
+          </div>
+        </div>
+      )}
+
       {/* Current Task */}
       {launcher.currentTask && (
         <div
@@ -251,6 +322,7 @@ export default function LauncherCard({ launcher, pod, onReload }: LauncherCardPr
               justifyContent: 'space-between',
               fontSize: '0.75rem',
               fontFamily: 'monospace',
+              marginBottom: '0.25rem',
             }}
           >
             <span style={{ color: 'var(--success)' }}>
@@ -262,6 +334,20 @@ export default function LauncherCard({ launcher, pod, onReload }: LauncherCardPr
               {String(Math.floor(taskTotal % 60)).padStart(2, '0')}
             </span>
           </div>
+          {taskStartTime24h && taskEndTime24h && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '0.7rem',
+                fontFamily: 'monospace',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <span>Start: {taskStartTime24h}</span>
+              <span>End: {taskEndTime24h}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

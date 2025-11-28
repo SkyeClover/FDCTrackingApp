@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Download, Upload } from 'lucide-react'
+import { useAppData } from '../context/AppDataContext'
 
 interface DashboardHeaderProps {
   onInitiateFireMission?: () => void
@@ -7,7 +8,6 @@ interface DashboardHeaderProps {
   onSaveLoad?: () => void
   onSaveToFile?: () => void
   onLoadFromFile?: (file: File) => Promise<void>
-  userInfo?: string
 }
 
 export default function DashboardHeader({
@@ -16,8 +16,8 @@ export default function DashboardHeader({
   onSaveLoad,
   onSaveToFile,
   onLoadFromFile,
-  userInfo = 'Gator 40',
 }: DashboardHeaderProps) {
+  const { currentUserRole } = useAppData()
   const [currentTime, setCurrentTime] = useState(new Date())
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -171,7 +171,9 @@ export default function DashboardHeader({
             marginBottom: '0.25rem',
           }}
         >
-          {userInfo}
+          {currentUserRole 
+            ? `${currentUserRole.type.toUpperCase()}: ${currentUserRole.name}`
+            : 'No Role Assigned'}
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button

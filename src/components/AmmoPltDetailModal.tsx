@@ -1,65 +1,43 @@
-import { POC, Pod, Launcher, RSV, BOC, RoundType } from '../types'
+import { Pod, RSV, RoundType } from '../types'
 import { X, Package, Truck } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
 import { useMemo } from 'react'
 
-interface POCDetailModalProps {
-  poc: POC
+const AMMO_PLT_ID = 'ammo-plt-1'
+
+interface AmmoPltDetailModalProps {
   pods: Pod[]
-  launchers: Launcher[]
-  rsvs?: RSV[]
-  bocs?: BOC[]
+  rsvs: RSV[]
   isOpen: boolean
   onClose: () => void
 }
 
-export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs = [], isOpen, onClose }: POCDetailModalProps) {
+export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: AmmoPltDetailModalProps) {
   const { roundTypes } = useAppData()
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
   
   if (!isOpen) return null
 
-  // Get RSV's assigned to this POC, or to the POC's BOC (battery level slants)
-  const pocBOC = bocs.find((b) => b.id === poc.bocId)
-  const pocRSVs = rsvs.filter((r) => {
-    if (r.pocId === poc.id) return true
-    // Battery level slants - RSV's assigned to BOC
-    if (r.bocId === poc.bocId) return true
-    // Ammo PLT RSV's are available to all
-    if (r.ammoPltId) return true
-    return false
-  })
+  // Get RSVs assigned to Ammo PLT
+  const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === AMMO_PLT_ID)
 
-  // Get pods assigned to this POC (both explicitly and via common sense)
-  // Common sense: pods on launchers belong to that launcher's POC
-  // Also include pods on RSVs assigned to this POC
-  const pocPods = pods.filter((p) => {
-    if (p.pocId === poc.id) return true
-    // If pod is on a launcher that belongs to this POC, it belongs to this POC
-    if (p.launcherId) {
-      const launcher = launchers.find((l) => l.id === p.launcherId)
-      return launcher?.pocId === poc.id
-    }
-    // If pod is on an RSV assigned to this POC, it belongs to this POC
+  // Get pods assigned to Ammo PLT (directly or on RSVs assigned to Ammo PLT)
+  const ammoPltPods = pods.filter((p) => {
+    // Pod directly assigned to Ammo PLT
+    if (p.ammoPltId === AMMO_PLT_ID) return true
+    
+    // Pod on an RSV assigned to Ammo PLT
     if (p.rsvId) {
       const rsv = rsvs.find((r) => r.id === p.rsvId)
-      if (rsv) {
-        if (rsv.pocId === poc.id) return true
-        if (rsv.bocId === poc.bocId) return true
-        if (rsv.ammoPltId) return true
-      }
+      if (rsv && rsv.ammoPltId === AMMO_PLT_ID) return true
     }
-    // Pod directly assigned to Ammo PLT (available to all)
-    if (p.ammoPltId) return true
+    
     return false
   })
   
-  // Pods on ground (not on launchers) - includes pods on RSVs
-  const podsOnGround = pocPods.filter((p) => !p.launcherId)
-  
-  // Pods on launchers
-  const podsOnLaunchers = pocPods.filter((p) => p.launcherId)
+  // Only show pods not on launchers (ground pods)
+  const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
 
   // Group pods by round type
   const podsByRoundType = (podList: Pod[]) => {
@@ -79,7 +57,6 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
   }
 
   const onGroundByType = podsByRoundType(podsOnGround)
-  const onLaunchersByType = podsByRoundType(podsOnLaunchers)
 
   // Calculate total rounds by type
   const calculateRoundsByType = (podList: Pod[]) => {
@@ -106,8 +83,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
   }
 
   const roundsOnGround = calculateRoundsByType(podsOnGround)
-  const roundsOnLaunchers = calculateRoundsByType(podsOnLaunchers)
-  const roundsTotal = calculateRoundsByType(pocPods)
+  const roundsTotal = calculateRoundsByType(ammoPltPods)
 
   return (
     <div
@@ -135,7 +111,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
           width: '100%',
           maxHeight: '90vh',
           overflow: 'auto',
-          border: '2px solid var(--border)',
+          border: '2px solid var(--accent)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -149,18 +125,20 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
           }}
         >
           <div>
-            <h2
-              style={{
-                fontSize: '1.75rem',
-                fontWeight: 'bold',
-                color: 'var(--text-primary)',
-                marginBottom: '0.5rem',
-              }}
-            >
-              {poc.name} - Ammunition Inventory
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <Package size={24} style={{ color: 'var(--accent)' }} />
+              <h2
+                style={{
+                  fontSize: '1.75rem',
+                  fontWeight: 'bold',
+                  color: 'var(--accent)',
+                }}
+              >
+                Ammo Platoon - Ammunition Inventory
+              </h2>
+            </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Platoon Operations Center (PLT FDC)
+              Ammunition Supply and Distribution
             </p>
           </div>
           <button
@@ -182,7 +160,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
         </div>
 
         {/* RSV Information */}
-        {pocRSVs.length > 0 && (
+        {ammoPltRSVs.length > 0 && (
           <div
             style={{
               padding: '1rem',
@@ -204,7 +182,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
               }}
             >
               <Truck size={18} />
-              RSVs Assigned ({pocRSVs.length})
+              RSVs Assigned ({ammoPltRSVs.length})
             </div>
             <div
               style={{
@@ -213,8 +191,8 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
                 gap: '0.5rem',
               }}
             >
-              {pocRSVs.map((rsv) => {
-                const rsvPods = pods.filter((p) => p.rsvId === rsv.id)
+              {ammoPltRSVs.map((rsv) => {
+                const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
                 return (
                   <div
                     key={rsv.id}
@@ -255,7 +233,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
             }}
           >
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-              PODS ON GROUND
+              PODS AVAILABLE
             </div>
             <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent)' }}>
               {podsOnGround.length}
@@ -270,25 +248,10 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
             }}
           >
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-              PODS ON LAUNCHERS
-            </div>
-            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-              {podsOnLaunchers.length}
-            </div>
-          </div>
-          <div
-            style={{
-              padding: '1rem',
-              backgroundColor: 'var(--bg-secondary)',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
               TOTAL PODS
             </div>
             <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-              {pocPods.length}
+              {ammoPltPods.length}
             </div>
           </div>
         </div>
@@ -307,7 +270,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
             }}
           >
             <Package size={20} />
-            Pods On Ground (Available for Reload)
+            Pods Available (On Ground)
           </h3>
           <div
             style={{
@@ -336,56 +299,6 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
                     {roundsOnGround[option.value].total} rounds total
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Pods by Round Type - On Launchers */}
-        <div style={{ marginBottom: '2rem' }}>
-          <h3
-            style={{
-              fontSize: '1.25rem',
-              fontWeight: 'bold',
-              color: 'var(--text-primary)',
-              marginBottom: '1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            }}
-          >
-            <Package size={20} />
-            Pods On Launchers
-          </h3>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '1rem',
-            }}
-          >
-            {roundTypeOptions.map((option) => {
-              const podsOfType = onLaunchersByType[option.value]
-              return (
-                <div
-                  key={option.value}
-                  style={{
-                    padding: '1rem',
-                    backgroundColor: 'var(--bg-secondary)',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                    {option.label}
-                  </div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                    {podsOfType.length} {podsOfType.length === 1 ? 'Pod' : 'Pods'}
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                    {roundsOnLaunchers[option.value].total} rounds total
                   </div>
                 </div>
               )

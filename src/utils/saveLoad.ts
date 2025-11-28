@@ -1,4 +1,5 @@
-import { AppState, BOC, POC, Launcher, Pod, Round, Task, TaskTemplate, LogEntry } from '../types'
+import { AppState, BOC, POC, Launcher, Pod, Round, Task, TaskTemplate, LogEntry, CurrentUserRole } from '../types'
+import { DEFAULT_ROUND_TYPES } from '../constants/roundTypes'
 
 const STORAGE_KEY = 'fdc-tracker-state'
 const APP_VERSION = '1.0.0'
@@ -7,6 +8,10 @@ const APP_VERSION = '1.0.0'
 function serializeState(state: AppState): string {
   const serialized = {
     ...state,
+    launchers: state.launchers.map((launcher) => ({
+      ...launcher,
+      lastIdleTime: launcher.lastIdleTime ? launcher.lastIdleTime.toISOString() : undefined,
+    })),
     tasks: state.tasks.map((task) => ({
       ...task,
       startTime: task.startTime ? task.startTime.toISOString() : undefined,
@@ -34,10 +39,25 @@ function deserializeState(json: string): AppState {
     return pod
   }) || []
   
+  // Migrate round types - merge with defaults if missing
+  const migratedRoundTypes = parsed.roundTypes || {}
+  const mergedRoundTypes = { ...DEFAULT_ROUND_TYPES, ...migratedRoundTypes }
+  // Ensure all default types are present (in case new ones were added)
+  Object.keys(DEFAULT_ROUND_TYPES).forEach((key) => {
+    if (!mergedRoundTypes[key]) {
+      mergedRoundTypes[key] = DEFAULT_ROUND_TYPES[key]
+    }
+  })
+  
   return {
     ...parsed,
     pods: migratedPods,
     rsvs: parsed.rsvs || [], // Ensure rsvs array exists
+    roundTypes: mergedRoundTypes, // Ensure roundTypes exist
+    launchers: parsed.launchers?.map((launcher: any) => ({
+      ...launcher,
+      lastIdleTime: launcher.lastIdleTime ? new Date(launcher.lastIdleTime) : undefined,
+    })) || [],
     tasks: parsed.tasks?.map((task: any) => ({
       ...task,
       startTime: task.startTime ? new Date(task.startTime) : undefined,
@@ -106,6 +126,8 @@ export function importFromFile(file: File): Promise<AppState> {
   })
 }
 
+import { DEFAULT_ROUND_TYPES } from '../constants/roundTypes'
+
 export function getDefaultState(): AppState {
   return {
     bocs: [],
@@ -120,26 +142,35 @@ export function getDefaultState(): AppState {
         id: 'reload-default',
         name: 'Reload',
         description: 'Reload launcher with fresh rounds',
-        duration: 120, // 2 minutes
+        duration: 900, // 15 minutes
         type: 'reload',
       },
       {
         id: 'fire-default',
         name: 'Fire Mission',
         description: 'Execute fire mission',
-        duration: 168, // 2:48
+        duration: 120, // 2 minutes
         type: 'fire',
       },
       {
         id: 'maintenance-default',
         name: 'Maintenance',
         description: 'Perform maintenance on launcher',
-        duration: 300, // 5 minutes
+        duration: 1800, // 30 minutes
         type: 'maintenance',
+      },
+      {
+        id: 'jumping-default',
+        name: 'Jumping',
+        description: 'Jump to new location',
+        duration: 2700, // 45 minutes
+        type: 'jumping',
       },
     ],
     logs: [],
+    roundTypes: { ...DEFAULT_ROUND_TYPES },
     version: APP_VERSION,
+    currentUserRole: undefined,
   }
 }
 

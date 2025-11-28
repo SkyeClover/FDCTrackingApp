@@ -1,18 +1,37 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import DashboardHeader from '../components/DashboardHeader'
 import POCCard from '../components/POCCard'
+import AmmoPltCard from '../components/AmmoPltCard'
 import FireMissionModal from '../components/FireMissionModal'
 import POCDetailModal from '../components/POCDetailModal'
+import AmmoPltDetailModal from '../components/AmmoPltDetailModal'
 import ReloadModal from '../components/ReloadModal'
 import ReportModal from '../components/ReportModal'
+
+const AMMO_PLT_ID = 'ammo-plt-1'
 
 export default function Dashboard() {
   const { bocs, pocs, launchers, pods, rsvs, addLog, reloadLauncher, saveToFile, loadFromFile } = useAppData()
   const [isFireMissionModalOpen, setIsFireMissionModalOpen] = useState(false)
   const [selectedPOC, setSelectedPOC] = useState<string | null>(null)
+  const [isAmmoPltModalOpen, setIsAmmoPltModalOpen] = useState(false)
   const [reloadLauncherId, setReloadLauncherId] = useState<string | null>(null)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+
+  // Check if Ammo PLT has any RSVs or pods assigned
+  const hasAmmoPltContent = useMemo(() => {
+    const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === AMMO_PLT_ID)
+    const ammoPltPods = pods.filter((p) => {
+      if (p.ammoPltId === AMMO_PLT_ID) return true
+      if (p.rsvId) {
+        const rsv = rsvs.find((r) => r.id === p.rsvId)
+        if (rsv && rsv.ammoPltId === AMMO_PLT_ID) return true
+      }
+      return false
+    })
+    return ammoPltRSVs.length > 0 || ammoPltPods.length > 0
+  }, [rsvs, pods])
 
   const handleInitiateFireMission = () => {
     setIsFireMissionModalOpen(true)
@@ -66,7 +85,7 @@ export default function Dashboard() {
   }
 
   // Calculate responsive grid columns based on number of POCs
-  // 1 POC = full width, 2 POCs = 2 columns, 3+ POCs = 3 columns max
+  // Ammo PLT card will be positioned separately
   const getGridColumns = () => {
     if (pocs.length === 1) return '1fr'
     if (pocs.length === 2) return 'repeat(2, 1fr)'
@@ -85,23 +104,49 @@ export default function Dashboard() {
 
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: getGridColumns(),
+          display: 'flex',
           gap: '1.5rem',
+          alignItems: 'flex-start',
         }}
       >
-        {pocs.map((poc) => (
-          <POCCard
-            key={poc.id}
-            poc={poc}
-            launchers={launchers}
-            pods={pods}
-            rsvs={rsvs}
-            bocs={bocs}
-            onReload={handleReloadLauncher}
-            onClick={() => setSelectedPOC(poc.id)}
-          />
-        ))}
+        {/* Main POC Cards Grid */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: getGridColumns(),
+            gap: '1.5rem',
+            flex: 1,
+          }}
+        >
+          {pocs.map((poc) => (
+            <POCCard
+              key={poc.id}
+              poc={poc}
+              launchers={launchers}
+              pods={pods}
+              rsvs={rsvs}
+              bocs={bocs}
+              onReload={handleReloadLauncher}
+              onClick={() => setSelectedPOC(poc.id)}
+            />
+          ))}
+        </div>
+
+        {/* Ammo PLT Card - Sidebar style, smaller and out of the way */}
+        {hasAmmoPltContent && (
+          <div
+            style={{
+              width: '280px',
+              flexShrink: 0,
+            }}
+          >
+            <AmmoPltCard
+              pods={pods}
+              rsvs={rsvs}
+              onClick={() => setIsAmmoPltModalOpen(true)}
+            />
+          </div>
+        )}
       </div>
 
       <FireMissionModal
@@ -114,10 +159,19 @@ export default function Dashboard() {
           poc={pocs.find((p) => p.id === selectedPOC)!}
           pods={pods}
           launchers={launchers}
+          rsvs={rsvs}
+          bocs={bocs}
           isOpen={!!selectedPOC}
           onClose={() => setSelectedPOC(null)}
         />
       )}
+
+      <AmmoPltDetailModal
+        pods={pods}
+        rsvs={rsvs}
+        isOpen={isAmmoPltModalOpen}
+        onClose={() => setIsAmmoPltModalOpen(false)}
+      />
 
       {reloadLauncherId && (() => {
         const launcher = launchers.find((l) => l.id === reloadLauncherId)
@@ -130,13 +184,16 @@ export default function Dashboard() {
         const availablePods = pods.filter((p) => {
           if (p.launcherId) return false
           
+          // Pod directly assigned to Ammo PLT (available to all)
+          if (p.ammoPltId === AMMO_PLT_ID) return true
+          
           // Check if pod is on an RSV assigned to this POC's BOC, the POC itself, or Ammo PLT
           if (p.rsvId) {
             const rsv = rsvs.find((r) => r.id === p.rsvId)
             if (rsv) {
               if (rsv.pocId === launcher.pocId) return true
               if (rsv.bocId === poc.bocId) return true
-              if (rsv.ammoPltId) return true
+              if (rsv.ammoPltId === AMMO_PLT_ID) return true
             }
           }
           

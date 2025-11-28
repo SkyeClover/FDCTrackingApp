@@ -1,16 +1,33 @@
-export const ROUND_TYPES = {
-  M28A1: 'M28A1',
-  M26: 'M26',
-  M31: 'M31',
-  M30: 'M30',
-} as const
+import { RoundType, RoundTypeConfig } from '../types'
 
-export type RoundType = typeof ROUND_TYPES[keyof typeof ROUND_TYPES]
+export const DEFAULT_ROUND_TYPES: Record<string, RoundTypeConfig> = {
+  M28A1: { name: 'M28A1', enabled: true },
+  M26: { name: 'M26', enabled: true },
+  M31: { name: 'M31', enabled: true },
+  M30: { name: 'M30', enabled: true },
+  M57: { name: 'M57', enabled: true },
+  M39: { name: 'M39', enabled: true },
+}
 
-export const ROUND_TYPE_OPTIONS = [
-  { value: ROUND_TYPES.M28A1, label: 'M28A1' },
-  { value: ROUND_TYPES.M26, label: 'M26' },
-  { value: ROUND_TYPES.M31, label: 'M31' },
-  { value: ROUND_TYPES.M30, label: 'M30' },
-]
+// Helper function to get enabled round types as options
+export function getEnabledRoundTypeOptions(roundTypes: Record<string, RoundTypeConfig>) {
+  return Object.values(roundTypes)
+    .filter((config) => config.enabled)
+    .map((config) => ({
+      value: config.name,
+      label: config.name,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+}
+
+// Helper function to get all round types as options (for settings)
+export function getAllRoundTypeOptions(roundTypes: Record<string, RoundTypeConfig>) {
+  return Object.values(roundTypes)
+    .map((config) => ({
+      value: config.name,
+      label: config.name,
+      enabled: config.enabled,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+}
 

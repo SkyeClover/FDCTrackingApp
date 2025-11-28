@@ -1,7 +1,9 @@
-import { useState, memo, useMemo, useCallback } from 'react'
+import { useState, memo, useMemo, useCallback, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
-import { Plus } from 'lucide-react'
-import { ROUND_TYPE_OPTIONS, RoundType } from '../constants/roundTypes'
+import { Plus, X, Trash2 } from 'lucide-react'
+import { getEnabledRoundTypeOptions, RoundType } from '../constants/roundTypes'
+import PodsManagement from '../components/PodsManagement'
+import PodsToRSVAssignment from '../components/PodsToRSVAssignment'
 
 // Memoized form component to prevent re-renders
 const ItemForm = memo(({
@@ -9,21 +11,39 @@ const ItemForm = memo(({
   onSubmit,
   onCancel,
   pocs,
+  roundTypeOptions,
 }: {
   title: string
   onSubmit: (data: { name: string; roundType?: RoundType; roundCount?: number; quantity?: number; pocId?: string }) => void
   onCancel: () => void
   pocs?: Array<{ id: string; name: string }>
+  roundTypeOptions: Array<{ value: string; label: string }>
 }) => {
   const [name, setName] = useState('')
-  const [roundType, setRoundType] = useState<RoundType>('M28A1')
+  const [roundType, setRoundType] = useState<RoundType>(roundTypeOptions[0]?.value || '')
   const [roundCount, setRoundCount] = useState(6)
   const [quantity, setQuantity] = useState(1)
   const [pocId, setPocId] = useState('')
 
+  // Update roundType when roundTypeOptions change
+  useEffect(() => {
+    if (title === 'Pods' && roundTypeOptions.length > 0) {
+      // If current roundType is not in enabled options, switch to first enabled option
+      if (!roundTypeOptions.find(opt => opt.value === roundType)) {
+        setRoundType(roundTypeOptions[0].value)
+      }
+    } else if (title === 'Pods' && roundTypeOptions.length === 0) {
+      setRoundType('')
+    }
+  }, [roundTypeOptions, title, roundType])
+
+  // Check if we can create pods (need at least one enabled round type)
+  const canCreatePods = title !== 'Pods' || roundTypeOptions.length > 0
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (name.trim()) {
+    if (!canCreatePods) return
+    if (name.trim() && (title !== 'Pods' || roundType)) {
       onSubmit({ 
         name: name.trim(), 
         roundType, 
@@ -32,7 +52,7 @@ const ItemForm = memo(({
         pocId: title === 'Pods' && pocId ? pocId : undefined,
       })
       setName('')
-      setRoundType('M28A1')
+      setRoundType(roundTypeOptions[0]?.value || '')
       setRoundCount(6)
       setQuantity(1)
       setPocId('')
@@ -70,24 +90,39 @@ const ItemForm = memo(({
       />
       {title === 'Pods' && (
         <>
-          <select
-            value={roundType}
-            onChange={(e) => setRoundType(e.target.value as RoundType)}
-            style={{
-              padding: '0.5rem',
-              backgroundColor: 'var(--bg-primary)',
-              border: '1px solid var(--border)',
-              borderRadius: '4px',
-              color: 'var(--text-primary)',
-              fontSize: '0.9rem',
-            }}
-          >
-            {ROUND_TYPE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          {roundTypeOptions.length === 0 ? (
+            <div
+              style={{
+                padding: '0.75rem',
+                backgroundColor: 'var(--bg-primary)',
+                border: '1px solid var(--warning)',
+                borderRadius: '4px',
+                color: 'var(--warning)',
+                fontSize: '0.9rem',
+              }}
+            >
+              ⚠️ No round types are enabled. Please enable at least one round type in Settings before creating pods.
+            </div>
+          ) : (
+            <select
+              value={roundType}
+              onChange={(e) => setRoundType(e.target.value as RoundType)}
+              style={{
+                padding: '0.5rem',
+                backgroundColor: 'var(--bg-primary)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                color: 'var(--text-primary)',
+                fontSize: '0.9rem',
+              }}
+            >
+              {roundTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             type="number"
             value={roundCount}
@@ -145,15 +180,17 @@ const ItemForm = memo(({
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         <button
           type="submit"
+          disabled={!canCreatePods}
           style={{
             flex: 1,
             padding: '0.5rem 1rem',
-            backgroundColor: 'var(--success)',
-            color: 'white',
+            backgroundColor: canCreatePods ? 'var(--success)' : 'var(--bg-tertiary)',
+            color: canCreatePods ? 'white' : 'var(--text-secondary)',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer',
+            cursor: canCreatePods ? 'pointer' : 'not-allowed',
             fontSize: '0.9rem',
+            opacity: canCreatePods ? 1 : 0.6,
           }}
         >
           Create
@@ -184,9 +221,21 @@ ItemForm.displayName = 'ItemForm'
 const ItemList = memo(({
   items,
   title,
+  onDelete,
+  selectedIds,
+  onSelect,
+  onSelectAll,
+  isAllSelected,
+  isSomeSelected,
 }: {
   items: Array<{ id: string; name: string; rounds?: any[] }>
   title: string
+  onDelete?: (id: string) => void
+  selectedIds?: Set<string>
+  onSelect?: (id: string) => void
+  onSelectAll?: () => void
+  isAllSelected?: boolean
+  isSomeSelected?: boolean
 }) => {
   if (items.length === 0) {
     return (
@@ -196,28 +245,138 @@ const ItemList = memo(({
     )
   }
 
+  const hasSelection = selectedIds !== undefined && onSelect !== undefined
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-      {items.map((item) => (
+      {hasSelection && onSelectAll && (
         <div
-          key={item.id}
           style={{
-            padding: '0.75rem',
-            backgroundColor: 'var(--bg-tertiary)',
+            padding: '0.5rem 0.75rem',
+            backgroundColor: 'var(--bg-primary)',
             borderRadius: '4px',
+            border: '1px solid var(--border)',
             display: 'flex',
-            justifyContent: 'space-between',
             alignItems: 'center',
+            gap: '0.5rem',
           }}
         >
-          <span style={{ color: 'var(--text-primary)' }}>{item.name}</span>
-          {title === 'Pods' && (
-            <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-              {item.rounds?.length || 0} rounds
-            </span>
+          <input
+            type="checkbox"
+            checked={isAllSelected || false}
+            ref={(input) => {
+              if (input && isSomeSelected !== undefined) {
+                input.indeterminate = isSomeSelected && !isAllSelected
+              }
+            }}
+            onChange={onSelectAll}
+            style={{
+              cursor: 'pointer',
+              width: '18px',
+              height: '18px',
+            }}
+          />
+          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            Select All ({selectedIds?.size || 0} selected)
+          </span>
+          {selectedIds && selectedIds.size > 0 && onDelete && (
+            <button
+              onClick={() => {
+                const selectedItems = items.filter((item) => selectedIds.has(item.id))
+                const itemNames = selectedItems.map((item) => item.name).join(', ')
+                if (confirm(`Are you sure you want to delete ${selectedIds.size} ${title.slice(0, -1).toLowerCase()}(s)?\n\n${itemNames}`)) {
+                  selectedIds.forEach((id) => onDelete(id))
+                }
+              }}
+              style={{
+                marginLeft: 'auto',
+                padding: '0.35rem 0.5rem',
+                backgroundColor: 'var(--danger)',
+                border: 'none',
+                borderRadius: '4px',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                fontSize: '0.85rem',
+              }}
+            >
+              <Trash2 size={14} />
+              Delete Selected
+            </button>
           )}
         </div>
-      ))}
+      )}
+      {items.map((item) => {
+        const isSelected = selectedIds?.has(item.id) || false
+        return (
+          <div
+            key={item.id}
+            style={{
+              padding: '0.75rem',
+              backgroundColor: isSelected ? 'var(--bg-primary)' : 'var(--bg-tertiary)',
+              borderRadius: '4px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+              {hasSelection && (
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => onSelect?.(item.id)}
+                  style={{
+                    cursor: 'pointer',
+                    width: '18px',
+                    height: '18px',
+                  }}
+                />
+              )}
+              <span style={{ color: 'var(--text-primary)' }}>{item.name}</span>
+              {title === 'Pods' && (
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  {item.rounds?.length || 0} rounds
+                </span>
+              )}
+            </div>
+            {onDelete && (
+              <button
+                onClick={() => {
+                  if (confirm(`Are you sure you want to delete ${title.slice(0, -1)} "${item.name}"?`)) {
+                    onDelete(item.id)
+                  }
+                }}
+                style={{
+                  padding: '0.35rem 0.5rem',
+                  backgroundColor: 'transparent',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  color: 'var(--danger)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  fontSize: '0.85rem',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--bg-primary)'
+                  e.currentTarget.style.borderColor = 'var(--danger)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                  e.currentTarget.style.borderColor = 'var(--border)'
+                }}
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 })
@@ -229,16 +388,30 @@ const ItemCard = memo(({
   title,
   items,
   onAdd,
+  onDelete,
   showForm,
   onToggleForm,
   pocs,
+  selectedIds,
+  onSelect,
+  onSelectAll,
+  isAllSelected,
+  isSomeSelected,
+  roundTypeOptions,
 }: {
   title: string
   items: Array<{ id: string; name: string; rounds?: any[] }>
   onAdd: (data: { name: string; roundType?: RoundType; roundCount?: number; quantity?: number; pocId?: string }) => void
+  onDelete?: (id: string) => void
   showForm: boolean
   onToggleForm: () => void
   pocs?: Array<{ id: string; name: string }>
+  selectedIds?: Set<string>
+  onSelect?: (id: string) => void
+  onSelectAll?: () => void
+  isAllSelected?: boolean
+  isSomeSelected?: boolean
+  roundTypeOptions: Array<{ value: string; label: string }>
 }) => {
   const handleSubmit = useCallback(
     (data: { name: string; roundType?: RoundType; roundCount?: number; quantity?: number; pocId?: string }) => {
@@ -289,9 +462,18 @@ const ItemCard = memo(({
         </button>
       </div>
 
-      {showForm && <ItemForm title={title} onSubmit={handleSubmit} onCancel={onToggleForm} pocs={pocs} />}
+      {showForm && <ItemForm title={title} onSubmit={handleSubmit} onCancel={onToggleForm} pocs={pocs} roundTypeOptions={roundTypeOptions} />}
 
-      <ItemList items={items} title={title} />
+      <ItemList 
+        items={items} 
+        title={title} 
+        onDelete={onDelete}
+        selectedIds={selectedIds}
+        onSelect={onSelect}
+        onSelectAll={onSelectAll}
+        isAllSelected={isAllSelected}
+        isSomeSelected={isSomeSelected}
+      />
     </div>
   )
 })
@@ -299,13 +481,22 @@ const ItemCard = memo(({
 ItemCard.displayName = 'ItemCard'
 
 export default function Inventory() {
-  const { bocs, pocs, launchers, pods, rsvs, addBOC, addPOC, addLauncher, addPod, addRSV, addRound, assignPodToPOC } = useAppData()
+  const { bocs, pocs, launchers, pods, rsvs, addBOC, addPOC, addLauncher, addPod, addRSV, addRound, assignPodToPOC, deleteBOC, deletePOC, deleteLauncher, deletePod, deleteRSV, roundTypes } = useAppData()
+  
+  // Get enabled round type options
+  const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
 
   const [showBOCForm, setShowBOCForm] = useState(false)
   const [showPOCForm, setShowPOCForm] = useState(false)
   const [showLauncherForm, setShowLauncherForm] = useState(false)
   const [showPodForm, setShowPodForm] = useState(false)
   const [showRSVForm, setShowRSVForm] = useState(false)
+  
+  // Selection state for mass operations
+  const [selectedBOCIds, setSelectedBOCIds] = useState<Set<string>>(new Set())
+  const [selectedPOCIds, setSelectedPOCIds] = useState<Set<string>>(new Set())
+  const [selectedLauncherIds, setSelectedLauncherIds] = useState<Set<string>>(new Set())
+  const [selectedRSVIds, setSelectedRSVIds] = useState<Set<string>>(new Set())
 
   // Memoize callbacks to prevent re-renders
   const handleAddBOC = useCallback(
@@ -389,6 +580,110 @@ export default function Inventory() {
   const podsMemo = useMemo(() => pods, [pods])
   const rsvsMemo = useMemo(() => rsvs, [rsvs])
 
+  // Selection helpers for BOCs
+  const isAllBOCsSelected = useMemo(() => {
+    return bocs.length > 0 && bocs.every((boc) => selectedBOCIds.has(boc.id))
+  }, [bocs, selectedBOCIds])
+  const isSomeBOCsSelected = useMemo(() => {
+    return bocs.some((boc) => selectedBOCIds.has(boc.id))
+  }, [bocs, selectedBOCIds])
+  const handleBOCSelectAll = useCallback(() => {
+    if (isAllBOCsSelected) {
+      setSelectedBOCIds(new Set())
+    } else {
+      setSelectedBOCIds(new Set(bocs.map((b) => b.id)))
+    }
+  }, [isAllBOCsSelected, bocs])
+  const handleBOCSelect = useCallback((id: string) => {
+    setSelectedBOCIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }, [])
+
+  // Selection helpers for POCs
+  const isAllPOCsSelected = useMemo(() => {
+    return pocs.length > 0 && pocs.every((poc) => selectedPOCIds.has(poc.id))
+  }, [pocs, selectedPOCIds])
+  const isSomePOCsSelected = useMemo(() => {
+    return pocs.some((poc) => selectedPOCIds.has(poc.id))
+  }, [pocs, selectedPOCIds])
+  const handlePOCSelectAll = useCallback(() => {
+    if (isAllPOCsSelected) {
+      setSelectedPOCIds(new Set())
+    } else {
+      setSelectedPOCIds(new Set(pocs.map((p) => p.id)))
+    }
+  }, [isAllPOCsSelected, pocs])
+  const handlePOCSelect = useCallback((id: string) => {
+    setSelectedPOCIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }, [])
+
+  // Selection helpers for Launchers
+  const isAllLaunchersSelected = useMemo(() => {
+    return launchers.length > 0 && launchers.every((launcher) => selectedLauncherIds.has(launcher.id))
+  }, [launchers, selectedLauncherIds])
+  const isSomeLaunchersSelected = useMemo(() => {
+    return launchers.some((launcher) => selectedLauncherIds.has(launcher.id))
+  }, [launchers, selectedLauncherIds])
+  const handleLauncherSelectAll = useCallback(() => {
+    if (isAllLaunchersSelected) {
+      setSelectedLauncherIds(new Set())
+    } else {
+      setSelectedLauncherIds(new Set(launchers.map((l) => l.id)))
+    }
+  }, [isAllLaunchersSelected, launchers])
+  const handleLauncherSelect = useCallback((id: string) => {
+    setSelectedLauncherIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }, [])
+
+  // Selection helpers for RSVs
+  const isAllRSVsSelected = useMemo(() => {
+    return rsvs.length > 0 && rsvs.every((rsv) => selectedRSVIds.has(rsv.id))
+  }, [rsvs, selectedRSVIds])
+  const isSomeRSVsSelected = useMemo(() => {
+    return rsvs.some((rsv) => selectedRSVIds.has(rsv.id))
+  }, [rsvs, selectedRSVIds])
+  const handleRSVSelectAll = useCallback(() => {
+    if (isAllRSVsSelected) {
+      setSelectedRSVIds(new Set())
+    } else {
+      setSelectedRSVIds(new Set(rsvs.map((r) => r.id)))
+    }
+  }, [isAllRSVsSelected, rsvs])
+  const handleRSVSelect = useCallback((id: string) => {
+    setSelectedRSVIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }, [])
+
   return (
     <div>
       <h1
@@ -402,6 +697,86 @@ export default function Inventory() {
         Inventory
       </h1>
 
+      {/* Pods Management - Full Width */}
+      <div style={{ marginBottom: '2rem' }}>
+        <PodsManagement onAddPod={() => setShowPodForm(true)} />
+      </div>
+
+      {/* Pods to RSV Assignment - Full Width */}
+      <div style={{ marginBottom: '2rem' }}>
+        <PodsToRSVAssignment />
+      </div>
+
+      {/* Pod Creation Modal */}
+      {showPodForm && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowPodForm(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              borderRadius: '8px',
+              padding: '2rem',
+              maxWidth: '500px',
+              width: '90%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem',
+              }}
+            >
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                Add Pod(s)
+              </h2>
+              <button
+                onClick={() => setShowPodForm(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  padding: '0.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <ItemForm
+              title="Pods"
+              onSubmit={(data) => {
+                handleAddPod(data)
+                setShowPodForm(false)
+              }}
+              onCancel={() => setShowPodForm(false)}
+              pocs={pocsMemo}
+              roundTypeOptions={roundTypeOptions}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Other Items */}
       <div
         style={{
           display: 'grid',
@@ -413,37 +788,57 @@ export default function Inventory() {
           title="BOCs"
           items={bocsMemo}
           onAdd={handleAddBOC}
+          onDelete={deleteBOC}
           showForm={showBOCForm}
           onToggleForm={() => setShowBOCForm(!showBOCForm)}
+          selectedIds={selectedBOCIds}
+          onSelect={handleBOCSelect}
+          onSelectAll={handleBOCSelectAll}
+          isAllSelected={isAllBOCsSelected}
+          isSomeSelected={isSomeBOCsSelected}
+          roundTypeOptions={roundTypeOptions}
         />
         <ItemCard
           title="POCs"
           items={pocsMemo}
           onAdd={handleAddPOC}
+          onDelete={deletePOC}
           showForm={showPOCForm}
           onToggleForm={() => setShowPOCForm(!showPOCForm)}
+          selectedIds={selectedPOCIds}
+          onSelect={handlePOCSelect}
+          onSelectAll={handlePOCSelectAll}
+          isAllSelected={isAllPOCsSelected}
+          isSomeSelected={isSomePOCsSelected}
+          roundTypeOptions={roundTypeOptions}
         />
         <ItemCard
           title="Launchers"
           items={launchersMemo}
           onAdd={handleAddLauncher}
+          onDelete={deleteLauncher}
           showForm={showLauncherForm}
           onToggleForm={() => setShowLauncherForm(!showLauncherForm)}
-        />
-        <ItemCard
-          title="Pods"
-          items={podsMemo}
-          onAdd={handleAddPod}
-          showForm={showPodForm}
-          onToggleForm={() => setShowPodForm(!showPodForm)}
-          pocs={pocsMemo}
+          selectedIds={selectedLauncherIds}
+          onSelect={handleLauncherSelect}
+          onSelectAll={handleLauncherSelectAll}
+          isAllSelected={isAllLaunchersSelected}
+          isSomeSelected={isSomeLaunchersSelected}
+          roundTypeOptions={roundTypeOptions}
         />
         <ItemCard
           title="RSVs"
           items={rsvsMemo}
           onAdd={handleAddRSV}
+          onDelete={deleteRSV}
           showForm={showRSVForm}
           onToggleForm={() => setShowRSVForm(!showRSVForm)}
+          selectedIds={selectedRSVIds}
+          onSelect={handleRSVSelect}
+          onSelectAll={handleRSVSelectAll}
+          isAllSelected={isAllRSVsSelected}
+          isSomeSelected={isSomeRSVsSelected}
+          roundTypeOptions={roundTypeOptions}
         />
       </div>
     </div>
