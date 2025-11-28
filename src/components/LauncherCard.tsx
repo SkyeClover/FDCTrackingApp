@@ -1,5 +1,6 @@
 import { Launcher, Pod } from '../types'
 import { RotateCcw } from 'lucide-react'
+import { useProgress } from '../context/ProgressContext'
 
 interface LauncherCardProps {
   launcher: Launcher
@@ -8,12 +9,17 @@ interface LauncherCardProps {
 }
 
 export default function LauncherCard({ launcher, pod, onReload }: LauncherCardProps) {
+  const { taskProgress } = useProgress()
   const availableRounds = pod?.rounds.filter((r) => r.status === 'available').length || 0
   const usedRounds = pod?.rounds.filter((r) => r.status === 'used').length || 0
   const roundType = pod?.rounds[0]?.type || 'N/A'
   const maxRounds = 6 // Standard capacity
 
-  const taskProgress = launcher.currentTask?.progress || 0
+  // Use live progress from separate state if available, otherwise use task progress
+  const currentProgress = launcher.currentTask?.id 
+    ? (taskProgress[launcher.currentTask.id] ?? launcher.currentTask.progress ?? 0)
+    : 0
+  const taskProgressValue = currentProgress
   const taskDuration = launcher.currentTask?.duration || 168 // Default 2:48 (168 seconds)
   const taskStartTime = launcher.currentTask?.startTime
   
@@ -58,7 +64,10 @@ export default function LauncherCard({ launcher, pod, onReload }: LauncherCardPr
           {launcher.name}
         </span>
         <button
-          onClick={onReload}
+          onClick={(e) => {
+            e.stopPropagation()
+            onReload?.()
+          }}
           style={{
             padding: '0.35rem 0.65rem',
             backgroundColor: 'var(--bg-secondary)',
@@ -229,9 +238,9 @@ export default function LauncherCard({ launcher, pod, onReload }: LauncherCardPr
           >
             <div
               style={{
-                width: `${taskProgress}%`,
+                width: `${taskProgressValue}%`,
                 height: '100%',
-                backgroundColor: taskProgress > 0 ? 'var(--success)' : 'var(--danger)',
+                backgroundColor: taskProgressValue > 0 ? 'var(--success)' : 'var(--danger)',
                 transition: 'width 0.3s',
               }}
             />

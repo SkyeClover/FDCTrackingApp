@@ -134,7 +134,7 @@ export default function Settings() {
               Center
             </p>
             <p>
-              <strong style={{ color: 'var(--text-primary)' }}>POC:</strong> Point of Control
+              <strong style={{ color: 'var(--text-primary)' }}>POC:</strong> PLT Operations Center (PLT FDC)
             </p>
             <p>
               <strong style={{ color: 'var(--text-primary)' }}>Launcher:</strong> Artillery

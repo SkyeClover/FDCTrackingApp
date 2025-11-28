@@ -193,10 +193,10 @@ export default function DashboardHeader({
             onClick={handleSaveClick}
             style={{
               padding: '0.5rem 1rem',
-              backgroundColor: '#10b981',
-              border: 'none',
+              backgroundColor: 'var(--bg-tertiary)',
+              border: '1px solid var(--border)',
               borderRadius: '4px',
-              color: '#fff',
+              color: 'var(--text-primary)',
               fontSize: '0.9rem',
               fontWeight: '500',
               cursor: 'pointer',
@@ -207,16 +207,15 @@ export default function DashboardHeader({
             title="Export to file"
           >
             <Download size={16} />
-            Save
           </button>
           <button
             onClick={handleLoadClick}
             style={{
               padding: '0.5rem 1rem',
-              backgroundColor: '#10b981',
-              border: 'none',
+              backgroundColor: 'var(--bg-tertiary)',
+              border: '1px solid var(--border)',
               borderRadius: '4px',
-              color: '#fff',
+              color: 'var(--text-primary)',
               fontSize: '0.9rem',
               fontWeight: '500',
               cursor: 'pointer',
@@ -227,7 +226,6 @@ export default function DashboardHeader({
             title="Import from file"
           >
             <Upload size={16} />
-            Load
           </button>
         </div>
       </div>

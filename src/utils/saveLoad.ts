@@ -23,16 +23,29 @@ function serializeState(state: AppState): string {
 // Convert ISO strings back to Date objects
 function deserializeState(json: string): AppState {
   const parsed = JSON.parse(json)
+  // Migrate pods to include UUID if missing
+  const migratedPods = parsed.pods?.map((pod: any) => {
+    if (!pod.uuid) {
+      return {
+        ...pod,
+        uuid: crypto.randomUUID(),
+      }
+    }
+    return pod
+  }) || []
+  
   return {
     ...parsed,
-    tasks: parsed.tasks.map((task: any) => ({
+    pods: migratedPods,
+    rsvs: parsed.rsvs || [], // Ensure rsvs array exists
+    tasks: parsed.tasks?.map((task: any) => ({
       ...task,
       startTime: task.startTime ? new Date(task.startTime) : undefined,
-    })),
-    logs: parsed.logs.map((log: any) => ({
+    })) || [],
+    logs: parsed.logs?.map((log: any) => ({
       ...log,
       timestamp: new Date(log.timestamp),
-    })),
+    })) || [],
     lastSaved: parsed.lastSaved ? new Date(parsed.lastSaved) : undefined,
   }
 }
@@ -99,6 +112,7 @@ export function getDefaultState(): AppState {
     pocs: [],
     launchers: [],
     pods: [],
+    rsvs: [],
     rounds: [],
     tasks: [],
     taskTemplates: [

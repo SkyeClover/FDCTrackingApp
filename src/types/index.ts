@@ -8,9 +8,20 @@ export interface Round {
 
 export interface Pod {
   id: string
+  uuid: string // Unique identifier for accurate round tracking
   name: string
   rounds: Round[]
   launcherId?: string
+  pocId?: string // POC that owns this pod (for "POCs On Ground" tracking)
+  rsvId?: string // RSV (Reload Supply Vehicle) that carries this pod
+}
+
+export interface RSV {
+  id: string
+  name: string
+  pocId?: string // Assigned to POC
+  bocId?: string // Assigned to BOC (Battery level slants)
+  ammoPltId?: string // Assigned to Ammo PLT
 }
 
 export interface Launcher {
@@ -67,6 +78,7 @@ export interface AppState {
   pocs: POC[]
   launchers: Launcher[]
   pods: Pod[]
+  rsvs: RSV[]
   rounds: Round[]
   tasks: Task[]
   taskTemplates: TaskTemplate[]

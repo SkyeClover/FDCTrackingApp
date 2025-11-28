@@ -3,32 +3,37 @@ import { useAppData } from '../context/AppDataContext'
 import DashboardHeader from '../components/DashboardHeader'
 import POCCard from '../components/POCCard'
 import FireMissionModal from '../components/FireMissionModal'
+import POCDetailModal from '../components/POCDetailModal'
+import ReloadModal from '../components/ReloadModal'
+import ReportModal from '../components/ReportModal'
 
 export default function Dashboard() {
-  const { pocs, launchers, pods, addLog, reloadLauncher, saveToFile, loadFromFile } = useAppData()
+  const { bocs, pocs, launchers, pods, rsvs, addLog, reloadLauncher, saveToFile, loadFromFile } = useAppData()
   const [isFireMissionModalOpen, setIsFireMissionModalOpen] = useState(false)
+  const [selectedPOC, setSelectedPOC] = useState<string | null>(null)
+  const [reloadLauncherId, setReloadLauncherId] = useState<string | null>(null)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
 
   const handleInitiateFireMission = () => {
     setIsFireMissionModalOpen(true)
   }
 
   const handleReport = () => {
-    addLog({ type: 'info', message: 'Report generation requested' })
-    // TODO: Implement report generation
-    alert('Report generation - Feature coming soon')
+    setIsReportModalOpen(true)
   }
 
   const handleSaveLoad = () => {
     saveToFile()
   }
 
-  const handleEditPOC = (pocId: string) => {
-    addLog({ type: 'info', message: `Editing POC ${pocId}` })
-    // TODO: Implement POC editing
-  }
 
   const handleReloadLauncher = (launcherId: string) => {
-    reloadLauncher(launcherId)
+    setReloadLauncherId(launcherId)
+  }
+
+  const handleReloadConfirm = (launcherId: string, podId?: string) => {
+    reloadLauncher(launcherId, podId)
+    setReloadLauncherId(null)
   }
 
   if (pocs.length === 0) {
@@ -91,8 +96,10 @@ export default function Dashboard() {
             poc={poc}
             launchers={launchers}
             pods={pods}
-            onEdit={() => handleEditPOC(poc.id)}
+            rsvs={rsvs}
+            bocs={bocs}
             onReload={handleReloadLauncher}
+            onClick={() => setSelectedPOC(poc.id)}
           />
         ))}
       </div>
@@ -100,6 +107,67 @@ export default function Dashboard() {
       <FireMissionModal
         isOpen={isFireMissionModalOpen}
         onClose={() => setIsFireMissionModalOpen(false)}
+      />
+
+      {selectedPOC && (
+        <POCDetailModal
+          poc={pocs.find((p) => p.id === selectedPOC)!}
+          pods={pods}
+          launchers={launchers}
+          isOpen={!!selectedPOC}
+          onClose={() => setSelectedPOC(null)}
+        />
+      )}
+
+      {reloadLauncherId && (() => {
+        const launcher = launchers.find((l) => l.id === reloadLauncherId)
+        if (!launcher || !launcher.pocId) return null
+        const poc = pocs.find((p) => p.id === launcher.pocId)
+        if (!poc) return null
+        
+        // Find available pods from RSV's assigned to the POC, BOC, or Ammo PLT
+        const pocBOC = bocs.find((b) => b.id === poc.bocId)
+        const availablePods = pods.filter((p) => {
+          if (p.launcherId) return false
+          
+          // Check if pod is on an RSV assigned to this POC's BOC, the POC itself, or Ammo PLT
+          if (p.rsvId) {
+            const rsv = rsvs.find((r) => r.id === p.rsvId)
+            if (rsv) {
+              if (rsv.pocId === launcher.pocId) return true
+              if (rsv.bocId === poc.bocId) return true
+              if (rsv.ammoPltId) return true
+            }
+          }
+          
+          // Direct POC assignment (backwards compatibility)
+          if (p.pocId === launcher.pocId) return true
+          
+          return false
+        })
+        
+        const currentPod = pods.find((p) => p.launcherId === launcher.id)
+        return (
+          <ReloadModal
+            launcher={launcher}
+            poc={poc}
+            availablePods={availablePods}
+            currentPod={currentPod}
+            rsvs={rsvs}
+            isOpen={!!reloadLauncherId}
+            onClose={() => setReloadLauncherId(null)}
+            onReload={handleReloadConfirm}
+          />
+        )
+      })()}
+
+      <ReportModal
+        bocs={bocs}
+        pocs={pocs}
+        launchers={launchers}
+        pods={pods}
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
       />
     </div>
   )

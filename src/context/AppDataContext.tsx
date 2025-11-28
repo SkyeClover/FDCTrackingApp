@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react'
-import { BOC, POC, Launcher, Pod, Round, Task, TaskTemplate, LogEntry, AppState } from '../types'
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react'
+import { BOC, POC, Launcher, Pod, RSV, Round, Task, TaskTemplate, LogEntry, AppState } from '../types'
 import {
   saveToLocalStorage,
   loadFromLocalStorage,
@@ -13,6 +13,7 @@ interface AppDataContextType {
   pocs: POC[]
   launchers: Launcher[]
   pods: Pod[]
+  rsvs: RSV[]
   rounds: Round[]
   tasks: Task[]
   taskTemplates: TaskTemplate[]
@@ -21,6 +22,7 @@ interface AppDataContextType {
   addPOC: (poc: POC) => void
   addLauncher: (launcher: Launcher) => void
   addPod: (pod: Pod) => void
+  addRSV: (rsv: RSV) => void
   addRound: (round: Round) => void
   addTask: (task: Task) => void
   addTaskTemplate: (template: TaskTemplate) => void
@@ -29,15 +31,21 @@ interface AppDataContextType {
   startTaskFromTemplate: (templateId: string, launcherId: string) => void
   updateLauncher: (id: string, updates: Partial<Launcher>) => void
   updatePod: (id: string, updates: Partial<Pod>) => void
+  updateRSV: (id: string, updates: Partial<RSV>) => void
+  assignPodToPOC: (podId: string, pocId: string) => void
+  assignPodToRSV: (podId: string, rsvId: string) => void
   assignPodToLauncher: (podId: string, launcherId: string) => void
   assignLauncherToPOC: (launcherId: string, pocId: string) => void
   assignPOCToBOC: (pocId: string, bocId: string) => void
+  assignRSVToPOC: (rsvId: string, pocId: string) => void
+  assignRSVToBOC: (rsvId: string, bocId: string) => void
+  assignRSVToAmmoPlt: (rsvId: string, ammoPltId: string) => void
   assignTaskToLauncher: (taskId: string, launcherId: string) => void
   startFireMission: (launcherIds: string[], missionName: string, roundsPerLauncher: number) => void
   updateTaskProgress: (taskId: string, progress: number) => void
   consumeRound: (roundId: string) => void
   completeFireMission: (taskId: string) => void
-  reloadLauncher: (launcherId: string) => void
+  reloadLauncher: (launcherId: string, newPodId?: string) => void
   saveToFile: () => void
   loadFromFile: (file: File) => Promise<void>
   clearAllData: () => void
@@ -46,11 +54,31 @@ interface AppDataContextType {
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined)
 
-export function AppDataProvider({ children }: { children: ReactNode }) {
+interface AppDataProviderProps {
+  children: ReactNode
+  updateProgress?: (taskId: string, progress: number) => void
+  removeProgress?: (taskId: string) => void
+}
+
+export function AppDataProvider({ children, updateProgress, removeProgress }: AppDataProviderProps) {
   const [state, setState] = useState<AppState>(() => {
     const loaded = loadFromLocalStorage()
-    return loaded || getDefaultState()
+    const defaultState = getDefaultState()
+    // Ensure rsvs array exists for backwards compatibility
+    if (loaded && !loaded.rsvs) {
+      loaded.rsvs = []
+    }
+    return loaded || defaultState
   })
+  
+  // Store intervals to cleanup
+  const intervalsRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
+  const stateRef = useRef(state)
+  
+  // Keep stateRef in sync
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
 
   // Auto-save to localStorage whenever state changes
   useEffect(() => {
@@ -64,6 +92,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     return () => clearTimeout(timeoutId)
   }, [state])
+  
+  // Cleanup intervals on unmount
+  useEffect(() => {
+    return () => {
+      intervalsRef.current.forEach((interval) => clearInterval(interval))
+      intervalsRef.current.clear()
+    }
+  }, [])
 
   const addLog = useCallback((entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
     const newLog: LogEntry = {
@@ -95,6 +131,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const addPod = useCallback((pod: Pod) => {
     setState((prev) => ({ ...prev, pods: [...prev.pods, pod] }))
     addLog({ type: 'info', message: `Pod "${pod.name}" created` })
+  }, [addLog])
+
+  const addRSV = useCallback((rsv: RSV) => {
+    setState((prev) => ({ ...prev, rsvs: [...prev.rsvs, rsv] }))
+    addLog({ type: 'info', message: `RSV "${rsv.name}" created` })
   }, [addLog])
 
   const addRound = useCallback((round: Round) => {
@@ -156,24 +197,45 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           })
         }
 
-        // Start progress timer
+        // Start progress timer - use separate progress state to avoid re-renders
         const interval = setInterval(() => {
-          setState((currentState) => {
-            const task = currentState.tasks.find((t) => t.id === newTask.id)
-            if (!task || task.status === 'completed') {
-              clearInterval(interval)
-              return currentState
+          const currentState = stateRef.current
+          const task = currentState.tasks.find((t) => t.id === newTask.id)
+          if (!task || task.status === 'completed') {
+            const intervalToClear = intervalsRef.current.get(newTask.id)
+            if (intervalToClear) {
+              clearInterval(intervalToClear)
+              intervalsRef.current.delete(newTask.id)
             }
+            if (removeProgress) {
+              removeProgress(newTask.id)
+            }
+            return
+          }
 
-            const elapsed = task.startTime
-              ? (Date.now() - task.startTime.getTime()) / 1000
-              : 0
-            const progress = Math.min(100, (elapsed / (task.duration || 168)) * 100)
+          const elapsed = task.startTime
+            ? (Date.now() - task.startTime.getTime()) / 1000
+            : 0
+          const progress = Math.min(100, (elapsed / (task.duration || 168)) * 100)
 
-            if (progress >= 100) {
-              clearInterval(interval)
-              // Complete the mission
-              const updatedLaunchers = currentState.launchers.map((l) => {
+          // Update progress via callback (doesn't trigger full context re-render)
+          if (updateProgress) {
+            updateProgress(newTask.id, progress)
+          }
+
+          if (progress >= 100) {
+            const intervalToClear = intervalsRef.current.get(newTask.id)
+            if (intervalToClear) {
+              clearInterval(intervalToClear)
+              intervalsRef.current.delete(newTask.id)
+            }
+            if (removeProgress) {
+              removeProgress(newTask.id)
+            }
+            
+            // Complete the mission - update main state
+            setState((state) => {
+              const updatedLaunchers = state.launchers.map((l) => {
                 if (l.currentTask?.id === newTask.id) {
                   addLog({
                     type: 'success',
@@ -188,28 +250,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                 return l
               })
               return {
-                ...currentState,
-                tasks: currentState.tasks.map((t) =>
+                ...state,
+                tasks: state.tasks.map((t) =>
                   t.id === newTask.id ? { ...t, status: 'completed' as const, progress: 100 } : t
                 ),
                 launchers: updatedLaunchers,
               }
-            }
-
-            const updatedTask = { ...task, progress }
-
-            return {
-              ...currentState,
-              tasks: currentState.tasks.map((t) => (t.id === newTask.id ? updatedTask : t)),
-              launchers: currentState.launchers.map((l) => {
-                if (l.currentTask?.id === newTask.id) {
-                  return { ...l, currentTask: updatedTask }
-                }
-                return l
-              }),
-            }
-          })
-        }, 100)
+            })
+          }
+        }, 500) // Update every 500ms to reduce frequency
+        
+        intervalsRef.current.set(newTask.id, interval)
 
         return {
           ...prev,
@@ -244,6 +295,69 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const updateRSV = useCallback((id: string, updates: Partial<RSV>) => {
+    setState((prev) => ({
+      ...prev,
+      rsvs: prev.rsvs.map((r) => (r.id === id ? { ...r, ...updates } : r)),
+    }))
+  }, [])
+
+  const assignPodToPOC = useCallback((podId: string, pocId: string) => {
+    setState((prev) => {
+      const pod = prev.pods.find((p) => p.id === podId)
+      
+      if (!pocId) {
+        // Unassign pod from POC
+        return {
+          ...prev,
+          pods: prev.pods.map((p) => (p.id === podId ? { ...p, pocId: undefined } : p)),
+        }
+      }
+
+      const poc = prev.pocs.find((p) => p.id === pocId)
+
+      if (pod && poc) {
+        addLog({
+          type: 'success',
+          message: `Pod "${pod.name}" assigned to POC "${poc.name}"`,
+        })
+      }
+
+      return {
+        ...prev,
+        pods: prev.pods.map((p) => (p.id === podId ? { ...p, pocId } : p)),
+      }
+    })
+  }, [addLog])
+
+  const assignPodToRSV = useCallback((podId: string, rsvId: string) => {
+    setState((prev) => {
+      const pod = prev.pods.find((p) => p.id === podId)
+      
+      if (!rsvId) {
+        // Unassign pod from RSV
+        return {
+          ...prev,
+          pods: prev.pods.map((p) => (p.id === podId ? { ...p, rsvId: undefined } : p)),
+        }
+      }
+
+      const rsv = prev.rsvs.find((r) => r.id === rsvId)
+
+      if (pod && rsv) {
+        addLog({
+          type: 'success',
+          message: `Pod "${pod.name}" assigned to RSV "${rsv.name}"`,
+        })
+      }
+
+      return {
+        ...prev,
+        pods: prev.pods.map((p) => (p.id === podId ? { ...p, rsvId } : p)),
+      }
+    })
+  }, [addLog])
+
   const assignPodToLauncher = useCallback((podId: string, launcherId: string) => {
     setState((prev) => {
       const pod = prev.pods.find((p) => p.id === podId)
@@ -270,9 +384,22 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         })
       }
 
+      // Common sense: Auto-assign pod to launcher's POC if launcher has a POC
+      const updatedPods = prev.pods.map((p) => {
+        if (p.id === podId) {
+          const updatedPod = { ...p, launcherId }
+          // If launcher has a POC and pod doesn't, assign pod to that POC
+          if (launcher?.pocId && !p.pocId) {
+            updatedPod.pocId = launcher.pocId
+          }
+          return updatedPod
+        }
+        return p
+      })
+
       return {
         ...prev,
-        pods: prev.pods.map((p) => (p.id === podId ? { ...p, launcherId } : p)),
+        pods: updatedPods,
         launchers: prev.launchers.map((l) => {
           if (l.id === launcherId) {
             return { ...l, podId }
@@ -306,9 +433,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         })
       }
 
+      // Common sense: Auto-assign pod on launcher to the POC
+      const updatedPods = prev.pods.map((p) => {
+        if (p.launcherId === launcherId && !p.pocId) {
+          return { ...p, pocId }
+        }
+        return p
+      })
+
       return {
         ...prev,
         launchers: prev.launchers.map((l) => (l.id === launcherId ? { ...l, pocId } : l)),
+        pods: updatedPods,
       }
     })
   }, [addLog])
@@ -340,6 +476,85 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     })
   }, [addLog])
 
+  const assignRSVToPOC = useCallback((rsvId: string, pocId: string) => {
+    setState((prev) => {
+      const rsv = prev.rsvs.find((r) => r.id === rsvId)
+      
+      if (!pocId) {
+        return {
+          ...prev,
+          rsvs: prev.rsvs.map((r) => (r.id === rsvId ? { ...r, pocId: undefined, bocId: undefined, ammoPltId: undefined } : r)),
+        }
+      }
+
+      const poc = prev.pocs.find((p) => p.id === pocId)
+
+      if (rsv && poc) {
+        addLog({
+          type: 'success',
+          message: `RSV "${rsv.name}" assigned to POC "${poc.name}"`,
+        })
+      }
+
+      return {
+        ...prev,
+        rsvs: prev.rsvs.map((r) => (r.id === rsvId ? { ...r, pocId, bocId: undefined, ammoPltId: undefined } : r)),
+      }
+    })
+  }, [addLog])
+
+  const assignRSVToBOC = useCallback((rsvId: string, bocId: string) => {
+    setState((prev) => {
+      const rsv = prev.rsvs.find((r) => r.id === rsvId)
+      
+      if (!bocId) {
+        return {
+          ...prev,
+          rsvs: prev.rsvs.map((r) => (r.id === rsvId ? { ...r, pocId: undefined, bocId: undefined, ammoPltId: undefined } : r)),
+        }
+      }
+
+      const boc = prev.bocs.find((b) => b.id === bocId)
+
+      if (rsv && boc) {
+        addLog({
+          type: 'success',
+          message: `RSV "${rsv.name}" assigned to BOC "${boc.name}" (Battery level slant)`,
+        })
+      }
+
+      return {
+        ...prev,
+        rsvs: prev.rsvs.map((r) => (r.id === rsvId ? { ...r, bocId, pocId: undefined, ammoPltId: undefined } : r)),
+      }
+    })
+  }, [addLog])
+
+  const assignRSVToAmmoPlt = useCallback((rsvId: string, ammoPltId: string) => {
+    setState((prev) => {
+      const rsv = prev.rsvs.find((r) => r.id === rsvId)
+      
+      if (!ammoPltId) {
+        return {
+          ...prev,
+          rsvs: prev.rsvs.map((r) => (r.id === rsvId ? { ...r, pocId: undefined, bocId: undefined, ammoPltId: undefined } : r)),
+        }
+      }
+
+      if (rsv) {
+        addLog({
+          type: 'success',
+          message: `RSV "${rsv.name}" assigned to Ammo PLT "${ammoPltId}"`,
+        })
+      }
+
+      return {
+        ...prev,
+        rsvs: prev.rsvs.map((r) => (r.id === rsvId ? { ...r, ammoPltId, pocId: undefined, bocId: undefined } : r)),
+      }
+    })
+  }, [addLog])
+
   const assignTaskToLauncher = useCallback((taskId: string, launcherId: string) => {
     setState((prev) => {
       const task = prev.tasks.find((t) => t.id === taskId)
@@ -364,7 +579,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const startFireMission = useCallback(
     (launcherIds: string[], missionName: string, roundsPerLauncher: number) => {
-      const duration = 168 // 2:48 in seconds
+      // Find Fire Mission template duration, default to 168 seconds (2:48)
+      const fireTemplate = stateRef.current.taskTemplates.find((t) => t.type === 'fire')
+      const duration = fireTemplate?.duration || 168
+      
       const newTask: Task = {
         id: Date.now().toString(),
         name: missionName,
@@ -420,39 +638,46 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         }
       })
 
-      // Start progress timer
+      // Start progress timer - use separate progress state to avoid re-renders
       const interval = setInterval(() => {
-        setState((prev) => {
-          const task = prev.tasks.find((t) => t.id === newTask.id)
-          if (!task || task.status === 'completed') {
-            clearInterval(interval)
-            return prev
+        const currentState = stateRef.current
+        const task = currentState.tasks.find((t) => t.id === newTask.id)
+        if (!task || task.status === 'completed') {
+          const intervalToClear = intervalsRef.current.get(newTask.id)
+          if (intervalToClear) {
+            clearInterval(intervalToClear)
+            intervalsRef.current.delete(newTask.id)
           }
-
-          const elapsed = task.startTime
-            ? (Date.now() - task.startTime.getTime()) / 1000
-            : 0
-          const progress = Math.min(100, (elapsed / duration) * 100)
-
-          if (progress >= 100) {
-            completeFireMission(newTask.id)
-            clearInterval(interval)
+          if (removeProgress) {
+            removeProgress(newTask.id)
           }
+          return
+        }
 
-          const updatedTask = { ...task, progress }
+        const elapsed = task.startTime
+          ? (Date.now() - task.startTime.getTime()) / 1000
+          : 0
+        const progress = Math.min(100, (elapsed / duration) * 100)
 
-          return {
-            ...prev,
-            tasks: prev.tasks.map((t) => (t.id === newTask.id ? updatedTask : t)),
-            launchers: prev.launchers.map((l) => {
-              if (l.currentTask?.id === newTask.id) {
-                return { ...l, currentTask: updatedTask }
-              }
-              return l
-            }),
+        // Update progress via callback (doesn't trigger full context re-render)
+        if (updateProgress) {
+          updateProgress(newTask.id, progress)
+        }
+
+        if (progress >= 100) {
+          const intervalToClear = intervalsRef.current.get(newTask.id)
+          if (intervalToClear) {
+            clearInterval(intervalToClear)
+            intervalsRef.current.delete(newTask.id)
           }
-        })
-      }, 100)
+          if (removeProgress) {
+            removeProgress(newTask.id)
+          }
+          completeFireMission(newTask.id)
+        }
+      }, 500) // Update every 500ms to reduce frequency
+      
+      intervalsRef.current.set(newTask.id, interval)
     },
     [addLog]
   )
@@ -517,36 +742,113 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     })
   }, [addLog])
 
-  const reloadLauncher = useCallback((launcherId: string) => {
+  const reloadLauncher = useCallback((launcherId: string, newPodId?: string) => {
     setState((prev) => {
       const launcher = prev.launchers.find((l) => l.id === launcherId)
       if (!launcher) return prev
 
-      const pod = prev.pods.find((p) => p.launcherId === launcherId)
-      if (pod) {
-        addLog({
-          type: 'success',
-          message: `Launcher "${launcher.name}" reloaded - all rounds reset to available`,
-        })
-        return {
-          ...prev,
-          pods: prev.pods.map((p) => {
-            if (p.id === pod.id) {
-              return {
-                ...p,
-                rounds: p.rounds.map((r) => ({ ...r, status: 'available' as const })),
-              }
-            }
-            return p
-          }),
-        }
-      } else {
+      const currentPod = prev.pods.find((p) => p.launcherId === launcherId)
+      
+      // If launcher has no POC assigned, can't reload from POC inventory
+      if (!launcher.pocId) {
         addLog({
           type: 'warning',
-          message: `Launcher "${launcher.name}" has no pod assigned`,
+          message: `Launcher "${launcher.name}" is not assigned to a POC`,
         })
+        return prev
       }
-      return prev
+
+      // Find available pods from RSV's assigned to the POC, BOC, or Ammo PLT
+      // Also include pods directly assigned to POC (for backwards compatibility)
+      const availablePods = prev.pods.filter((p) => {
+        if (p.launcherId) return false // Pod is on a launcher
+        
+        // Check if pod is on an RSV assigned to this POC's BOC, the POC itself, or Ammo PLT
+        if (p.rsvId) {
+          const rsv = prev.rsvs.find((r) => r.id === p.rsvId)
+          if (rsv) {
+            // RSV assigned to POC
+            if (rsv.pocId === launcher.pocId) return true
+            // RSV assigned to BOC (battery level slant)
+            if (rsv.bocId && launcher.pocId) {
+              const poc = prev.pocs.find((p) => p.id === launcher.pocId)
+              if (poc?.bocId === rsv.bocId) return true
+            }
+            // RSV assigned to Ammo PLT (available to all)
+            if (rsv.ammoPltId) return true
+          }
+        }
+        
+        // Direct POC assignment (backwards compatibility)
+        if (p.pocId === launcher.pocId) return true
+        
+        return false
+      })
+
+      if (availablePods.length === 0 && !newPodId) {
+        addLog({
+          type: 'warning',
+          message: `No available pods in POC inventory for launcher "${launcher.name}"`,
+        })
+        return prev
+      }
+
+      // If manual pod selection provided, validate it's available
+      let selectedPod = newPodId 
+        ? prev.pods.find((p) => p.id === newPodId && p.pocId === launcher.pocId && !p.launcherId)
+        : availablePods[0] // Otherwise use first available
+
+      if (!selectedPod) {
+        addLog({
+          type: 'error',
+          message: newPodId 
+            ? `Selected pod is not available or does not belong to this POC`
+            : `No available pods found`,
+        })
+        return prev
+      }
+
+      // Swap pods: remove current pod from launcher, assign new pod to launcher
+      // If current pod exists, unassign it from launcher (it goes back to POC inventory)
+      const updatedPods = prev.pods.map((p) => {
+        if (p.id === currentPod?.id) {
+          // Current pod goes back to POC inventory (keep pocId, remove launcherId)
+          return {
+            ...p,
+            launcherId: undefined,
+            rounds: p.rounds.map((r) => ({ ...r, status: 'available' as const })),
+          }
+        }
+        if (p.id === selectedPod.id) {
+          // New pod goes on launcher
+          return {
+            ...p,
+            launcherId: launcherId,
+          }
+        }
+        return p
+      })
+
+      const updatedLaunchers = prev.launchers.map((l) => {
+        if (l.id === launcherId) {
+          return {
+            ...l,
+            podId: selectedPod.id,
+          }
+        }
+        return l
+      })
+
+      addLog({
+        type: 'success',
+        message: `Launcher "${launcher.name}" reloaded with pod "${selectedPod.name}"`,
+      })
+
+      return {
+        ...prev,
+        pods: updatedPods,
+        launchers: updatedLaunchers,
+      }
     })
   }, [addLog])
 
@@ -589,6 +891,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         pocs: state.pocs,
         launchers: state.launchers,
         pods: state.pods,
+        rsvs: state.rsvs,
         rounds: state.rounds,
         tasks: state.tasks,
         taskTemplates: state.taskTemplates,
@@ -597,6 +900,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         addPOC,
         addLauncher,
         addPod,
+        addRSV,
         addRound,
         addTask,
         addTaskTemplate,
@@ -605,9 +909,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         startTaskFromTemplate,
         updateLauncher,
         updatePod,
+        updateRSV,
+        assignPodToPOC,
+        assignPodToRSV,
         assignPodToLauncher,
         assignLauncherToPOC,
         assignPOCToBOC,
+        assignRSVToPOC,
+        assignRSVToBOC,
+        assignRSVToAmmoPlt,
         assignTaskToLauncher,
         startFireMission,
         updateTaskProgress,

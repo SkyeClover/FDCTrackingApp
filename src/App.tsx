@@ -6,14 +6,16 @@ import Management from './pages/Management'
 import Logs from './pages/Logs'
 import Settings from './pages/Settings'
 import { AppDataProvider } from './context/AppDataContext'
+import { ProgressProvider, useProgress } from './context/ProgressContext'
 
 type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings'
 
-function App() {
+function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard')
+  const { updateProgress, removeProgress } = useProgress()
 
   return (
-    <AppDataProvider>
+    <AppDataProvider updateProgress={updateProgress} removeProgress={removeProgress}>
       <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
         <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
         <main style={{ flex: 1, overflow: 'auto', padding: '2rem' }}>
@@ -25,6 +27,14 @@ function App() {
         </main>
       </div>
     </AppDataProvider>
+  )
+}
+
+function App() {
+  return (
+    <ProgressProvider>
+      <AppContent />
+    </ProgressProvider>
   )
 }
 
