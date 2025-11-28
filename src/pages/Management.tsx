@@ -1299,7 +1299,6 @@ export default function Management() {
                     {bocs.map((boc) => (
                       <EditableItem
                         key={boc.id}
-                        id={boc.id}
                         name={boc.name}
                         onUpdate={(name) => updateBOC(boc.id, { name })}
                         label="BOC"
@@ -1319,7 +1318,6 @@ export default function Management() {
                     {pocs.map((poc) => (
                       <EditableItem
                         key={poc.id}
-                        id={poc.id}
                         name={poc.name}
                         onUpdate={(name) => updatePOC(poc.id, { name })}
                         label="POC"
@@ -1339,7 +1337,6 @@ export default function Management() {
                     {launchers.map((launcher) => (
                       <EditableItem
                         key={launcher.id}
-                        id={launcher.id}
                         name={launcher.name}
                         onUpdate={(name) => updateLauncher(launcher.id, { name })}
                         label="Launcher"
@@ -1359,7 +1356,6 @@ export default function Management() {
                     {pods.map((pod) => (
                       <EditableItem
                         key={pod.id}
-                        id={pod.id}
                         name={pod.name}
                         onUpdate={(name) => updatePod(pod.id, { name })}
                         label="Pod"
@@ -1379,7 +1375,6 @@ export default function Management() {
                     {rsvs.map((rsv) => (
                       <EditableItem
                         key={rsv.id}
-                        id={rsv.id}
                         name={rsv.name}
                         onUpdate={(name) => updateRSV(rsv.id, { name })}
                         label="RSV"
