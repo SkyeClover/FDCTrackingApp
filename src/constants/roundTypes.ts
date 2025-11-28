@@ -1,5 +1,8 @@
 import { RoundType, RoundTypeConfig } from '../types'
 
+// Re-export RoundType for convenience
+export type { RoundType, RoundTypeConfig }
+
 export const DEFAULT_ROUND_TYPES: Record<string, RoundTypeConfig> = {
   M28A1: { name: 'M28A1', enabled: true },
   M26: { name: 'M26', enabled: true },

@@ -20,16 +20,16 @@ export default function POCCard({
   launchers,
   pods,
   rsvs,
-  bocs,
+  bocs: _bocs,
   onReload,
   onClick,
 }: POCCardProps) {
+  void _bocs // Keep for interface compatibility but not used in logic
   const { roundTypes } = useAppData()
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
   const pocLaunchers = launchers.filter((l) => l.pocId === poc.id)
   
   // Get RSV's assigned to this POC, or to the POC's BOC (battery level slants)
-  const pocBOC = bocs.find((b) => b.id === poc.bocId)
   const pocRSVs = rsvs.filter((r) => {
     if (r.pocId === poc.id) return true
     // Battery level slants - RSV's assigned to BOC

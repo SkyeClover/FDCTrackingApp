@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { RSV } from '../types'
-import { Search, Filter, Truck, Trash2 } from 'lucide-react'
+import { Search, Truck, Trash2 } from 'lucide-react'
 
 type RSVGroup = 'all' | 'poc' | 'boc' | 'ammo-plt' | 'unassigned'
 

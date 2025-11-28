@@ -1238,7 +1238,6 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
 
       // Swap pods: remove current pod from launcher, assign new pod to launcher
       // If current pod exists, unassign it from launcher (it goes back to POC inventory)
-      const poc = prev.pocs.find((p) => p.id === launcher.pocId)
       const updatedPods = prev.pods.map((p) => {
         if (p.id === currentPod?.id) {
           // Current pod goes back to POC inventory (keep pocId, remove launcherId)

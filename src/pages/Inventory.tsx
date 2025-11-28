@@ -481,7 +481,7 @@ const ItemCard = memo(({
 ItemCard.displayName = 'ItemCard'
 
 export default function Inventory() {
-  const { bocs, pocs, launchers, pods, rsvs, addBOC, addPOC, addLauncher, addPod, addRSV, addRound, assignPodToPOC, deleteBOC, deletePOC, deleteLauncher, deletePod, deleteRSV, roundTypes } = useAppData()
+  const { bocs, pocs, launchers, rsvs, addBOC, addPOC, addLauncher, addPod, addRSV, addRound, assignPodToPOC, deleteBOC, deletePOC, deleteLauncher, deleteRSV, roundTypes } = useAppData()
   
   // Get enabled round type options
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
@@ -577,7 +577,6 @@ export default function Inventory() {
   const bocsMemo = useMemo(() => bocs, [bocs])
   const pocsMemo = useMemo(() => pocs, [pocs])
   const launchersMemo = useMemo(() => launchers, [launchers])
-  const podsMemo = useMemo(() => pods, [pods])
   const rsvsMemo = useMemo(() => rsvs, [rsvs])
 
   // Selection helpers for BOCs

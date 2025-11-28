@@ -12,7 +12,7 @@ import ReportModal from '../components/ReportModal'
 const AMMO_PLT_ID = 'ammo-plt-1'
 
 export default function Dashboard() {
-  const { bocs, pocs, launchers, pods, rsvs, addLog, reloadLauncher, saveToFile, loadFromFile } = useAppData()
+  const { bocs, pocs, launchers, pods, rsvs, reloadLauncher, saveToFile, loadFromFile } = useAppData()
   const [isFireMissionModalOpen, setIsFireMissionModalOpen] = useState(false)
   const [selectedPOC, setSelectedPOC] = useState<string | null>(null)
   const [isAmmoPltModalOpen, setIsAmmoPltModalOpen] = useState(false)
@@ -191,7 +191,6 @@ export default function Dashboard() {
         if (!poc) return null
         
         // Find available pods from RSV's assigned to the POC, BOC, or Ammo PLT
-        const pocBOC = bocs.find((b) => b.id === poc.bocId)
         const availablePods = pods.filter((p) => {
           if (p.launcherId) return false
           

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { POC, BOC, Launcher, Pod, RoundType } from '../types'
+import { POC, BOC, Launcher, Pod } from '../types'
 import { X, Copy, Printer } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'

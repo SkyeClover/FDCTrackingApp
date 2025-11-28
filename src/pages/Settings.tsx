@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAppData } from '../context/AppDataContext'
-import { Plus, X, Trash2, Check, X as XIcon } from 'lucide-react'
+import { Plus, Trash2, Check, X as XIcon } from 'lucide-react'
 import { getAllRoundTypeOptions } from '../constants/roundTypes'
 
 export default function Settings() {

@@ -14,7 +14,8 @@ interface POCDetailModalProps {
   onClose: () => void
 }
 
-export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs = [], isOpen, onClose }: POCDetailModalProps) {
+export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: _bocs = [], isOpen, onClose }: POCDetailModalProps) {
+  void _bocs // Keep for interface compatibility but not used in logic
   // Hooks must be called at the top level - but only access when modal is open
   const { roundTypes = {} } = useAppData()
   const roundTypeOptions = useMemo(() => {
@@ -37,10 +38,8 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs =
   const safePods = pods || []
   const safeLaunchers = launchers || []
   const safeRSVs = rsvs || []
-  const safeBOCs = bocs || []
 
   // Get RSV's assigned to this POC, or to the POC's BOC (battery level slants)
-  const pocBOC = safeBOCs.find((b) => b.id === poc.bocId)
   const pocRSVs = safeRSVs.filter((r) => {
     if (r.pocId === poc.id) return true
     // Battery level slants - RSV's assigned to BOC

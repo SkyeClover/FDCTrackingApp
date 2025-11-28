@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { Pod, RoundType } from '../types'
-import { Plus, Search, Filter, Trash2 } from 'lucide-react'
+import { Plus, Search, Trash2 } from 'lucide-react'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
 
 type PodGroup = 'all' | 'ammo-plt' | 'poc' | 'rsv' | 'launcher' | 'unassigned'

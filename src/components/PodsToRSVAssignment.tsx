@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, memo } from 'react'
 import { useAppData } from '../context/AppDataContext'
-import { Pod, RSV } from '../types'
+import { Pod } from '../types'
 import { Package, Truck, Search, Check, X } from 'lucide-react'
 
 interface PodsToRSVAssignmentProps {}
