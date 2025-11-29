@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Download, Upload } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 interface DashboardHeaderProps {
   onInitiateFireMission?: () => void
@@ -20,6 +21,7 @@ export default function DashboardHeader({
   const { currentUserRole } = useAppData()
   const [currentTime, setCurrentTime] = useState(new Date())
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -74,10 +76,12 @@ export default function DashboardHeader({
     <div
       style={{
         display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: '2rem',
-        padding: '1rem',
+        flexDirection: isMobile ? 'column' : 'row',
+        justifyContent: isMobile ? 'flex-start' : 'space-between',
+        alignItems: isMobile ? 'stretch' : 'flex-start',
+        gap: isMobile ? '1rem' : '0',
+        marginBottom: isMobile ? '1rem' : '2rem',
+        padding: isMobile ? '0.75rem' : '1rem',
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
         borderRadius: '8px',
@@ -93,7 +97,7 @@ export default function DashboardHeader({
       >
         <div
           style={{
-            fontSize: '0.75rem',
+            fontSize: isMobile ? '0.625rem' : '0.75rem',
             color: 'var(--text-secondary)',
             textTransform: 'uppercase',
           }}
@@ -102,7 +106,7 @@ export default function DashboardHeader({
         </div>
         <div
           style={{
-            fontSize: '1rem',
+            fontSize: isMobile ? '0.875rem' : '1rem',
             color: 'var(--text-primary)',
             fontFamily: 'monospace',
           }}
@@ -111,7 +115,7 @@ export default function DashboardHeader({
         </div>
         <div
           style={{
-            fontSize: '1rem',
+            fontSize: isMobile ? '0.875rem' : '1rem',
             color: 'var(--text-primary)',
             fontFamily: 'monospace',
           }}
@@ -125,23 +129,24 @@ export default function DashboardHeader({
         style={{
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
+          alignItems: isMobile ? 'stretch' : 'center',
           gap: '0.5rem',
         }}
       >
         <button
           onClick={onInitiateFireMission}
           style={{
-            padding: '1rem 2rem',
+            padding: isMobile ? '0.875rem 1.5rem' : '1rem 2rem',
             backgroundColor: '#dc2626',
             border: '2px solid #000',
             borderRadius: '6px',
             color: '#fff',
-            fontSize: '1.1rem',
+            fontSize: isMobile ? '1rem' : '1.1rem',
             fontWeight: 'bold',
             cursor: 'pointer',
             textTransform: 'uppercase',
             transition: 'background-color 0.2s',
+            minHeight: '44px', // Touch-friendly
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = '#b91c1c'
@@ -159,23 +164,28 @@ export default function DashboardHeader({
         style={{
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'flex-end',
+          alignItems: isMobile ? 'stretch' : 'flex-end',
           gap: '0.5rem',
         }}
       >
         <div
           style={{
-            fontSize: '1.1rem',
+            fontSize: isMobile ? '0.9rem' : '1.1rem',
             color: 'var(--text-primary)',
             fontWeight: '600',
-            marginBottom: '0.25rem',
+            marginBottom: isMobile ? '0' : '0.25rem',
+            textAlign: isMobile ? 'left' : 'right',
           }}
         >
           {currentUserRole 
             ? `${currentUserRole.type.toUpperCase()}: ${currentUserRole.name}`
             : 'No Role Assigned'}
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ 
+          display: 'flex', 
+          gap: '0.5rem',
+          flexWrap: isMobile ? 'wrap' : 'nowrap',
+        }}>
           <button
             onClick={onReport}
             style={{
@@ -187,6 +197,8 @@ export default function DashboardHeader({
               fontSize: '0.9rem',
               fontWeight: '500',
               cursor: 'pointer',
+              minHeight: '44px', // Touch-friendly
+              flex: isMobile ? '1 1 auto' : 'none',
             }}
           >
             Report
@@ -204,11 +216,15 @@ export default function DashboardHeader({
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '0.5rem',
+              minHeight: '44px', // Touch-friendly
+              minWidth: '44px', // Touch-friendly
             }}
             title="Export to file"
           >
             <Download size={16} />
+            {isMobile && <span>Save</span>}
           </button>
           <button
             onClick={handleLoadClick}
@@ -223,11 +239,15 @@ export default function DashboardHeader({
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '0.5rem',
+              minHeight: '44px', // Touch-friendly
+              minWidth: '44px', // Touch-friendly
             }}
             title="Import from file"
           >
             <Upload size={16} />
+            {isMobile && <span>Load</span>}
           </button>
         </div>
       </div>

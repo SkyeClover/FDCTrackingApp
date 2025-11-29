@@ -8,6 +8,7 @@ import POCDetailModal from '../components/POCDetailModal'
 import AmmoPltDetailModal from '../components/AmmoPltDetailModal'
 import ReloadModal from '../components/ReloadModal'
 import ReportModal from '../components/ReportModal'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const AMMO_PLT_ID = 'ammo-plt-1'
 
@@ -18,6 +19,7 @@ export default function Dashboard() {
   const [isAmmoPltModalOpen, setIsAmmoPltModalOpen] = useState(false)
   const [reloadLauncherId, setReloadLauncherId] = useState<string | null>(null)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const isMobile = useIsMobile()
 
   // Check if Ammo PLT has any RSVs or pods assigned
   const hasAmmoPltContent = useMemo(() => {
@@ -87,6 +89,7 @@ export default function Dashboard() {
   // Calculate responsive grid columns based on number of POCs
   // Ammo PLT card will be positioned separately
   const getGridColumns = () => {
+    if (isMobile) return '1fr' // Single column on mobile
     if (pocs.length === 1) return '1fr'
     if (pocs.length === 2) return 'repeat(2, 1fr)'
     return 'repeat(auto-fit, minmax(400px, 1fr))'
@@ -105,7 +108,8 @@ export default function Dashboard() {
       <div
         style={{
           display: 'flex',
-          gap: '1.5rem',
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: isMobile ? '1rem' : '1.5rem',
           alignItems: 'flex-start',
         }}
       >
@@ -114,8 +118,9 @@ export default function Dashboard() {
           style={{
             display: 'grid',
             gridTemplateColumns: getGridColumns(),
-            gap: '1.5rem',
+            gap: isMobile ? '1rem' : '1.5rem',
             flex: 1,
+            width: isMobile ? '100%' : 'auto',
           }}
         >
           {pocs.map((poc) => (
@@ -132,11 +137,11 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Ammo PLT Card - Sidebar style, smaller and out of the way */}
+        {/* Ammo PLT Card - Sidebar style on desktop, full width on mobile */}
         {hasAmmoPltContent && (
           <div
             style={{
-              width: '280px',
+              width: isMobile ? '100%' : '280px',
               flexShrink: 0,
             }}
           >

@@ -3,6 +3,9 @@ import { POC, BOC, Launcher, Pod } from '../types'
 import { X, Copy, Printer } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
+import { useIsMobile } from '../hooks/useIsMobile'
+import { useModal } from '../hooks/useModal'
+import { useSwipe } from '../hooks/useSwipe'
 
 interface ReportModalProps {
   bocs: BOC[]
@@ -17,6 +20,17 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
   const { roundTypes } = useAppData()
   const [selectedBOC, setSelectedBOC] = useState<string>('')
   const [selectedPOC, setSelectedPOC] = useState<string>('')
+  const isMobile = useIsMobile()
+  
+  // Handle ESC key and body scroll lock
+  useModal(isOpen, onClose)
+
+  // Swipe down to close on mobile
+  const modalContentRef = useSwipe({
+    onSwipeDown: isMobile ? onClose : undefined,
+    threshold: 100,
+    velocityThreshold: 0.2,
+  })
   
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
   
@@ -131,25 +145,30 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: isMobile ? 'var(--bg-primary)' : 'rgba(0, 0, 0, 0.7)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: isMobile ? 'stretch' : 'center',
         justifyContent: 'center',
         zIndex: 1000,
-        padding: '1rem',
+        padding: isMobile ? '0' : '1rem',
       }}
-      onClick={onClose}
+      onClick={isMobile ? undefined : onClose}
     >
       <div
+        ref={modalContentRef as React.RefObject<HTMLElement>}
         style={{
           backgroundColor: 'var(--bg-primary)',
-          borderRadius: '12px',
-          padding: '2rem',
-          maxWidth: '1000px',
+          borderRadius: isMobile ? '0' : '12px',
+          padding: isMobile ? '1rem' : '2rem',
+          maxWidth: isMobile ? '100%' : '1000px',
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: isMobile ? '100vh' : '90vh',
+          height: isMobile ? '100vh' : 'auto',
           overflow: 'auto',
-          border: '2px solid var(--border)',
+          border: isMobile ? 'none' : '2px solid var(--border)',
+          display: 'flex',
+          flexDirection: 'column',
+          touchAction: isMobile ? 'pan-y' : 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
       >

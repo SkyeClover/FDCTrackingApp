@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { X, Rocket } from 'lucide-react'
+import { useIsMobile } from '../hooks/useIsMobile'
+import { useModal } from '../hooks/useModal'
+import { useSwipe } from '../hooks/useSwipe'
 
 interface FireMissionModalProps {
   isOpen: boolean
@@ -12,6 +15,17 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
   const [selectedLaunchers, setSelectedLaunchers] = useState<Set<string>>(new Set())
   const [missionName, setMissionName] = useState('')
   const [roundsPerLauncher, setRoundsPerLauncher] = useState(1)
+  const isMobile = useIsMobile()
+  
+  // Handle ESC key and body scroll lock
+  useModal(isOpen, onClose)
+
+  // Swipe down to close on mobile
+  const modalContentRef = useSwipe({
+    onSwipeDown: isMobile ? onClose : undefined,
+    threshold: 100, // Higher threshold for modals to prevent accidental closes
+    velocityThreshold: 0.2,
+  })
 
   if (!isOpen) return null
 
@@ -68,24 +82,29 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: isMobile ? 'var(--bg-primary)' : 'rgba(0, 0, 0, 0.7)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: isMobile ? 'stretch' : 'center',
         justifyContent: 'center',
         zIndex: 1000,
       }}
-      onClick={onClose}
+      onClick={isMobile ? undefined : onClose}
     >
       <div
+        ref={modalContentRef as React.RefObject<HTMLElement>}
         style={{
           backgroundColor: 'var(--bg-secondary)',
-          border: '1px solid var(--border)',
-          borderRadius: '8px',
-          padding: '2rem',
-          maxWidth: '600px',
-          width: '90%',
-          maxHeight: '80vh',
+          border: isMobile ? 'none' : '1px solid var(--border)',
+          borderRadius: isMobile ? '0' : '8px',
+          padding: isMobile ? '1rem' : '2rem',
+          maxWidth: isMobile ? '100%' : '600px',
+          width: isMobile ? '100%' : '90%',
+          maxHeight: isMobile ? '100vh' : '80vh',
+          height: isMobile ? '100vh' : 'auto',
           overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          touchAction: isMobile ? 'pan-y' : 'auto', // Allow vertical scrolling but detect swipes
         }}
         onClick={(e) => e.stopPropagation()}
       >

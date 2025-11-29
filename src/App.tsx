@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
+import MobileNav from './components/MobileNav'
 import Dashboard from './pages/Dashboard'
 import Inventory from './pages/Inventory'
 import Management from './pages/Management'
@@ -10,6 +11,7 @@ import { ProgressProvider, useProgress } from './context/ProgressContext'
 import StartupRoleModal from './components/StartupRoleModal'
 import FirstTimeGuideModal from './components/FirstTimeGuideModal'
 import PasswordProtection from './components/PasswordProtection'
+import { useIsMobile } from './hooks/useIsMobile'
 
 type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings'
 
@@ -28,6 +30,7 @@ function AppContentWithData() {
   const { bocs, pocs, currentUserRole, hasSeenFirstTimeGuide, markFirstTimeGuideAsSeen } = useAppData()
   const [showStartupModal, setShowStartupModal] = useState(false)
   const [showFirstTimeGuide, setShowFirstTimeGuide] = useState(false)
+  const isMobile = useIsMobile()
 
   // Check if app is empty (no BOCs or POCs) and show startup modal
   useEffect(() => {
@@ -72,16 +75,38 @@ function AppContentWithData() {
         onClose={handleCloseFirstTimeGuide}
         onNavigateToSettings={handleNavigateToSettings}
       />
-      <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
-        <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
-        <main style={{ flex: 1, overflow: 'auto', padding: '2rem' }}>
-          {currentPage === 'dashboard' && <Dashboard />}
-          {currentPage === 'inventory' && <Inventory />}
-          {currentPage === 'management' && <Management />}
-          {currentPage === 'logs' && <Logs />}
-          {currentPage === 'settings' && <Settings />}
-        </main>
-      </div>
+      {isMobile ? (
+        // Mobile Layout
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
+          <MobileNav currentPage={currentPage} onPageChange={setCurrentPage} />
+          <main
+            style={{
+              flex: 1,
+              overflow: 'auto',
+              padding: '1rem',
+              marginTop: '56px', // Fixed header height
+            }}
+          >
+            {currentPage === 'dashboard' && <Dashboard />}
+            {currentPage === 'inventory' && <Inventory />}
+            {currentPage === 'management' && <Management />}
+            {currentPage === 'logs' && <Logs />}
+            {currentPage === 'settings' && <Settings />}
+          </main>
+        </div>
+      ) : (
+        // Desktop Layout
+        <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
+          <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
+          <main style={{ flex: 1, overflow: 'auto', padding: '2rem' }}>
+            {currentPage === 'dashboard' && <Dashboard />}
+            {currentPage === 'inventory' && <Inventory />}
+            {currentPage === 'management' && <Management />}
+            {currentPage === 'logs' && <Logs />}
+            {currentPage === 'settings' && <Settings />}
+          </main>
+        </div>
+      )}
     </>
   )
 }

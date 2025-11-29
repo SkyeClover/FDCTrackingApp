@@ -3,6 +3,9 @@ import { X, Package, Truck } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
 import { useMemo } from 'react'
+import { useIsMobile } from '../hooks/useIsMobile'
+import { useModal } from '../hooks/useModal'
+import { useSwipe } from '../hooks/useSwipe'
 
 interface POCDetailModalProps {
   poc: POC
@@ -18,6 +21,18 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
   void _bocs // Keep for interface compatibility but not used in logic
   // Hooks must be called at the top level - but only access when modal is open
   const { roundTypes = {} } = useAppData()
+  const isMobile = useIsMobile()
+  
+  // Handle ESC key and body scroll lock
+  useModal(isOpen, onClose)
+
+  // Swipe down to close on mobile
+  const modalContentRef = useSwipe({
+    onSwipeDown: isMobile ? onClose : undefined,
+    threshold: 100,
+    velocityThreshold: 0.2,
+  })
+  
   const roundTypeOptions = useMemo(() => {
     try {
       return getEnabledRoundTypeOptions(roundTypes || {})
@@ -136,30 +151,35 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: isMobile ? 'var(--bg-primary)' : 'rgba(0, 0, 0, 0.7)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: isMobile ? 'stretch' : 'center',
         justifyContent: 'center',
         zIndex: 1000,
-        padding: '1rem',
+        padding: isMobile ? '0' : '1rem',
       }}
-      onClick={onClose}
+      onClick={isMobile ? undefined : onClose}
     >
       <div
+        ref={modalContentRef as React.RefObject<HTMLElement>}
         style={{
           backgroundColor: 'var(--bg-primary)',
-          borderRadius: '12px',
-          padding: '2rem',
-          maxWidth: '900px',
-          minWidth: '400px',
+          borderRadius: isMobile ? '0' : '12px',
+          padding: isMobile ? '1rem' : '2rem',
+          maxWidth: isMobile ? '100%' : '900px',
+          minWidth: isMobile ? '0' : '400px',
           width: '100%',
-          maxHeight: '90vh',
-          minHeight: '200px',
+          maxHeight: isMobile ? '100vh' : '90vh',
+          minHeight: isMobile ? '0' : '200px',
+          height: isMobile ? '100vh' : 'auto',
           overflow: 'auto',
-          border: '2px solid var(--border)',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+          border: isMobile ? 'none' : '2px solid var(--border)',
+          boxShadow: isMobile ? 'none' : '0 4px 20px rgba(0, 0, 0, 0.3)',
           position: 'relative',
           zIndex: 1001,
+          display: 'flex',
+          flexDirection: 'column',
+          touchAction: isMobile ? 'pan-y' : 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
       >

@@ -3,6 +3,9 @@ import { X, Package, Truck } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
 import { useMemo } from 'react'
+import { useIsMobile } from '../hooks/useIsMobile'
+import { useModal } from '../hooks/useModal'
+import { useSwipe } from '../hooks/useSwipe'
 
 const AMMO_PLT_ID = 'ammo-plt-1'
 
@@ -15,6 +18,18 @@ interface AmmoPltDetailModalProps {
 
 export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: AmmoPltDetailModalProps) {
   const { roundTypes } = useAppData()
+  const isMobile = useIsMobile()
+  
+  // Handle ESC key and body scroll lock
+  useModal(isOpen, onClose)
+
+  // Swipe down to close on mobile
+  const modalContentRef = useSwipe({
+    onSwipeDown: isMobile ? onClose : undefined,
+    threshold: 100,
+    velocityThreshold: 0.2,
+  })
+  
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
   
   if (!isOpen) return null
@@ -87,25 +102,30 @@ export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: Ammo
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: isMobile ? 'var(--bg-primary)' : 'rgba(0, 0, 0, 0.7)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: isMobile ? 'stretch' : 'center',
         justifyContent: 'center',
         zIndex: 1000,
-        padding: '1rem',
+        padding: isMobile ? '0' : '1rem',
       }}
-      onClick={onClose}
+      onClick={isMobile ? undefined : onClose}
     >
       <div
+        ref={modalContentRef as React.RefObject<HTMLElement>}
         style={{
           backgroundColor: 'var(--bg-primary)',
-          borderRadius: '12px',
-          padding: '2rem',
-          maxWidth: '900px',
+          borderRadius: isMobile ? '0' : '12px',
+          padding: isMobile ? '1rem' : '2rem',
+          maxWidth: isMobile ? '100%' : '900px',
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: isMobile ? '100vh' : '90vh',
+          height: isMobile ? '100vh' : 'auto',
           overflow: 'auto',
-          border: '2px solid var(--accent)',
+          display: 'flex',
+          flexDirection: 'column',
+          border: isMobile ? 'none' : '2px solid var(--accent)',
+          touchAction: isMobile ? 'pan-y' : 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
       >
