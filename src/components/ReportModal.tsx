@@ -474,19 +474,19 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
                             {option.label}
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-                            <span style={{ color: 'var(--text-secondary)' }}>P:</span>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: isMobile ? '0.65rem' : '0.7rem' }}>Pods:</span>
                             <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{podsOfType.length}</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-                            <span style={{ color: 'var(--text-secondary)' }}>T:</span>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: isMobile ? '0.65rem' : '0.7rem' }}>Total:</span>
                             <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{totalRounds}</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-                            <span style={{ color: 'var(--success)' }}>A:</span>
+                            <span style={{ color: 'var(--success)', fontSize: isMobile ? '0.65rem' : '0.7rem' }}>Available:</span>
                             <span style={{ fontWeight: '600', color: 'var(--success)' }}>{availableRounds}</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ color: 'var(--danger)' }}>U:</span>
+                            <span style={{ color: 'var(--danger)', fontSize: isMobile ? '0.65rem' : '0.7rem' }}>Used:</span>
                             <span style={{ fontWeight: '600', color: 'var(--danger)' }}>{usedRounds}</span>
                           </div>
                         </div>
