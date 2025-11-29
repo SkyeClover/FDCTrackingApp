@@ -88,7 +88,13 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
     return false
   })
   
-  // Pods on ground (not on launchers) - includes pods on RSVs
+  // Pods on RSVs (not on launchers, but on RSVs)
+  const podsOnRSVs = pocPods.filter((p) => !p.launcherId && p.rsvId)
+  
+  // Pods truly on ground (POC STOCK - not on launchers, not on RSVs)
+  const podsOnPOCStock = pocPods.filter((p) => !p.launcherId && !p.rsvId)
+  
+  // All pods on ground (not on launchers) - includes both RSV pods and POC STOCK
   const podsOnGround = pocPods.filter((p) => !p.launcherId)
   
   // Pods on launchers
@@ -299,10 +305,25 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
             }}
           >
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-              PODS ON GROUND
+              POC STOCK
             </div>
             <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent)' }}>
-              {podsOnGround.length}
+              {podsOnPOCStock.length}
+            </div>
+          </div>
+          <div
+            style={{
+              padding: '1rem',
+              backgroundColor: 'var(--bg-secondary)',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+              ON RSVs
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent)' }}>
+              {podsOnRSVs.length}
             </div>
           </div>
           <div
@@ -372,7 +393,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
             }}
           >
             <Package size={20} />
-            Pods On Ground (Available for Reload)
+            Pods Available for Reload (POC STOCK & RSVs)
           </h3>
           {roundTypeOptions.length === 0 ? (
             <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', padding: '1rem' }}>

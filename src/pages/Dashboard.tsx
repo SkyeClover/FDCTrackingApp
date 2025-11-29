@@ -238,6 +238,7 @@ export default function Dashboard() {
         pocs={pocs}
         launchers={launchers}
         pods={pods}
+        rsvs={rsvs}
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
       />

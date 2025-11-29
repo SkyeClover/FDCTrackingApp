@@ -107,33 +107,209 @@ code {
 
 /* Print styles for reports */
 @media print {
+  /* Hide everything by default */
   body * {
     visibility: hidden;
   }
   
+  /* Show only the print report content */
   .print-report,
   .print-report * {
     visibility: visible;
   }
   
+  /* Reset body for printing */
+  body {
+    background: white !important;
+    color: black !important;
+    margin: 0;
+    padding: 0;
+    font-size: 12pt;
+    line-height: 1.4;
+  }
+  
+  /* Page setup */
+  @page {
+    size: letter;
+    margin: 0.5in;
+  }
+  
+  /* Main report container */
   .print-report {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
     padding: 0;
+    background: white !important;
+    color: black !important;
   }
   
-  .print-report > div {
-    page-break-inside: avoid;
-    margin-bottom: 0.5rem;
-    padding: 0.5rem;
+  /* Report header - show when printing */
+  .print-report-header {
+    display: block !important;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 3px solid #000;
   }
   
+  .print-report-header h2 {
+    font-size: 20pt;
+    font-weight: bold;
+    margin: 0 0 0.5rem 0;
+    color: black !important;
+  }
+  
+  .print-report-header p {
+    font-size: 11pt;
+    margin: 0.25rem 0;
+    color: #333 !important;
+  }
+  
+  /* Hide all interactive elements */
   button,
   select,
-  input {
+  input,
+  .no-print {
     display: none !important;
+    visibility: hidden !important;
+  }
+  
+  /* POC/BOC sections */
+  .print-report > div {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    margin-bottom: 1.25rem;
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 0;
+    background: white !important;
+  }
+  
+  /* Section headers */
+  .print-report h3 {
+    font-size: 16pt;
+    font-weight: bold;
+    margin: 0 0 0.75rem 0;
+    color: black !important;
+    border-bottom: 2px solid #666;
+    padding-bottom: 0.5rem;
+  }
+  
+  /* Summary grids */
+  .print-report [style*="grid"] {
+    display: grid !important;
+    gap: 0.75rem !important;
+    margin-bottom: 1rem !important;
+  }
+  
+  /* Summary cards */
+  .print-report [style*="grid"] > div {
+    padding: 0.75rem !important;
+    border: 1px solid #ddd !important;
+    border-radius: 0 !important;
+    background: #f9f9f9 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  
+  /* Labels */
+  .print-report [style*="color: var(--text-secondary)"] {
+    color: #666 !important;
+    font-size: 9pt;
+  }
+  
+  /* Values */
+  .print-report [style*="fontWeight: 'bold'"] {
+    color: black !important;
+    font-size: 11pt;
+  }
+  
+  /* Round type sections */
+  .print-report [style*="Rounds by Type"] {
+    margin-top: 0.75rem;
+  }
+  
+  /* Round type cards */
+  .print-report [style*="backgroundColor: var(--bg-tertiary)"] {
+    background: #f5f5f5 !important;
+    border: 1px solid #ddd !important;
+    border-radius: 0 !important;
+    padding: 0.75rem !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  
+  /* Launcher/RSV details */
+  .print-report [style*="Launcher Details"],
+  .print-report [style*="RSV Details"] {
+    margin-top: 0.75rem;
+  }
+  
+  /* ASCII report preview - hide in print */
+  .print-report pre {
+    display: none !important;
+  }
+  
+  /* Ensure text is black */
+  .print-report * {
+    color: black !important;
+  }
+  
+  /* Override accent colors for print */
+  .print-report [style*="color: var(--accent)"] {
+    color: #000 !important;
+  }
+  
+  .print-report [style*="color: var(--success)"] {
+    color: #000 !important;
+  }
+  
+  .print-report [style*="color: var(--danger)"] {
+    color: #000 !important;
+  }
+  
+  /* Remove dark background colors, keep light ones */
+  .print-report [style*="backgroundColor: var(--bg-primary)"],
+  .print-report [style*="backgroundColor: var(--bg-secondary)"] {
+    background: white !important;
+  }
+  
+  /* Keep light gray backgrounds for cards */
+  .print-report [style*="backgroundColor: var(--bg-tertiary)"] {
+    background: #f5f5f5 !important;
+  }
+  
+  /* Better spacing for print */
+  .print-report > div > div {
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Prevent page breaks inside important sections */
+  .print-report > div {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  
+  /* Allow page breaks between sections */
+  .print-report > div + div {
+    page-break-before: auto;
+  }
+  
+  /* Optimize font sizes for print */
+  .print-report {
+    font-size: 11pt;
+  }
+  
+  /* Better spacing */
+  .print-report > div > div {
+    margin-bottom: 0.75rem !important;
+  }
+  
+  /* Remove shadows and effects */
+  .print-report * {
+    box-shadow: none !important;
+    text-shadow: none !important;
   }
 }
 

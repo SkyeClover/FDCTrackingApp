@@ -115,21 +115,56 @@ const PodEditableItem = memo(({
   pod,
   onUpdateName,
   onUpdateAmmoCount,
+  launchers,
+  rsvs,
+  pocs,
 }: {
-  pod: { id: string; name: string; rounds: Array<{ id: string; type: string; status: string }> }
+  pod: { id: string; name: string; rounds: Array<{ id: string; type: string; status: string }>; launcherId?: string; rsvId?: string; pocId?: string; ammoPltId?: string }
   onUpdateName: (name: string) => void
   onUpdateAmmoCount: (count: number) => void
+  launchers: Array<{ id: string; name: string }>
+  rsvs: Array<{ id: string; name: string }>
+  pocs: Array<{ id: string; name: string }>
 }) => {
+  const AMMO_PLT_ID = 'ammo-plt-1'
+  
+  // Get pod assignment info
+  const getPodAssignment = () => {
+    // Priority: launcher > RSV > POC > Ammo PLT > unassigned
+    if (pod.launcherId) {
+      const launcher = launchers.find((l) => l.id === pod.launcherId)
+      return { type: 'launcher', displayType: 'Launcher', name: launcher?.name || 'Unknown', id: pod.launcherId }
+    }
+    if (pod.rsvId) {
+      const rsv = rsvs.find((r) => r.id === pod.rsvId)
+      return { type: 'rsv', displayType: 'RSV', name: rsv?.name || 'Unknown', id: pod.rsvId }
+    }
+    if (pod.pocId) {
+      const poc = pocs.find((p) => p.id === pod.pocId)
+      return { type: 'poc', displayType: 'POC', name: poc?.name || 'Unknown', id: pod.pocId }
+    }
+    if (pod.ammoPltId === AMMO_PLT_ID) {
+      return { type: 'ammo-plt', displayType: 'Ammo PLT', name: 'Ammo PLT', id: pod.ammoPltId }
+    }
+    if (pod.ammoPltId) {
+      return { type: 'ammo-plt', displayType: 'Ammo PLT (Invalid)', name: 'Ammo PLT (Invalid)', id: pod.ammoPltId }
+    }
+    return { type: 'unassigned', displayType: 'Unassigned', name: 'Unassigned', id: '' }
+  }
+  
+  const assignment = getPodAssignment()
   const [isEditingName, setIsEditingName] = useState(false)
   const [isEditingAmmo, setIsEditingAmmo] = useState(false)
   const [editNameValue, setEditNameValue] = useState(pod.name)
-  const [editAmmoValue, setEditAmmoValue] = useState(pod.rounds.length.toString())
+  const availableRounds = pod.rounds.filter((r) => r.status === 'available').length
+  const [editAmmoValue, setEditAmmoValue] = useState(availableRounds.toString())
 
   // Sync edit values when pod changes
   useEffect(() => {
     setEditNameValue(pod.name)
-    setEditAmmoValue(pod.rounds.length.toString())
-  }, [pod.name, pod.rounds.length])
+    const currentAvailable = pod.rounds.filter((r) => r.status === 'available').length
+    setEditAmmoValue(currentAvailable.toString())
+  }, [pod.name, pod.rounds])
 
   const handleSaveName = () => {
     if (editNameValue.trim() && editNameValue.trim() !== pod.name) {
@@ -146,16 +181,19 @@ const PodEditableItem = memo(({
 
   const handleSaveAmmo = () => {
     const count = parseInt(editAmmoValue)
-    if (!isNaN(count) && count >= 0 && count !== pod.rounds.length) {
+    const currentAvailable = pod.rounds.filter((r) => r.status === 'available').length
+    if (!isNaN(count) && count >= 0 && count !== currentAvailable) {
       onUpdateAmmoCount(count)
     }
     setIsEditingAmmo(false)
-    setEditAmmoValue(pod.rounds.length.toString())
+    const updatedAvailable = pod.rounds.filter((r) => r.status === 'available').length
+    setEditAmmoValue(updatedAvailable.toString())
   }
 
   const handleCancelAmmo = () => {
     setIsEditingAmmo(false)
-    setEditAmmoValue(pod.rounds.length.toString())
+    const currentAvailable = pod.rounds.filter((r) => r.status === 'available').length
+    setEditAmmoValue(currentAvailable.toString())
   }
 
   return (
@@ -307,7 +345,9 @@ const PodEditableItem = memo(({
           </>
         ) : (
           <>
-            <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{pod.rounds.length}</span>
+            <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>
+              {pod.rounds.filter((r) => r.status === 'available').length} {pod.rounds.length > 0 && pod.rounds[0]?.type ? `(${pod.rounds[0].type})` : ''}
+            </span>
             <button
               onClick={() => setIsEditingAmmo(true)}
               style={{
@@ -326,6 +366,14 @@ const PodEditableItem = memo(({
           </>
         )}
       </div>
+      
+      {/* Assignment Info */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+        <span>Assigned to:</span>
+        <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>
+          {assignment.displayType}: {assignment.name}
+        </span>
+      </div>
     </div>
   )
 })
@@ -334,7 +382,7 @@ PodEditableItem.displayName = 'PodEditableItem'
 
 export default function Settings() {
   const isMobile = useIsMobile()
-  const { currentUserRole, bocs, pocs, launchers, pods, rsvs, setCurrentUserRole, roundTypes, addRoundType, updateRoundType, deleteRoundType, updateBOC, updatePOC, updateLauncher, updatePod, updateRSV, clearAllData } = useAppData()
+  const { currentUserRole, bocs, pocs, launchers, pods, rsvs, setCurrentUserRole, roundTypes, addRoundType, updateRoundType, deleteRoundType, updateBOC, updatePOC, updateLauncher, updatePod, updateRSV, clearAllData, ammoPltBocId, assignAmmoPltToBOC } = useAppData()
   const [selectedRoleType, setSelectedRoleType] = useState<'boc' | 'poc' | ''>('')
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
   const [newRoundTypeName, setNewRoundTypeName] = useState('')
@@ -1282,13 +1330,13 @@ export default function Settings() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '400px', overflowY: 'auto' }}>
                     {pods.map((pod) => {
-                      const handleUpdateAmmoCount = (newCount: number) => {
-                        const currentCount = pod.rounds.length
+                      const handleUpdateAmmoCount = (newAvailableCount: number) => {
+                        const currentAvailable = pod.rounds.filter((r) => r.status === 'available').length
                         const podRoundType = pod.rounds[0]?.type || 'M28A1'
                         
-                        if (newCount > currentCount) {
-                          // Add rounds
-                          const roundsToAdd = newCount - currentCount
+                        if (newAvailableCount > currentAvailable) {
+                          // Add new rounds with 'available' status
+                          const roundsToAdd = newAvailableCount - currentAvailable
                           const newRounds = Array.from({ length: roundsToAdd }, (_, i) => {
                             const roundId = `${Date.now()}-${i}-${Math.random()}`
                             return {
@@ -1298,18 +1346,17 @@ export default function Settings() {
                             }
                           })
                           updatePod(pod.id, { rounds: [...pod.rounds, ...newRounds] })
-                        } else if (newCount < currentCount) {
-                          // Remove rounds (remove from the end, prioritizing 'used' rounds first, then 'available')
-                          const sortedRounds = [...pod.rounds].sort((a, b) => {
-                            // Sort: used first, then available, then reserved
-                            const statusOrder = { used: 0, available: 1, reserved: 2 }
-                            return statusOrder[a.status] - statusOrder[b.status]
+                        } else if (newAvailableCount < currentAvailable) {
+                          // Change excess available rounds to 'used' status
+                          const availableRounds = pod.rounds.filter((r) => r.status === 'available')
+                          const roundsToChange = availableRounds.slice(newAvailableCount)
+                          const updatedRounds = pod.rounds.map((round) => {
+                            if (roundsToChange.some((r) => r.id === round.id)) {
+                              return { ...round, status: 'used' as const }
+                            }
+                            return round
                           })
-                          const roundsToKeep = sortedRounds.slice(0, newCount)
-                          // Preserve original order by keeping rounds that match the kept ones
-                          const keptIds = new Set(roundsToKeep.map(r => r.id))
-                          const finalRounds = pod.rounds.filter(r => keptIds.has(r.id))
-                          updatePod(pod.id, { rounds: finalRounds })
+                          updatePod(pod.id, { rounds: updatedRounds })
                         }
                       }
                       
@@ -1319,6 +1366,9 @@ export default function Settings() {
                           pod={pod}
                           onUpdateName={(name) => updatePod(pod.id, { name })}
                           onUpdateAmmoCount={handleUpdateAmmoCount}
+                          launchers={launchers}
+                          rsvs={rsvs}
+                          pocs={pocs}
                         />
                       )
                     })}
@@ -1342,6 +1392,68 @@ export default function Settings() {
                     ))}
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Ammo PLT Assignment */}
+            <div
+              style={{
+                marginTop: '1.5rem',
+                padding: '1rem',
+                backgroundColor: 'var(--bg-primary)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+              }}
+            >
+              <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                Ammo PLT Assignment
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                Currently assigned to: {ammoPltBocId ? (() => {
+                  const boc = bocs.find((b) => b.id === ammoPltBocId)
+                  return boc ? `BOC: ${boc.name}` : 'Unknown BOC'
+                })() : 'No BOC assigned'}
+              </div>
+              {bocs.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label
+                    style={{
+                      fontSize: '0.85rem',
+                      color: 'var(--text-primary)',
+                      fontWeight: '500',
+                    }}
+                  >
+                    Reassign to BOC:
+                  </label>
+                  <select
+                    value={ammoPltBocId || ''}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        assignAmmoPltToBOC(e.target.value)
+                      }
+                    }}
+                    style={{
+                      padding: '0.5rem',
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '4px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value="">-- Select BOC --</option>
+                    {bocs.map((boc) => (
+                      <option key={boc.id} value={boc.id}>
+                        {boc.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                  No BOCs available. Create a BOC in the Inventory page first.
+                </p>
               )}
             </div>
           </div>

@@ -89,6 +89,8 @@ interface AppDataContextType {
   deleteRoundType: (name: string) => void
   markFirstTimeGuideAsSeen: () => void
   hasSeenFirstTimeGuide: boolean
+  ammoPltBocId?: string
+  assignAmmoPltToBOC: (bocId: string) => void
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined)
@@ -323,8 +325,18 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   }, [state.bocs.length, state.pocs.length, state.currentUserRole?.id, addLog])
 
   const addBOC = useCallback((boc: BOC) => {
-    setState((prev) => ({ ...prev, bocs: [...prev.bocs, boc] }))
-    addLog({ type: 'info', message: `BOC "${boc.name}" created` })
+    setState((prev) => {
+      const isFirstBOC = prev.bocs.length === 0
+      const newState = { ...prev, bocs: [...prev.bocs, boc] }
+      // Assign Ammo PLT to first BOC created
+      if (isFirstBOC && !prev.ammoPltBocId) {
+        newState.ammoPltBocId = boc.id
+        addLog({ type: 'info', message: `BOC "${boc.name}" created and Ammo PLT assigned to it` })
+      } else {
+        addLog({ type: 'info', message: `BOC "${boc.name}" created` })
+      }
+      return newState
+    })
   }, [addLog])
 
   const addPOC = useCallback((poc: POC) => {
@@ -1720,6 +1732,18 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     })
   }, [addLog])
 
+  const assignAmmoPltToBOC = useCallback((bocId: string) => {
+    setState((prev) => {
+      const boc = prev.bocs.find((b) => b.id === bocId)
+      if (!boc) {
+        addLog({ type: 'warning', message: `Cannot assign Ammo PLT: BOC not found` })
+        return prev
+      }
+      addLog({ type: 'info', message: `Ammo PLT reassigned to BOC "${boc.name}"` })
+      return { ...prev, ammoPltBocId: bocId }
+    })
+  }, [addLog])
+
   return (
     <AppDataContext.Provider
       value={{
@@ -1783,6 +1807,8 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         deleteRoundType,
         markFirstTimeGuideAsSeen,
         hasSeenFirstTimeGuide: state.hasSeenFirstTimeGuide ?? false,
+        ammoPltBocId: state.ammoPltBocId,
+        assignAmmoPltToBOC,
       }}
     >
       {children}

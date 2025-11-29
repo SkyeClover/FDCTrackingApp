@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { POC, BOC, Launcher, Pod } from '../types'
+import { POC, BOC, Launcher, Pod, RSV } from '../types'
 import { X, Copy, Printer } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
@@ -12,14 +12,17 @@ interface ReportModalProps {
   pocs: POC[]
   launchers: Launcher[]
   pods: Pod[]
+  rsvs?: RSV[]
   isOpen: boolean
   onClose: () => void
 }
 
-export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClose }: ReportModalProps) {
-  const { roundTypes } = useAppData()
+export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], isOpen, onClose }: ReportModalProps) {
+  const { roundTypes, ammoPltBocId } = useAppData()
+  const AMMO_PLT_ID = 'ammo-plt-1'
   const [selectedBOC, setSelectedBOC] = useState<string>('')
   const [selectedPOC, setSelectedPOC] = useState<string>('')
+  const [printTime, setPrintTime] = useState<string>('')
   const isMobile = useIsMobile()
   
   // Handle ESC key and body scroll lock
@@ -44,12 +47,21 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
   })
 
   // Get pods for a POC (common sense: pods on launchers belong to that launcher's POC)
+  // Also include pods on RSVs assigned to this POC or its BOC
   const getPOCPods = (poc: POC) => {
     return pods.filter((p) => {
       if (p.pocId === poc.id) return true
       if (p.launcherId) {
         const launcher = launchers.find((l) => l.id === p.launcherId)
         return launcher?.pocId === poc.id
+      }
+      // Include pods on RSVs assigned to this POC or its BOC
+      if (p.rsvId) {
+        const rsv = rsvs.find((r) => r.id === p.rsvId)
+        if (rsv) {
+          if (rsv.pocId === poc.id) return true
+          if (rsv.bocId === poc.bocId) return true
+        }
       }
       return false
     })
@@ -123,6 +135,62 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
       report += '\n'
     })
 
+    // Include Ammo PLT if its BOC is selected
+    if (selectedBOC && ammoPltBocId === selectedBOC) {
+      const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === AMMO_PLT_ID)
+      const ammoPltPods = pods.filter((p) => {
+        if (p.ammoPltId === AMMO_PLT_ID) return true
+        if (p.rsvId) {
+          const rsv = rsvs.find((r) => r.id === p.rsvId)
+          if (rsv && rsv.ammoPltId === AMMO_PLT_ID) return true
+        }
+        return false
+      })
+      const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
+      const podsOnLaunchers = ammoPltPods.filter((p) => p.launcherId)
+
+      report += `AMMO PLT\n`
+      report += '-'.repeat(80) + '\n'
+      report += `  RSVs: ${ammoPltRSVs.length}\n`
+      report += `  Pods On Ground: ${podsOnGround.length}\n`
+      report += `  Pods On Launchers: ${podsOnLaunchers.length}\n`
+      report += `  Total Pods: ${ammoPltPods.length}\n\n`
+
+      // Pods by round type
+      roundTypeOptions.forEach((option) => {
+        const podsOfType = ammoPltPods.filter((p) => p.rounds[0]?.type === option.value)
+        if (podsOfType.length > 0) {
+          const totalRounds = podsOfType.reduce((sum, p) => sum + p.rounds.length, 0)
+          const availableRounds = podsOfType.reduce(
+            (sum, p) => sum + p.rounds.filter((r) => r.status === 'available').length,
+            0
+          )
+          const usedRounds = podsOfType.reduce(
+            (sum, p) => sum + p.rounds.filter((r) => r.status === 'used').length,
+            0
+          )
+
+          report += `  ${option.label}:\n`
+          report += `    Pods: ${podsOfType.length}\n`
+          report += `    Total Rounds: ${totalRounds}\n`
+          report += `    Available: ${availableRounds}\n`
+          report += `    Used: ${usedRounds}\n\n`
+        }
+      })
+
+      // RSV details
+      if (ammoPltRSVs.length > 0) {
+        report += '  RSV Details:\n'
+        ammoPltRSVs.forEach((rsv) => {
+          const rsvPods = pods.filter((p) => p.rsvId === rsv.id)
+          report += `    ${rsv.name}: ${rsvPods.length} pod${rsvPods.length !== 1 ? 's' : ''}\n`
+        })
+        report += '\n'
+      }
+
+      report += '\n'
+    }
+
     report += '='.repeat(80) + '\n'
     return report
   }
@@ -134,7 +202,12 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
   }
 
   const handlePrint = () => {
-    window.print()
+    // Set the print time when print is triggered
+    setPrintTime(new Date().toLocaleString())
+    // Small delay to ensure state updates before print dialog opens
+    setTimeout(() => {
+      window.print()
+    }, 100)
   }
 
   return (
@@ -173,16 +246,14 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: isMobile ? 'column' : 'row',
-            justifyContent: 'space-between',
-            alignItems: isMobile ? 'stretch' : 'flex-start',
-            gap: isMobile ? '1rem' : '0',
-            marginBottom: '1rem',
-          }}
-        >
+        <div className="no-print" style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          justifyContent: 'space-between',
+          alignItems: isMobile ? 'stretch' : 'flex-start',
+          gap: isMobile ? '1rem' : '0',
+          marginBottom: '1rem',
+        }}>
           <div style={{ flex: 1, width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
               <h2
@@ -347,6 +418,21 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
               </button>
             )}
           </div>
+        </div>
+
+        {/* Print Header - Only visible when printing */}
+        <div className="print-report-header" style={{ display: 'none' }}>
+          <h2>Ammunition Status Report</h2>
+          <p>Generated: {new Date().toLocaleString()}</p>
+          {printTime && (
+            <p>Printed: {printTime}</p>
+          )}
+          {selectedBOC && (
+            <p>Filter: BOC {bocs.find((b) => b.id === selectedBOC)?.name || selectedBOC}</p>
+          )}
+          {selectedPOC && (
+            <p>Filter: POC {pocs.find((p) => p.id === selectedPOC)?.name || selectedPOC}</p>
+          )}
         </div>
 
         {/* Visual Report */}
@@ -559,10 +645,199 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
             )
           })
           )}
+
+          {/* Ammo PLT Section - Show if its BOC is selected */}
+          {selectedBOC && ammoPltBocId === selectedBOC && (() => {
+            const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === AMMO_PLT_ID)
+            const ammoPltPods = pods.filter((p) => {
+              if (p.ammoPltId === AMMO_PLT_ID) return true
+              if (p.rsvId) {
+                const rsv = rsvs.find((r) => r.id === p.rsvId)
+                if (rsv && rsv.ammoPltId === AMMO_PLT_ID) return true
+              }
+              return false
+            })
+            const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
+            const podsOnLaunchers = ammoPltPods.filter((p) => p.launcherId)
+
+            return (
+              <div
+                style={{
+                  marginBottom: '1rem',
+                  padding: isMobile ? '0.5rem' : '0.75rem',
+                  backgroundColor: 'var(--bg-secondary)',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  pageBreakInside: 'avoid',
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <h3
+                  style={{
+                    fontSize: isMobile ? '0.9rem' : '1rem',
+                    fontWeight: 'bold',
+                    color: 'var(--text-primary)',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  Ammo PLT
+                </h3>
+
+                {/* Summary - Compact */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+                    gap: '0.5rem',
+                    marginBottom: '0.75rem',
+                    fontSize: isMobile ? '0.7rem' : '0.75rem',
+                  }}
+                >
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>RSVs</div>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{ammoPltRSVs.length}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>On Ground</div>
+                    <div style={{ fontWeight: 'bold', color: 'var(--accent)' }}>{podsOnGround.length}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>On Launchers</div>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{podsOnLaunchers.length}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>Total Pods</div>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{ammoPltPods.length}</div>
+                  </div>
+                </div>
+
+                {/* Rounds by Type - Compact Table */}
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <div
+                    style={{
+                      fontSize: '0.85rem',
+                      fontWeight: '600',
+                      color: 'var(--text-primary)',
+                      marginBottom: '0.5rem',
+                    }}
+                  >
+                    Rounds by Type
+                  </div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(140px, 1fr))',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {roundTypeOptions.map((option) => {
+                      const podsOfType = ammoPltPods.filter((p) => p.rounds[0]?.type === option.value)
+                      if (podsOfType.length === 0) return null
+
+                      const totalRounds = podsOfType.reduce((sum, p) => sum + p.rounds.length, 0)
+                      const availableRounds = podsOfType.reduce(
+                        (sum, p) => sum + p.rounds.filter((r) => r.status === 'available').length,
+                        0
+                      )
+                      const usedRounds = podsOfType.reduce(
+                        (sum, p) => sum + p.rounds.filter((r) => r.status === 'used').length,
+                        0
+                      )
+
+                      return (
+                        <div
+                          key={option.value}
+                          style={{
+                            padding: isMobile ? '0.4rem' : '0.5rem',
+                            backgroundColor: 'var(--bg-tertiary)',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border)',
+                            fontSize: isMobile ? '0.7rem' : '0.75rem',
+                            width: '100%',
+                            maxWidth: '100%',
+                            boxSizing: 'border-box',
+                          }}
+                        >
+                          <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                            {option.label}
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: isMobile ? '0.65rem' : '0.7rem' }}>Pods:</span>
+                            <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{podsOfType.length}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: isMobile ? '0.65rem' : '0.7rem' }}>Total:</span>
+                            <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{totalRounds}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                            <span style={{ color: 'var(--success)', fontSize: isMobile ? '0.65rem' : '0.7rem' }}>Available:</span>
+                            <span style={{ fontWeight: '600', color: 'var(--success)' }}>{availableRounds}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--danger)', fontSize: isMobile ? '0.65rem' : '0.7rem' }}>Used:</span>
+                            <span style={{ fontWeight: '600', color: 'var(--danger)' }}>{usedRounds}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* RSV Details - Compact */}
+                {ammoPltRSVs.length > 0 && (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '0.85rem',
+                        fontWeight: '600',
+                        color: 'var(--text-primary)',
+                        marginBottom: '0.5rem',
+                      }}
+                    >
+                      RSVs
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(180px, 1fr))',
+                        gap: '0.5rem',
+                      }}
+                    >
+                      {ammoPltRSVs.map((rsv) => {
+                        const rsvPods = pods.filter((p) => p.rsvId === rsv.id)
+                        return (
+                          <div
+                            key={rsv.id}
+                            style={{
+                              padding: isMobile ? '0.4rem' : '0.5rem',
+                              backgroundColor: 'var(--bg-tertiary)',
+                              borderRadius: '4px',
+                              border: '1px solid var(--border)',
+                              fontSize: isMobile ? '0.7rem' : '0.75rem',
+                              width: '100%',
+                              maxWidth: '100%',
+                              boxSizing: 'border-box',
+                            }}
+                          >
+                            <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{rsv.name}</div>
+                            <div style={{ color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                              {rsvPods.length} pod{rsvPods.length !== 1 ? 's' : ''}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
 
         {/* ASCII Report Preview */}
-        <div
+        <div className="no-print"
           style={{
             marginTop: '1rem',
             padding: isMobile ? '0.5rem' : '0.75rem',

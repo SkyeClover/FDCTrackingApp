@@ -102,4 +102,5 @@ export interface AppState {
   lastSaved?: Date
   currentUserRole?: CurrentUserRole
   hasSeenFirstTimeGuide?: boolean // Track if user has seen the first-time guide
+  ammoPltBocId?: string // BOC that the Ammo PLT is assigned to
 }
