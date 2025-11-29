@@ -176,28 +176,55 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
         <div
           style={{
             display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
             justifyContent: 'space-between',
-            alignItems: 'flex-start',
+            alignItems: isMobile ? 'stretch' : 'flex-start',
+            gap: isMobile ? '1rem' : '0',
             marginBottom: '1rem',
           }}
         >
-          <div style={{ flex: 1 }}>
-            <h2
-              style={{
-                fontSize: '1.25rem',
-                fontWeight: 'bold',
-                color: 'var(--text-primary)',
-                marginBottom: '0.25rem',
-              }}
-            >
-              Ammunition Status Report
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginBottom: '0.75rem' }}>
+          <div style={{ flex: 1, width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+              <h2
+                style={{
+                  fontSize: isMobile ? '1.1rem' : '1.25rem',
+                  fontWeight: 'bold',
+                  color: 'var(--text-primary)',
+                  margin: 0,
+                }}
+              >
+                Ammunition Status Report
+              </h2>
+              {!isMobile && (
+                <button
+                  onClick={onClose}
+                  style={{
+                    padding: '0.5rem',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderRadius: '4px',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <X size={24} />
+                </button>
+              )}
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: isMobile ? '0.7rem' : '0.75rem', marginBottom: '0.75rem' }}>
               Generated: {new Date().toLocaleString()}
             </p>
             
             {/* Filters */}
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ 
+              display: 'flex', 
+              gap: '0.5rem', 
+              flexWrap: 'wrap',
+              flexDirection: isMobile ? 'column' : 'row',
+            }}>
               <select
                 value={selectedBOC}
                 onChange={(e) => {
@@ -205,13 +232,16 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
                   setSelectedPOC('') // Clear POC when BOC changes
                 }}
                 style={{
-                  padding: '0.4rem 0.6rem',
+                  padding: isMobile ? '0.5rem' : '0.4rem 0.6rem',
                   backgroundColor: 'var(--bg-secondary)',
                   border: '1px solid var(--border)',
                   borderRadius: '4px',
                   color: 'var(--text-primary)',
-                  fontSize: '0.85rem',
+                  fontSize: isMobile ? '0.9rem' : '0.85rem',
                   cursor: 'pointer',
+                  flex: isMobile ? '1' : 'none',
+                  width: isMobile ? '100%' : 'auto',
+                  minHeight: isMobile ? '44px' : 'auto',
                 }}
               >
                 <option value="">All BOCs</option>
@@ -225,13 +255,16 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
                 value={selectedPOC}
                 onChange={(e) => setSelectedPOC(e.target.value)}
                 style={{
-                  padding: '0.4rem 0.6rem',
+                  padding: isMobile ? '0.5rem' : '0.4rem 0.6rem',
                   backgroundColor: 'var(--bg-secondary)',
                   border: '1px solid var(--border)',
                   borderRadius: '4px',
                   color: 'var(--text-primary)',
-                  fontSize: '0.85rem',
+                  fontSize: isMobile ? '0.9rem' : '0.85rem',
                   cursor: 'pointer',
+                  flex: isMobile ? '1' : 'none',
+                  width: isMobile ? '100%' : 'auto',
+                  minHeight: isMobile ? '44px' : 'auto',
                 }}
               >
                 <option value="">All POCs</option>
@@ -245,59 +278,74 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
               </select>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ 
+            display: 'flex', 
+            gap: '0.5rem',
+            flexDirection: isMobile ? 'row' : 'row',
+            width: isMobile ? '100%' : 'auto',
+          }}>
             <button
               onClick={handleCopyASCII}
               style={{
-                padding: '0.5rem 1rem',
+                flex: isMobile ? 1 : 'none',
+                padding: isMobile ? '0.75rem' : '0.5rem 1rem',
                 backgroundColor: 'var(--bg-secondary)',
                 border: '1px solid var(--border)',
-                borderRadius: '4px',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontSize: '0.9rem',
-              }}
-            >
-              <Copy size={16} />
-              Copy ASCII
-            </button>
-            <button
-              onClick={handlePrint}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: 'var(--bg-secondary)',
-                border: '1px solid var(--border)',
-                borderRadius: '4px',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontSize: '0.9rem',
-              }}
-            >
-              <Printer size={16} />
-              Print
-            </button>
-            <button
-              onClick={onClose}
-              style={{
-                padding: '0.5rem',
-                backgroundColor: 'transparent',
-                border: 'none',
                 borderRadius: '4px',
                 color: 'var(--text-primary)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                gap: '0.5rem',
+                fontSize: isMobile ? '0.85rem' : '0.9rem',
+                minHeight: isMobile ? '44px' : 'auto',
               }}
             >
-              <X size={24} />
+              <Copy size={isMobile ? 18 : 16} />
+              {isMobile ? 'Copy' : 'Copy ASCII'}
             </button>
+            <button
+              onClick={handlePrint}
+              style={{
+                flex: isMobile ? 1 : 'none',
+                padding: isMobile ? '0.75rem' : '0.5rem 1rem',
+                backgroundColor: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                fontSize: isMobile ? '0.85rem' : '0.9rem',
+                minHeight: isMobile ? '44px' : 'auto',
+              }}
+            >
+              <Printer size={isMobile ? 18 : 16} />
+              Print
+            </button>
+            {isMobile && (
+              <button
+                onClick={onClose}
+                style={{
+                  padding: '0.75rem',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '44px',
+                  minWidth: '44px',
+                }}
+              >
+                <X size={20} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -326,16 +374,19 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
                 key={poc.id}
                 style={{
                   marginBottom: '1rem',
-                  padding: '0.75rem',
+                  padding: isMobile ? '0.5rem' : '0.75rem',
                   backgroundColor: 'var(--bg-secondary)',
                   borderRadius: '6px',
                   border: '1px solid var(--border)',
                   pageBreakInside: 'avoid',
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
                 }}
               >
                 <h3
                   style={{
-                    fontSize: '1rem',
+                    fontSize: isMobile ? '0.9rem' : '1rem',
                     fontWeight: 'bold',
                     color: 'var(--text-primary)',
                     marginBottom: '0.5rem',
@@ -348,10 +399,10 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
                     gap: '0.5rem',
                     marginBottom: '0.75rem',
-                    fontSize: '0.75rem',
+                    fontSize: isMobile ? '0.7rem' : '0.75rem',
                   }}
                 >
                   <div>
@@ -387,7 +438,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                      gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(140px, 1fr))',
                       gap: '0.5rem',
                     }}
                   >
@@ -409,11 +460,14 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
                         <div
                           key={option.value}
                           style={{
-                            padding: '0.5rem',
+                            padding: isMobile ? '0.4rem' : '0.5rem',
                             backgroundColor: 'var(--bg-tertiary)',
                             borderRadius: '4px',
                             border: '1px solid var(--border)',
-                            fontSize: '0.75rem',
+                            fontSize: isMobile ? '0.7rem' : '0.75rem',
+                            width: '100%',
+                            maxWidth: '100%',
+                            boxSizing: 'border-box',
                           }}
                         >
                           <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
@@ -457,7 +511,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                        gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(180px, 1fr))',
                         gap: '0.5rem',
                       }}
                     >
@@ -471,11 +525,14 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
                           <div
                             key={launcher.id}
                             style={{
-                              padding: '0.5rem',
+                              padding: isMobile ? '0.4rem' : '0.5rem',
                               backgroundColor: 'var(--bg-tertiary)',
                               borderRadius: '4px',
                               border: '1px solid var(--border)',
-                              fontSize: '0.75rem',
+                              fontSize: isMobile ? '0.7rem' : '0.75rem',
+                              width: '100%',
+                              maxWidth: '100%',
+                              boxSizing: 'border-box',
                             }}
                           >
                             <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{launcher.name}</div>
@@ -508,34 +565,40 @@ export default function ReportModal({ bocs, pocs, launchers, pods, isOpen, onClo
         <div
           style={{
             marginTop: '1rem',
-            padding: '0.75rem',
+            padding: isMobile ? '0.5rem' : '0.75rem',
             backgroundColor: 'var(--bg-secondary)',
             borderRadius: '6px',
             border: '1px solid var(--border)',
+            width: '100%',
+            maxWidth: '100%',
+            boxSizing: 'border-box',
           }}
         >
           <h4
             style={{
-              fontSize: '0.9rem',
+              fontSize: isMobile ? '0.8rem' : '0.9rem',
               fontWeight: '600',
               color: 'var(--text-primary)',
               marginBottom: '0.5rem',
             }}
           >
-            ASCII Report (Click "Copy ASCII" to copy)
+            ASCII Report {isMobile ? '(Tap Copy)' : '(Click "Copy ASCII" to copy)'}
           </h4>
           <pre
             style={{
-              fontSize: '0.7rem',
+              fontSize: isMobile ? '0.65rem' : '0.7rem',
               fontFamily: 'monospace',
               color: 'var(--text-primary)',
               backgroundColor: 'var(--bg-primary)',
-              padding: '0.75rem',
+              padding: isMobile ? '0.5rem' : '0.75rem',
               borderRadius: '4px',
               overflow: 'auto',
-              maxHeight: '250px',
+              maxHeight: isMobile ? '200px' : '250px',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
+              overflowX: 'auto',
+              width: '100%',
+              maxWidth: '100%',
             }}
           >
             {generateASCIIReport()}
