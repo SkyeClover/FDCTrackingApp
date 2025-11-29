@@ -127,7 +127,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
           
           {/* Menu Drawer */}
           <aside
-            ref={drawerRef as React.RefObject<HTMLElement>}
+            ref={drawerRef}
             style={{
               position: 'fixed',
               top: 0,

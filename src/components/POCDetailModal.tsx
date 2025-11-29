@@ -161,7 +161,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
       onClick={isMobile ? undefined : onClose}
     >
       <div
-        ref={modalContentRef as React.RefObject<HTMLElement>}
+        ref={modalContentRef}
         style={{
           backgroundColor: 'var(--bg-primary)',
           borderRadius: isMobile ? '0' : '12px',

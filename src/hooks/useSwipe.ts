@@ -13,7 +13,7 @@ interface SwipeHandlers {
  * Hook to detect swipe gestures on an element
  * Returns ref to attach to the element
  */
-export function useSwipe({
+export function useSwipe<T extends HTMLElement = HTMLDivElement>({
   onSwipeLeft,
   onSwipeRight,
   onSwipeUp,
@@ -21,7 +21,7 @@ export function useSwipe({
   threshold = 50,
   velocityThreshold = 0.3,
 }: SwipeHandlers) {
-  const elementRef = useRef<HTMLElement>(null)
+  const elementRef = useRef<T>(null)
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
 
   useEffect(() => {

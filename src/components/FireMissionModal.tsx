@@ -91,7 +91,7 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
       onClick={isMobile ? undefined : onClose}
     >
       <div
-        ref={modalContentRef as React.RefObject<HTMLElement>}
+        ref={modalContentRef}
         style={{
           backgroundColor: 'var(--bg-secondary)',
           border: isMobile ? 'none' : '1px solid var(--border)',

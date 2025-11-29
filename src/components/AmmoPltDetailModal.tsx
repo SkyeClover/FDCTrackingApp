@@ -112,7 +112,7 @@ export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: Ammo
       onClick={isMobile ? undefined : onClose}
     >
       <div
-        ref={modalContentRef as React.RefObject<HTMLElement>}
+        ref={modalContentRef}
         style={{
           backgroundColor: 'var(--bg-primary)',
           borderRadius: isMobile ? '0' : '12px',
