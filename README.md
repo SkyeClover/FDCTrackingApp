@@ -14,6 +14,8 @@ A modern web application for tracking rounds, pods, and launchers. Designed for 
   - Assign Launchers to POCs
   - Assign POCs to BOCs
   - Create and assign Tasks to Launchers or POCs
+  - Tasks remain visible when completed until manually cleared
+  - Mobile-optimized layout with card-based views
 - **Logs**: Monitor all system activity and changes
 - **Settings/Help**: Get started guide and terminology reference
 - **User Role Selection**: Set current user role (BOC or POC) for role-based views
@@ -179,7 +181,21 @@ VITE_AUTH_PASSWORD=your_password
 
 The password protection uses client-side authentication, suitable for testing and sharing with friends. For production use with sensitive data, consider server-side authentication.
 
+## Recent Updates
+
+### Mobile Improvements
+- Reorganized Management page layout for mobile devices
+- RSVs table converted to card layout on mobile
+- Improved content wrapping and overflow handling
+- Better spacing and font sizing for mobile screens
+
+### Task Management
+- Completed tasks now remain visible until manually cleared
+- Users receive alerts when tasks complete
+- Clear button added for completed tasks
+- Visual indicators (checkmarks, green styling) for completed tasks
+
 ## Version
 
-1.0.0
+1.0.1
 
