@@ -334,7 +334,7 @@ PodEditableItem.displayName = 'PodEditableItem'
 
 export default function Settings() {
   const isMobile = useIsMobile()
-  const { currentUserRole, bocs, pocs, launchers, pods, rsvs, setCurrentUserRole, roundTypes, addRoundType, updateRoundType, deleteRoundType, updateBOC, updatePOC, updateLauncher, updatePod, updateRSV, clearAllData, addRound } = useAppData()
+  const { currentUserRole, bocs, pocs, launchers, pods, rsvs, setCurrentUserRole, roundTypes, addRoundType, updateRoundType, deleteRoundType, updateBOC, updatePOC, updateLauncher, updatePod, updateRSV, clearAllData } = useAppData()
   const [selectedRoleType, setSelectedRoleType] = useState<'boc' | 'poc' | ''>('')
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
   const [newRoundTypeName, setNewRoundTypeName] = useState('')
