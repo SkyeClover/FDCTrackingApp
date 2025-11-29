@@ -671,11 +671,11 @@ export default function Management() {
   const pocsMemo = useMemo(() => pocs, [pocs])
 
   const handleAddRSV = useCallback(
-    (data: { name: string }) => {
+    (data: { name: string; assignToAmmoPlt?: boolean }) => {
       addRSV({
         id: Date.now().toString(),
         name: data.name,
-      })
+      }, data.assignToAmmoPlt)
       setShowRSVForm(false)
     },
     [addRSV]
@@ -1331,8 +1331,9 @@ export default function Management() {
                   e.preventDefault()
                   const formData = new FormData(e.target as HTMLFormElement)
                   const name = formData.get('name') as string
+                  const assignToAmmoPlt = formData.get('assignToAmmoPlt') === 'on'
                   if (name?.trim()) {
-                    handleAddRSV({ name: name.trim() })
+                    handleAddRSV({ name: name.trim(), assignToAmmoPlt })
                   }
                 }}
                 style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
@@ -1352,6 +1353,27 @@ export default function Management() {
                     fontSize: '0.9rem',
                   }}
                 />
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    name="assignToAmmoPlt"
+                    style={{
+                      width: '1rem',
+                      height: '1rem',
+                      cursor: 'pointer',
+                    }}
+                  />
+                  <span>Assign to Ammo PLT (instead of current user's unit)</span>
+                </label>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button
                     type="submit"

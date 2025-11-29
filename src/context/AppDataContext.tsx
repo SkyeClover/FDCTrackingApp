@@ -43,7 +43,7 @@ interface AppDataContextType {
   addPOC: (poc: POC) => void
   addLauncher: (launcher: Launcher) => void
   addPod: (pod: Pod) => void
-  addRSV: (rsv: RSV) => void
+  addRSV: (rsv: RSV, assignToAmmoPlt?: boolean) => void
   deleteBOC: (bocId: string) => void
   deletePOC: (pocId: string) => void
   deleteLauncher: (launcherId: string) => void
@@ -356,14 +356,38 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     addLog({ type: 'info', message: `Pod "${pod.name}" created` })
   }, [addLog])
 
-  const addRSV = useCallback((rsv: RSV) => {
+  const addRSV = useCallback((rsv: RSV, assignToAmmoPlt?: boolean) => {
     const AMMO_PLT_ID = 'ammo-plt-1'
-    // Assign to ammo plt by default if not already assigned
-    const rsvWithDefault = rsv.ammoPltId || rsv.pocId || rsv.bocId 
-      ? rsv 
-      : { ...rsv, ammoPltId: AMMO_PLT_ID }
-    setState((prev) => ({ ...prev, rsvs: [...prev.rsvs, rsvWithDefault] }))
-    addLog({ type: 'info', message: `RSV "${rsv.name}" created${rsvWithDefault.ammoPltId ? ' and assigned to Ammo PLT' : ''}` })
+    setState((prev) => {
+      // If explicitly assigned to ammo plt, use that
+      if (assignToAmmoPlt) {
+        const rsvWithAmmoPlt = { ...rsv, ammoPltId: AMMO_PLT_ID, pocId: undefined, bocId: undefined }
+        addLog({ type: 'info', message: `RSV "${rsv.name}" created and assigned to Ammo PLT` })
+        return { ...prev, rsvs: [...prev.rsvs, rsvWithAmmoPlt] }
+      }
+      
+      // If already has assignment, use it
+      if (rsv.ammoPltId || rsv.pocId || rsv.bocId) {
+        addLog({ type: 'info', message: `RSV "${rsv.name}" created` })
+        return { ...prev, rsvs: [...prev.rsvs, rsv] }
+      }
+      
+      // Default to current user's role
+      let rsvWithDefault = rsv
+      if (prev.currentUserRole) {
+        if (prev.currentUserRole.type === 'poc') {
+          rsvWithDefault = { ...rsv, pocId: prev.currentUserRole.id }
+          addLog({ type: 'info', message: `RSV "${rsv.name}" created and assigned to ${prev.currentUserRole.name}` })
+        } else if (prev.currentUserRole.type === 'boc') {
+          rsvWithDefault = { ...rsv, bocId: prev.currentUserRole.id }
+          addLog({ type: 'info', message: `RSV "${rsv.name}" created and assigned to ${prev.currentUserRole.name}` })
+        }
+      } else {
+        addLog({ type: 'info', message: `RSV "${rsv.name}" created` })
+      }
+      
+      return { ...prev, rsvs: [...prev.rsvs, rsvWithDefault] }
+    })
   }, [addLog])
 
   const deleteBOC = useCallback((bocId: string) => {
@@ -956,7 +980,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
 
       return {
         ...prev,
-        pods: prev.pods.map((p) => (p.id === podId ? { ...p, pocId } : p)),
+        pods: prev.pods.map((p) => (p.id === podId ? { ...p, pocId, ammoPltId: undefined } : p)),
       }
     })
   }, [addLog])
@@ -1426,11 +1450,11 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         const updatedPods = prev.pods.map((p) => {
           if (p.id === currentPod.id) {
             // Current pod goes back to POC inventory (keep pocId, remove launcherId)
+            // Preserve round statuses - don't reset to 'available' as rounds may have been used
             return {
               ...p,
               launcherId: undefined,
               pocId: launcher.pocId, // Ensure it's assigned to the POC
-              rounds: p.rounds.map((r) => ({ ...r, status: 'available' as const })),
             }
           }
           return p
@@ -1525,11 +1549,11 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
       const updatedPods = prev.pods.map((p) => {
         if (p.id === currentPod?.id) {
           // Current pod goes back to POC inventory (keep pocId, remove launcherId)
+          // Preserve round statuses - don't reset to 'available' as rounds may have been used
           return {
             ...p,
             launcherId: undefined,
             pocId: launcher.pocId, // Ensure it's assigned to the POC
-            rounds: p.rounds.map((r) => ({ ...r, status: 'available' as const })),
           }
         }
         if (p.id === selectedPod.id) {

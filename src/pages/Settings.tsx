@@ -1,4 +1,4 @@
-import { useState, memo } from 'react'
+import { useState, memo, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { Plus, Trash2, Check, X as XIcon, Edit, ChevronDown, ChevronUp, Bug, History } from 'lucide-react'
 import { getAllRoundTypeOptions } from '../constants/roundTypes'
@@ -110,9 +110,231 @@ const CompactEditableItem = memo(({
 
 CompactEditableItem.displayName = 'CompactEditableItem'
 
+// Pod editable item component with ammo count editing
+const PodEditableItem = memo(({
+  pod,
+  onUpdateName,
+  onUpdateAmmoCount,
+}: {
+  pod: { id: string; name: string; rounds: Array<{ id: string; type: string; status: string }> }
+  onUpdateName: (name: string) => void
+  onUpdateAmmoCount: (count: number) => void
+}) => {
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [isEditingAmmo, setIsEditingAmmo] = useState(false)
+  const [editNameValue, setEditNameValue] = useState(pod.name)
+  const [editAmmoValue, setEditAmmoValue] = useState(pod.rounds.length.toString())
+
+  // Sync edit values when pod changes
+  useEffect(() => {
+    setEditNameValue(pod.name)
+    setEditAmmoValue(pod.rounds.length.toString())
+  }, [pod.name, pod.rounds.length])
+
+  const handleSaveName = () => {
+    if (editNameValue.trim() && editNameValue.trim() !== pod.name) {
+      onUpdateName(editNameValue.trim())
+    }
+    setIsEditingName(false)
+    setEditNameValue(pod.name)
+  }
+
+  const handleCancelName = () => {
+    setIsEditingName(false)
+    setEditNameValue(pod.name)
+  }
+
+  const handleSaveAmmo = () => {
+    const count = parseInt(editAmmoValue)
+    if (!isNaN(count) && count >= 0 && count !== pod.rounds.length) {
+      onUpdateAmmoCount(count)
+    }
+    setIsEditingAmmo(false)
+    setEditAmmoValue(pod.rounds.length.toString())
+  }
+
+  const handleCancelAmmo = () => {
+    setIsEditingAmmo(false)
+    setEditAmmoValue(pod.rounds.length.toString())
+  }
+
+  return (
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: '0.25rem', 
+      padding: '0.5rem',
+      backgroundColor: 'var(--bg-primary)',
+      borderRadius: '4px',
+      border: '1px solid var(--border)',
+      marginBottom: '0.25rem',
+    }}>
+      {/* Pod Name */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {isEditingName ? (
+          <>
+            <input
+              type="text"
+              value={editNameValue}
+              onChange={(e) => setEditNameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveName()
+                else if (e.key === 'Escape') handleCancelName()
+              }}
+              autoFocus
+              style={{
+                flex: 1,
+                padding: '0.25rem 0.5rem',
+                backgroundColor: 'var(--bg-secondary)',
+                border: '1px solid var(--accent)',
+                borderRadius: '4px',
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
+              }}
+            />
+            <button
+              onClick={handleSaveName}
+              style={{
+                padding: '0.25rem',
+                backgroundColor: 'var(--success)',
+                border: 'none',
+                borderRadius: '3px',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Save"
+            >
+              <Check size={12} />
+            </button>
+            <button
+              onClick={handleCancelName}
+              style={{
+                padding: '0.25rem',
+                backgroundColor: 'var(--bg-primary)',
+                border: '1px solid var(--border)',
+                borderRadius: '3px',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Cancel"
+            >
+              <XIcon size={12} />
+            </button>
+          </>
+        ) : (
+          <>
+            <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: '500' }}>{pod.name}</span>
+            <button
+              onClick={() => setIsEditingName(true)}
+              style={{
+                padding: '0.25rem',
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Edit name"
+            >
+              <Edit size={12} />
+            </button>
+          </>
+        )}
+      </div>
+      
+      {/* Ammo Count */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+        <span>Ammo:</span>
+        {isEditingAmmo ? (
+          <>
+            <input
+              type="number"
+              value={editAmmoValue}
+              onChange={(e) => setEditAmmoValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveAmmo()
+                else if (e.key === 'Escape') handleCancelAmmo()
+              }}
+              min="0"
+              autoFocus
+              style={{
+                width: '60px',
+                padding: '0.25rem 0.5rem',
+                backgroundColor: 'var(--bg-secondary)',
+                border: '1px solid var(--accent)',
+                borderRadius: '4px',
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
+              }}
+            />
+            <button
+              onClick={handleSaveAmmo}
+              style={{
+                padding: '0.25rem',
+                backgroundColor: 'var(--success)',
+                border: 'none',
+                borderRadius: '3px',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Save"
+            >
+              <Check size={12} />
+            </button>
+            <button
+              onClick={handleCancelAmmo}
+              style={{
+                padding: '0.25rem',
+                backgroundColor: 'var(--bg-primary)',
+                border: '1px solid var(--border)',
+                borderRadius: '3px',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Cancel"
+            >
+              <XIcon size={12} />
+            </button>
+          </>
+        ) : (
+          <>
+            <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{pod.rounds.length}</span>
+            <button
+              onClick={() => setIsEditingAmmo(true)}
+              style={{
+                padding: '0.25rem',
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Edit ammo count"
+            >
+              <Edit size={12} />
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+})
+
+PodEditableItem.displayName = 'PodEditableItem'
+
 export default function Settings() {
   const isMobile = useIsMobile()
-  const { currentUserRole, bocs, pocs, launchers, pods, rsvs, setCurrentUserRole, roundTypes, addRoundType, updateRoundType, deleteRoundType, updateBOC, updatePOC, updateLauncher, updatePod, updateRSV, clearAllData } = useAppData()
+  const { currentUserRole, bocs, pocs, launchers, pods, rsvs, setCurrentUserRole, roundTypes, addRoundType, updateRoundType, deleteRoundType, updateBOC, updatePOC, updateLauncher, updatePod, updateRSV, clearAllData, addRound } = useAppData()
   const [selectedRoleType, setSelectedRoleType] = useState<'boc' | 'poc' | ''>('')
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
   const [newRoundTypeName, setNewRoundTypeName] = useState('')
@@ -1058,14 +1280,48 @@ export default function Settings() {
                   <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
                     Pods ({pods.length})
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '200px', overflowY: 'auto' }}>
-                    {pods.map((pod) => (
-                      <CompactEditableItem
-                        key={pod.id}
-                        name={pod.name}
-                        onUpdate={(name) => updatePod(pod.id, { name })}
-                      />
-                    ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '400px', overflowY: 'auto' }}>
+                    {pods.map((pod) => {
+                      const handleUpdateAmmoCount = (newCount: number) => {
+                        const currentCount = pod.rounds.length
+                        const podRoundType = pod.rounds[0]?.type || 'M28A1'
+                        
+                        if (newCount > currentCount) {
+                          // Add rounds
+                          const roundsToAdd = newCount - currentCount
+                          const newRounds = Array.from({ length: roundsToAdd }, (_, i) => {
+                            const roundId = `${Date.now()}-${i}-${Math.random()}`
+                            return {
+                              id: roundId,
+                              type: podRoundType,
+                              status: 'available' as const,
+                            }
+                          })
+                          updatePod(pod.id, { rounds: [...pod.rounds, ...newRounds] })
+                        } else if (newCount < currentCount) {
+                          // Remove rounds (remove from the end, prioritizing 'used' rounds first, then 'available')
+                          const sortedRounds = [...pod.rounds].sort((a, b) => {
+                            // Sort: used first, then available, then reserved
+                            const statusOrder = { used: 0, available: 1, reserved: 2 }
+                            return statusOrder[a.status] - statusOrder[b.status]
+                          })
+                          const roundsToKeep = sortedRounds.slice(0, newCount)
+                          // Preserve original order by keeping rounds that match the kept ones
+                          const keptIds = new Set(roundsToKeep.map(r => r.id))
+                          const finalRounds = pod.rounds.filter(r => keptIds.has(r.id))
+                          updatePod(pod.id, { rounds: finalRounds })
+                        }
+                      }
+                      
+                      return (
+                        <PodEditableItem
+                          key={pod.id}
+                          pod={pod}
+                          onUpdateName={(name) => updatePod(pod.id, { name })}
+                          onUpdateAmmoCount={handleUpdateAmmoCount}
+                        />
+                      )
+                    })}
                   </div>
                 </div>
               )}
