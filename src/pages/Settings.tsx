@@ -1,7 +1,8 @@
 import { useState, memo } from 'react'
 import { useAppData } from '../context/AppDataContext'
-import { Plus, Trash2, Check, X as XIcon, Edit, ChevronDown, ChevronUp, Bug } from 'lucide-react'
+import { Plus, Trash2, Check, X as XIcon, Edit, ChevronDown, ChevronUp, Bug, History } from 'lucide-react'
 import { getAllRoundTypeOptions } from '../constants/roundTypes'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 // Compact editable item component for debug section
 const CompactEditableItem = memo(({
@@ -110,12 +111,14 @@ const CompactEditableItem = memo(({
 CompactEditableItem.displayName = 'CompactEditableItem'
 
 export default function Settings() {
-  const { currentUserRole, bocs, pocs, launchers, pods, rsvs, setCurrentUserRole, roundTypes, addRoundType, updateRoundType, deleteRoundType, updateBOC, updatePOC, updateLauncher, updatePod, updateRSV } = useAppData()
+  const isMobile = useIsMobile()
+  const { currentUserRole, bocs, pocs, launchers, pods, rsvs, setCurrentUserRole, roundTypes, addRoundType, updateRoundType, deleteRoundType, updateBOC, updatePOC, updateLauncher, updatePod, updateRSV, clearAllData } = useAppData()
   const [selectedRoleType, setSelectedRoleType] = useState<'boc' | 'poc' | ''>('')
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
   const [newRoundTypeName, setNewRoundTypeName] = useState('')
   const [showAddRoundType, setShowAddRoundType] = useState(false)
   const [showDebugSection, setShowDebugSection] = useState(false)
+  const [showChangelog, setShowChangelog] = useState(false)
 
   const handleRoleChange = () => {
     if (!selectedRoleType || !selectedRoleId) return
@@ -149,9 +152,9 @@ export default function Settings() {
     <div>
       <h1
         style={{
-          fontSize: '2rem',
+          fontSize: isMobile ? '1.5rem' : '2rem',
           fontWeight: 'bold',
-          marginBottom: '2rem',
+          marginBottom: isMobile ? '1rem' : '2rem',
           color: 'var(--text-primary)',
         }}
       >
@@ -161,8 +164,10 @@ export default function Settings() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-          gap: '1.5rem',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))',
+          gap: isMobile ? '1rem' : '1.5rem',
+          width: '100%',
+          maxWidth: '100%',
         }}
       >
         <div
@@ -733,6 +738,170 @@ export default function Settings() {
         </div>
       </div>
       
+      {/* Changelog Section - Collapsible */}
+      <div
+        style={{
+          marginTop: '3rem',
+          paddingTop: '2rem',
+          borderTop: '1px solid var(--border)',
+        }}
+      >
+        <button
+          onClick={() => setShowChangelog(!showChangelog)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.75rem',
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontSize: '0.85rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <History size={16} />
+            <span>Changelog</span>
+          </div>
+          {showChangelog ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+
+        {showChangelog && (
+          <div
+            style={{
+              marginTop: '1rem',
+              padding: '1.5rem',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '2rem',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {/* Version 1.0.1 */}
+              <div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    marginBottom: '0.75rem',
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: '1.1rem',
+                      fontWeight: 'bold',
+                      color: 'var(--text-primary)',
+                      margin: 0,
+                    }}
+                  >
+                    Version 1.0.1
+                  </h3>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    (Latest)
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    paddingLeft: '1rem',
+                    borderLeft: '2px solid var(--accent)',
+                  }}
+                >
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>✨ Mobile UI:</strong> Full mobile-friendly interface with responsive design
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>📱 Mobile Navigation:</strong> Hamburger menu with slide-out drawer
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>👆 Swipe Gestures:</strong> Swipe left to close menu, swipe down to close modals
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>🎯 Touch-Friendly:</strong> Improved button sizes and interactions for mobile devices
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>⌨️ Keyboard Support:</strong> ESC key to close modals
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>🔢 Input Improvements:</strong> Number inputs now auto-select on focus for easier editing
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>🔄 Reset Feature:</strong> Added "Reset All Data" button in Debug section
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>📋 Changelog:</strong> Added changelog section to track updates
+                  </p>
+                </div>
+              </div>
+
+              {/* Version 1.0.0 */}
+              <div>
+                <h3
+                  style={{
+                    fontSize: '1.1rem',
+                    fontWeight: 'bold',
+                    color: 'var(--text-primary)',
+                    marginBottom: '0.75rem',
+                  }}
+                >
+                  Version 1.0.0
+                </h3>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    paddingLeft: '1rem',
+                    borderLeft: '2px solid var(--border)',
+                  }}
+                >
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>🎉 Initial Release:</strong> Core functionality for FDC tracking
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>📊 Dashboard:</strong> Overview of all assets and fire mission initiation
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>📦 Inventory:</strong> Create and manage BOCs, POCs, Launchers, Pods, RSVs, and Rounds
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>⚙️ Management:</strong> Assignment system for pods, launchers, and tasks
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>📝 Logs:</strong> Activity tracking and system monitoring
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>💾 Save/Load:</strong> Export and import data functionality
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>📄 Reports:</strong> Generate ASCII reports for ammunition status
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      
       {/* Debug Section - Collapsible */}
       <div
         style={{
@@ -775,7 +944,60 @@ export default function Settings() {
               fontSize: '0.8rem',
             }}
           >
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            {/* Reset All Data Button */}
+            <div
+              style={{
+                marginBottom: '1.5rem',
+                padding: '1rem',
+                backgroundColor: 'var(--bg-primary)',
+                border: '2px solid var(--danger)',
+                borderRadius: '6px',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                  color: 'var(--text-secondary)',
+                  marginBottom: '0.5rem',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Danger Zone
+              </div>
+              <p
+                style={{
+                  fontSize: '0.85rem',
+                  color: 'var(--text-secondary)',
+                  marginBottom: '0.75rem',
+                }}
+              >
+                This will permanently delete all data including BOCs, POCs, Launchers, Pods, RSVs, Tasks, and Logs. This action cannot be undone.
+              </p>
+              <button
+                onClick={clearAllData}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: 'var(--danger)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  width: isMobile ? '100%' : 'auto',
+                  justifyContent: 'center',
+                }}
+              >
+                <Trash2 size={18} />
+                Reset All Data
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
               {/* BOCs */}
               {bocs.length > 0 && (
                 <div>

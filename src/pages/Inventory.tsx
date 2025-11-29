@@ -4,6 +4,7 @@ import { Plus, X, Trash2 } from 'lucide-react'
 import { getEnabledRoundTypeOptions, RoundType } from '../constants/roundTypes'
 import PodsManagement from '../components/PodsManagement'
 import PodsToRSVAssignment from '../components/PodsToRSVAssignment'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 // Memoized form component to prevent re-renders
 const ItemForm = memo(({
@@ -127,6 +128,7 @@ const ItemForm = memo(({
             type="number"
             value={roundCount}
             onChange={(e) => setRoundCount(Math.max(0, Math.min(6, parseInt(e.target.value) || 0)))}
+            onFocus={(e) => e.target.select()}
             placeholder="Rounds per Pod"
             min="0"
             max="6"
@@ -143,6 +145,7 @@ const ItemForm = memo(({
             type="number"
             value={quantity}
             onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+            onFocus={(e) => e.target.select()}
             placeholder="Number of Pods"
             min="1"
             style={{
@@ -481,6 +484,7 @@ const ItemCard = memo(({
 ItemCard.displayName = 'ItemCard'
 
 export default function Inventory() {
+  const isMobile = useIsMobile()
   const { bocs, pocs, launchers, rsvs, addBOC, addPOC, addLauncher, addPod, addRSV, addRound, assignPodToPOC, deleteBOC, deletePOC, deleteLauncher, deleteRSV, roundTypes } = useAppData()
   
   // Get enabled round type options
@@ -689,9 +693,9 @@ export default function Inventory() {
     <div>
       <h1
         style={{
-          fontSize: '2rem',
+          fontSize: isMobile ? '1.5rem' : '2rem',
           fontWeight: 'bold',
-          marginBottom: '2rem',
+          marginBottom: isMobile ? '1rem' : '2rem',
           color: 'var(--text-primary)',
         }}
       >
@@ -781,7 +785,9 @@ export default function Inventory() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(300px, 1fr))',
+          width: '100%',
+          maxWidth: '100%',
           gap: '1.5rem',
         }}
       >

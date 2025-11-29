@@ -83,8 +83,12 @@ function AppContentWithData() {
             style={{
               flex: 1,
               overflow: 'auto',
+              overflowX: 'hidden', // Prevent horizontal scrolling
               padding: '1rem',
-              marginTop: '56px', // Fixed header height
+              paddingTop: 'calc(56px + 1rem)', // Fixed header height + padding
+              width: '100%',
+              maxWidth: '100vw',
+              boxSizing: 'border-box',
             }}
           >
             {currentPage === 'dashboard' && <Dashboard />}

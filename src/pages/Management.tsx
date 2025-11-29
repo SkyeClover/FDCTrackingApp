@@ -4,6 +4,7 @@ import { useProgress } from '../context/ProgressContext'
 import { Plus, Trash2, Edit, X, Check, Rocket, Target } from 'lucide-react'
 import { TaskTemplate } from '../types'
 import RSVsManagement from '../components/RSVsManagement'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 // Memoized components to prevent re-renders during progress updates
 const AssignmentItem = memo(({
@@ -14,6 +15,7 @@ const AssignmentItem = memo(({
   onUnassign,
   itemLabel,
   optionLabel,
+  isMobile = false,
 }: {
   item: { id: string; name: string }
   options: { id: string; name: string }[]
@@ -22,6 +24,7 @@ const AssignmentItem = memo(({
   onUnassign: (itemId: string) => void
   itemLabel: string
   optionLabel: string
+  isMobile?: boolean
 }) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const currentOption = options.find((o) => o.id === currentValue)
@@ -133,7 +136,7 @@ const AssignmentItem = memo(({
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                  gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(150px, 1fr))',
                   gap: '0.5rem',
                   marginBottom: '0.5rem',
                 }}
@@ -327,6 +330,7 @@ const TaskTemplateForm = memo(({
           type="number"
           value={duration}
           onChange={(e) => setDuration(Math.max(1, parseInt(e.target.value) || 60))}
+          onFocus={(e) => e.target.select()}
           placeholder="Duration (seconds)"
           min="1"
           required
@@ -437,7 +441,7 @@ const AssignmentCard = memo(({
 AssignmentCard.displayName = 'AssignmentCard'
 
 // Separate component for assignment sections to prevent re-renders from task progress
-const AssignmentSections = memo(() => {
+const AssignmentSections = memo(({ isMobile = false }: { isMobile?: boolean }) => {
   const {
     bocs,
     pocs,
@@ -479,6 +483,7 @@ const AssignmentSections = memo(() => {
                 onUnassign={(id) => assignLauncherToPOC(id, '')}
                 itemLabel="Launcher"
                 optionLabel="POC"
+                isMobile={isMobile}
               />
             ))}
           </div>
@@ -512,6 +517,7 @@ const AssignmentSections = memo(() => {
                 onUnassign={(id) => assignPOCToBOC(id, '')}
                 itemLabel="POC"
                 optionLabel="BOC"
+                isMobile={isMobile}
               />
             ))}
           </div>
@@ -524,6 +530,7 @@ const AssignmentSections = memo(() => {
 AssignmentSections.displayName = 'AssignmentSections'
 
 export default function Management() {
+  const isMobile = useIsMobile()
   const {
     pocs,
     launchers,
@@ -588,9 +595,9 @@ export default function Management() {
     <div>
       <h1
         style={{
-          fontSize: '2rem',
+          fontSize: isMobile ? '1.5rem' : '2rem',
           fontWeight: 'bold',
-          marginBottom: '2rem',
+          marginBottom: isMobile ? '1rem' : '2rem',
           color: 'var(--text-primary)',
         }}
       >
@@ -600,8 +607,10 @@ export default function Management() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))',
-          gap: '1.5rem',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(450px, 1fr))',
+          gap: isMobile ? '1rem' : '1.5rem',
+          width: '100%',
+          maxWidth: '100%',
         }}
       >
         {/* Task Templates Section */}
@@ -828,7 +837,7 @@ export default function Management() {
                           <div
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                              gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(150px, 1fr))',
                               gap: '0.5rem',
                               marginBottom: '0.5rem',
                             }}
@@ -1027,7 +1036,7 @@ export default function Management() {
                             <div
                               style={{
                                 display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(150px, 1fr))',
                                 gap: '0.5rem',
                                 marginBottom: '0.5rem',
                               }}
@@ -1121,7 +1130,7 @@ export default function Management() {
           )}
         </AssignmentCard>
 
-        <AssignmentSections />
+        <AssignmentSections isMobile={isMobile} />
 
         {/* RSV Management - Full Width */}
         <div style={{ gridColumn: '1 / -1' }}>

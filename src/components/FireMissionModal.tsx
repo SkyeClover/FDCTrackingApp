@@ -189,6 +189,7 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
             type="number"
             value={roundsPerLauncher}
             onChange={(e) => setRoundsPerLauncher(Math.max(1, parseInt(e.target.value) || 1))}
+            onFocus={(e) => e.target.select()}
             min="1"
             max="6"
             style={{
