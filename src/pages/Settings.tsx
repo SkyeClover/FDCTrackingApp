@@ -1,6 +1,6 @@
 import { useState, memo, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
-import { Plus, Trash2, Check, X as XIcon, Edit, ChevronDown, ChevronUp, Bug, History } from 'lucide-react'
+import { Plus, Trash2, Check, X as XIcon, Edit, ChevronDown, ChevronUp, Bug, History, BookOpen } from 'lucide-react'
 import { getAllRoundTypeOptions } from '../constants/roundTypes'
 import { useIsMobile } from '../hooks/useIsMobile'
 
@@ -380,7 +380,11 @@ const PodEditableItem = memo(({
 
 PodEditableItem.displayName = 'PodEditableItem'
 
-export default function Settings() {
+interface SettingsProps {
+  onShowInteractiveGuide?: () => void
+}
+
+export default function Settings({ onShowInteractiveGuide }: SettingsProps = {}) {
   const isMobile = useIsMobile()
   const { currentUserRole, bocs, pocs, launchers, pods, rsvs, setCurrentUserRole, roundTypes, addRoundType, updateRoundType, deleteRoundType, updateBOC, updatePOC, updateLauncher, updatePod, updateRSV, clearAllData, ammoPltBocId, assignAmmoPltToBOC } = useAppData()
   const [selectedRoleType, setSelectedRoleType] = useState<'boc' | 'poc' | ''>('')
@@ -632,16 +636,45 @@ export default function Settings() {
             padding: '1.5rem',
           }}
         >
-          <h2
-            style={{
-              fontSize: '1.25rem',
-              fontWeight: 'bold',
-              marginBottom: '1rem',
-              color: 'var(--text-primary)',
-            }}
-          >
-            Getting Started
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+            <h2
+              style={{
+                fontSize: '1.25rem',
+                fontWeight: 'bold',
+                margin: 0,
+                color: 'var(--text-primary)',
+              }}
+            >
+              Getting Started
+            </h2>
+            <button
+              type="button"
+              onClick={() => onShowInteractiveGuide?.()}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 1rem',
+                backgroundColor: 'var(--accent-color)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: '500',
+                transition: 'opacity 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '0.9'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '1'
+              }}
+            >
+              <BookOpen size={16} />
+              Interactive Guide
+            </button>
+          </div>
           <div
             style={{
               display: 'flex',
@@ -676,6 +709,11 @@ export default function Settings() {
               <strong style={{ color: 'var(--text-primary)' }}>5. Logs:</strong> Monitor all
               activity and changes in the system.
             </p>
+            <p style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>💡 Tip:</strong> Click the{' '}
+              <strong style={{ color: 'var(--accent-color)' }}>Interactive Guide</strong> button above
+              for a step-by-step walkthrough of the app's features and how to use them.
+            </p>
           </div>
         </div>
 
@@ -708,7 +746,7 @@ export default function Settings() {
             <p>
               <strong style={{ color: 'var(--text-primary)' }}>FDC Tracker</strong>
             </p>
-            <p>Version 1.0.0</p>
+            <p>Version 1.0.2</p>
             <p>
               A tracking application for rounds, pods, and launchers. Designed for AFATDS Operators
               to manage ammunition tracking and report generation.
@@ -1057,7 +1095,7 @@ export default function Settings() {
                 color: 'var(--text-secondary)',
               }}
             >
-              {/* Version 1.0.1 */}
+              {/* Version 1.0.2 */}
               <div>
                 <div
                   style={{
@@ -1075,7 +1113,7 @@ export default function Settings() {
                       margin: 0,
                     }}
                   >
-                    Version 1.0.1
+                    Version 1.0.2
                   </h3>
                   <span
                     style={{
@@ -1480,6 +1518,7 @@ export default function Settings() {
           Created by Jacob Walker
         </p>
       </div>
+
     </div>
   )
 }

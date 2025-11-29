@@ -51,6 +51,24 @@ export interface Task {
   launcherIds?: string[]
   pocIds?: string[] // POC-level task assignments (affects all launchers in POC)
   templateId?: string // Reference to task template
+  // DA Form 7232 fields
+  targetNumber?: string // (a) Target Number
+  grid?: string // (b/c) Grid (combined Easting/Northing)
+  unitAssigned?: string // (d) Unit Assigned
+  timeOfReceipt?: Date // (e) Time of Receipt
+  numberOfRoundsToFire?: number // (f) Number of Rounds to Fire
+  ammoTypeToFire?: string // (g) Ammo Type to Fire
+  methodOfControl?: string // (h) Method of Control
+  totTime?: string // (h) TOT Time
+  timeMsnSent?: Date // (i) Time Mission Sent
+  missionStatus?: string // (j) Mission Status
+  timeMfrReceived?: Date // (k) Time MFR Received
+  numberOfRoundsFired?: number // (l) Number of Rounds Fired
+  remarks?: string // (m) Remarks
+  // Legacy fields for backwards compatibility
+  target?: string // Target/Recipient (legacy)
+  canceled?: boolean // Whether the fire mission was canceled
+  completedTime?: Date // When the fire mission was completed (for stats)
 }
 
 export interface TaskTemplate {

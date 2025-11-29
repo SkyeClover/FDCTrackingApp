@@ -13,6 +13,7 @@ interface POCCardProps {
   bocs: BOC[]
   onReload?: (launcherId: string) => void
   onClick?: () => void
+  onLauncherClick?: (launcherId: string) => void
 }
 
 export default function POCCard({
@@ -23,6 +24,7 @@ export default function POCCard({
   bocs: _bocs,
   onReload,
   onClick,
+  onLauncherClick,
 }: POCCardProps) {
   void _bocs // Keep for interface compatibility but not used in logic
   const { roundTypes } = useAppData()
@@ -213,6 +215,7 @@ export default function POCCard({
                 launcher={launcher}
                 pod={pod}
                 onReload={() => onReload?.(launcher.id)}
+                onClick={() => onLauncherClick?.(launcher.id)}
               />
             )
           })}

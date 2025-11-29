@@ -2,10 +2,11 @@ import { Pod, RSV } from '../types'
 import { X, Package, Truck } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useModal } from '../hooks/useModal'
 import { useSwipe } from '../hooks/useSwipe'
+import RSVDetailModal from './RSVDetailModal'
 
 const AMMO_PLT_ID = 'ammo-plt-1'
 
@@ -19,6 +20,7 @@ interface AmmoPltDetailModalProps {
 export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: AmmoPltDetailModalProps) {
   const { roundTypes } = useAppData()
   const isMobile = useIsMobile()
+  const [selectedRSV, setSelectedRSV] = useState<RSV | null>(null)
   
   // Handle ESC key and body scroll lock
   useModal(isOpen, onClose)
@@ -210,12 +212,23 @@ export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: Ammo
                 return (
                   <div
                     key={rsv.id}
+                    onClick={() => setSelectedRSV(rsv)}
                     style={{
                       padding: '0.5rem 0.75rem',
                       backgroundColor: 'var(--bg-tertiary)',
                       borderRadius: '6px',
                       border: '1px solid var(--border)',
                       fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-primary)'
+                      e.currentTarget.style.borderColor = 'var(--accent)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+                      e.currentTarget.style.borderColor = 'var(--border)'
                     }}
                   >
                     <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{rsv.name}</span>
@@ -387,6 +400,16 @@ export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: Ammo
             })}
           </div>
         </div>
+
+        {/* RSV Detail Modal */}
+        {selectedRSV && (
+          <RSVDetailModal
+            rsv={selectedRSV}
+            pods={pods}
+            isOpen={!!selectedRSV}
+            onClose={() => setSelectedRSV(null)}
+          />
+        )}
       </div>
     </div>
   )

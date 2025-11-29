@@ -6,14 +6,16 @@ import Inventory from './pages/Inventory'
 import Management from './pages/Management'
 import Logs from './pages/Logs'
 import Settings from './pages/Settings'
+import FireMissions from './pages/FireMissions'
 import { AppDataProvider, useAppData } from './context/AppDataContext'
 import { ProgressProvider, useProgress } from './context/ProgressContext'
 import StartupRoleModal from './components/StartupRoleModal'
 import FirstTimeGuideModal from './components/FirstTimeGuideModal'
+import InteractiveGuideModal from './components/InteractiveGuideModal'
 import PasswordProtection from './components/PasswordProtection'
 import { useIsMobile } from './hooks/useIsMobile'
 
-type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings'
+type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings' | 'fire-missions'
 
 function AppContent() {
   const { updateProgress, removeProgress } = useProgress()
@@ -30,6 +32,7 @@ function AppContentWithData() {
   const { bocs, pocs, currentUserRole, hasSeenFirstTimeGuide, markFirstTimeGuideAsSeen } = useAppData()
   const [showStartupModal, setShowStartupModal] = useState(false)
   const [showFirstTimeGuide, setShowFirstTimeGuide] = useState(false)
+  const [showInteractiveGuide, setShowInteractiveGuide] = useState(false)
   const isMobile = useIsMobile()
 
   // Check if app is empty (no BOCs or POCs) and show startup modal
@@ -75,6 +78,12 @@ function AppContentWithData() {
         onClose={handleCloseFirstTimeGuide}
         onNavigateToSettings={handleNavigateToSettings}
       />
+      <InteractiveGuideModal
+        isOpen={showInteractiveGuide}
+        onClose={() => setShowInteractiveGuide(false)}
+        currentPage={currentPage}
+        onNavigateToPage={setCurrentPage}
+      />
       {isMobile ? (
         // Mobile Layout
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
@@ -95,8 +104,9 @@ function AppContentWithData() {
             {currentPage === 'dashboard' && <Dashboard />}
             {currentPage === 'inventory' && <Inventory />}
             {currentPage === 'management' && <Management />}
+            {currentPage === 'fire-missions' && <FireMissions />}
             {currentPage === 'logs' && <Logs />}
-            {currentPage === 'settings' && <Settings />}
+            {currentPage === 'settings' && <Settings onShowInteractiveGuide={() => setShowInteractiveGuide(true)} />}
           </main>
         </div>
       ) : (
@@ -107,8 +117,9 @@ function AppContentWithData() {
             {currentPage === 'dashboard' && <Dashboard />}
             {currentPage === 'inventory' && <Inventory />}
             {currentPage === 'management' && <Management />}
+            {currentPage === 'fire-missions' && <FireMissions />}
             {currentPage === 'logs' && <Logs />}
-            {currentPage === 'settings' && <Settings />}
+            {currentPage === 'settings' && <Settings onShowInteractiveGuide={() => setShowInteractiveGuide(true)} />}
           </main>
         </div>
       )}

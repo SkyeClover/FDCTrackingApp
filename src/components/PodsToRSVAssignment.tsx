@@ -12,15 +12,25 @@ export default memo(function PodsToRSVAssignment({}: PodsToRSVAssignmentProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPods, setSelectedPods] = useState<Set<string>>(new Set())
 
-  // Get available pods (not on launchers, not already on an RSV unless it's the selected RSV)
+  // Get available pods (not on launchers, not already on any RSV)
   const availablePods = useMemo(() => {
+    // Get the selected RSV object to check its ammo plt assignment
+    const selectedRSVObj = rsvs.find((r) => r.id === selectedRSV)
+    
     return pods.filter((pod) => {
       if (pod.launcherId) return false // Pod is on a launcher
-      if (pod.rsvId && pod.rsvId !== selectedRSV) return false // Pod is on a different RSV
-      if (pod.ammoPltId) return false // Pod is assigned to Ammo PLT (not on RSV)
+      if (pod.rsvId) return false // Pod is already on an RSV (exclude from available pods)
+      
+      // If pod is assigned to ammo plt, only allow it if the selected RSV is also attached to the same ammo plt
+      if (pod.ammoPltId) {
+        if (!selectedRSVObj || selectedRSVObj.ammoPltId !== pod.ammoPltId) {
+          return false // Pod is assigned to ammo plt but RSV is not attached to the same ammo plt
+        }
+      }
+      
       return true
     })
-  }, [pods, selectedRSV])
+  }, [pods, selectedRSV, rsvs])
 
   // Filter pods by search
   const filteredPods = useMemo(() => {

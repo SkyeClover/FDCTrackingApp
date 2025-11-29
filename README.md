@@ -197,5 +197,5 @@ The password protection uses client-side authentication, suitable for testing an
 
 ## Version
 
-1.0.1
+1.0.2
 

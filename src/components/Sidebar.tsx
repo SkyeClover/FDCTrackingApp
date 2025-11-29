@@ -1,6 +1,6 @@
-import { LayoutDashboard, Package, Settings, FileText, HelpCircle } from 'lucide-react'
+import { LayoutDashboard, Package, Settings, FileText, HelpCircle, Rocket } from 'lucide-react'
 
-type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings'
+type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings' | 'fire-missions'
 
 interface SidebarProps {
   currentPage: Page
@@ -11,6 +11,7 @@ const menuItems = [
   { id: 'dashboard' as Page, label: 'Dashboard', icon: LayoutDashboard },
   { id: 'inventory' as Page, label: 'Inventory', icon: Package },
   { id: 'management' as Page, label: 'Management', icon: Settings },
+  { id: 'fire-missions' as Page, label: 'Fire Missions', icon: Rocket },
   { id: 'logs' as Page, label: 'Logs', icon: FileText },
   { id: 'settings' as Page, label: 'Settings / Help', icon: HelpCircle },
 ]
@@ -44,7 +45,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
             color: 'var(--text-secondary)',
           }}
         >
-          Version 1.0.0
+          Version 1.0.2
         </p>
       </div>
 

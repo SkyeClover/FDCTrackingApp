@@ -8,9 +8,10 @@ interface LauncherCardProps {
   launcher: Launcher
   pod?: Pod
   onReload?: () => void
+  onClick?: () => void
 }
 
-export default function LauncherCard({ launcher, pod, onReload }: LauncherCardProps) {
+export default function LauncherCard({ launcher, pod, onReload, onClick }: LauncherCardProps) {
   const { taskProgress } = useProgress()
   const { tasks, clearTask } = useAppData()
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -77,6 +78,7 @@ export default function LauncherCard({ launcher, pod, onReload }: LauncherCardPr
 
   return (
     <div
+      onClick={onClick}
       style={{
         backgroundColor: 'var(--bg-tertiary)',
         border: '1px solid var(--border)',
@@ -85,6 +87,20 @@ export default function LauncherCard({ launcher, pod, onReload }: LauncherCardPr
         display: 'flex',
         flexDirection: 'column',
         gap: '0.75rem',
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'all 0.2s',
+      }}
+      onMouseEnter={(e) => {
+        if (onClick) {
+          e.currentTarget.style.borderColor = 'var(--accent)'
+          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)'
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (onClick) {
+          e.currentTarget.style.borderColor = 'var(--border)'
+          e.currentTarget.style.boxShadow = 'none'
+        }
       }}
     >
       {/* Header with Launcher Name and Reload */}

@@ -89,11 +89,24 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
       const pocLaunchers = launchers.filter((l) => l.pocId === poc.id)
       const podsOnGround = pocPods.filter((p) => !p.launcherId)
       const podsOnLaunchers = pocPods.filter((p) => p.launcherId)
+      
+      // Get RSVs assigned to this POC or its BOC
+      const pocRSVs = rsvs.filter((r) => {
+        if (r.pocId === poc.id) return true
+        if (r.bocId === poc.bocId) return true
+        return false
+      })
+      
+      // Separate pods in stock (directly assigned to POC) from pods on RSVs
+      const podsInStock = podsOnGround.filter((p) => p.pocId === poc.id && !p.rsvId)
+      const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
 
       report += `POC: ${poc.name}\n`
       report += '-'.repeat(80) + '\n'
       report += `  Launchers: ${pocLaunchers.length}\n`
-      report += `  Pods On Ground: ${podsOnGround.length}\n`
+      report += `  RSVs: ${pocRSVs.length}\n`
+      report += `  Pods In Stock: ${podsInStock.length}\n`
+      report += `  Pods On RSVs: ${podsOnRSVs.length}\n`
       report += `  Pods On Launchers: ${podsOnLaunchers.length}\n`
       report += `  Total Pods: ${pocPods.length}\n\n`
 
@@ -132,6 +145,24 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
         report += '\n'
       }
 
+      // RSV details with pod listings
+      if (pocRSVs.length > 0) {
+        report += '  RSV Details:\n'
+        pocRSVs.forEach((rsv) => {
+          const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
+          report += `    ${rsv.name}: ${rsvPods.length} pod${rsvPods.length !== 1 ? 's' : ''}\n`
+          if (rsvPods.length > 0) {
+            rsvPods.forEach((pod) => {
+              const roundType = pod.rounds[0]?.type || 'N/A'
+              const totalRounds = pod.rounds.length
+              const availableRounds = pod.rounds.filter((r) => r.status === 'available').length
+              report += `      - ${pod.name}: ${roundType} - ${availableRounds}/${totalRounds} rounds\n`
+            })
+          }
+        })
+        report += '\n'
+      }
+
       report += '\n'
     })
 
@@ -148,11 +179,16 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
       })
       const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
       const podsOnLaunchers = ammoPltPods.filter((p) => p.launcherId)
+      
+      // Separate pods in stock (directly assigned to ammo plt) from pods on RSVs
+      const podsInStock = podsOnGround.filter((p) => p.ammoPltId === AMMO_PLT_ID && !p.rsvId)
+      const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
 
       report += `AMMO PLT\n`
       report += '-'.repeat(80) + '\n'
       report += `  RSVs: ${ammoPltRSVs.length}\n`
-      report += `  Pods On Ground: ${podsOnGround.length}\n`
+      report += `  Pods In Stock: ${podsInStock.length}\n`
+      report += `  Pods On RSVs: ${podsOnRSVs.length}\n`
       report += `  Pods On Launchers: ${podsOnLaunchers.length}\n`
       report += `  Total Pods: ${ammoPltPods.length}\n\n`
 
@@ -178,12 +214,20 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
         }
       })
 
-      // RSV details
+      // RSV details with pod listings
       if (ammoPltRSVs.length > 0) {
         report += '  RSV Details:\n'
         ammoPltRSVs.forEach((rsv) => {
-          const rsvPods = pods.filter((p) => p.rsvId === rsv.id)
+          const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
           report += `    ${rsv.name}: ${rsvPods.length} pod${rsvPods.length !== 1 ? 's' : ''}\n`
+          if (rsvPods.length > 0) {
+            rsvPods.forEach((pod) => {
+              const roundType = pod.rounds[0]?.type || 'N/A'
+              const totalRounds = pod.rounds.length
+              const availableRounds = pod.rounds.filter((r) => r.status === 'available').length
+              report += `      - ${pod.name}: ${roundType} - ${availableRounds}/${totalRounds} rounds\n`
+            })
+          }
         })
         report += '\n'
       }
@@ -454,6 +498,17 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
             const pocLaunchers = launchers.filter((l) => l.pocId === poc.id)
             const podsOnGround = pocPods.filter((p) => !p.launcherId)
             const podsOnLaunchers = pocPods.filter((p) => p.launcherId)
+            
+            // Get RSVs assigned to this POC or its BOC
+            const pocRSVs = rsvs.filter((r) => {
+              if (r.pocId === poc.id) return true
+              if (r.bocId === poc.bocId) return true
+              return false
+            })
+            
+            // Separate pods in stock (directly assigned to POC) from pods on RSVs
+            const podsInStock = podsOnGround.filter((p) => p.pocId === poc.id && !p.rsvId)
+            const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
 
             return (
               <div
@@ -485,7 +540,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+                    gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(100px, 1fr))',
                     gap: '0.5rem',
                     marginBottom: '0.75rem',
                     fontSize: isMobile ? '0.7rem' : '0.75rem',
@@ -496,8 +551,16 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
                     <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{pocLaunchers.length}</div>
                   </div>
                   <div>
-                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>On Ground</div>
-                    <div style={{ fontWeight: 'bold', color: 'var(--accent)' }}>{podsOnGround.length}</div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>RSVs</div>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{pocRSVs.length}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>In Stock</div>
+                    <div style={{ fontWeight: 'bold', color: 'var(--accent)' }}>{podsInStock.length}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>On RSVs</div>
+                    <div style={{ fontWeight: 'bold', color: 'var(--accent)' }}>{podsOnRSVs.length}</div>
                   </div>
                   <div>
                     <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>On Launchers</div>
@@ -641,6 +704,84 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
                     </div>
                   </div>
                 )}
+
+                {/* RSV Details - Compact */}
+                {(() => {
+                  // Get RSVs assigned to this POC or its BOC
+                  const pocRSVs = rsvs.filter((r) => {
+                    if (r.pocId === poc.id) return true
+                    if (r.bocId === poc.bocId) return true
+                    return false
+                  })
+
+                  if (pocRSVs.length === 0) return null
+
+                  return (
+                    <div style={{ marginTop: '0.75rem' }}>
+                      <div
+                        style={{
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          color: 'var(--text-primary)',
+                          marginBottom: '0.5rem',
+                        }}
+                      >
+                        RSVs
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.5rem',
+                        }}
+                      >
+                        {pocRSVs.map((rsv) => {
+                          const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
+                          return (
+                            <div
+                              key={rsv.id}
+                              style={{
+                                padding: isMobile ? '0.4rem' : '0.5rem',
+                                backgroundColor: 'var(--bg-tertiary)',
+                                borderRadius: '4px',
+                                border: '1px solid var(--border)',
+                                fontSize: isMobile ? '0.7rem' : '0.75rem',
+                                width: '100%',
+                                maxWidth: '100%',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                                {rsv.name} ({rsvPods.length} pod{rsvPods.length !== 1 ? 's' : ''})
+                              </div>
+                              {rsvPods.length > 0 && (
+                                <div style={{ marginLeft: '0.5rem', marginTop: '0.25rem' }}>
+                                  {rsvPods.map((pod) => {
+                                    const roundType = pod.rounds[0]?.type || 'N/A'
+                                    const totalRounds = pod.rounds.length
+                                    const availableRounds = pod.rounds.filter((r) => r.status === 'available').length
+                                    return (
+                                      <div
+                                        key={pod.id}
+                                        style={{
+                                          color: 'var(--text-secondary)',
+                                          fontSize: isMobile ? '0.65rem' : '0.7rem',
+                                          marginBottom: '0.15rem',
+                                        }}
+                                      >
+                                        • {pod.name}: {roundType} - {availableRounds}/{totalRounds} rounds
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )
           })
@@ -659,6 +800,10 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
             })
             const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
             const podsOnLaunchers = ammoPltPods.filter((p) => p.launcherId)
+            
+            // Separate pods in stock (directly assigned to ammo plt) from pods on RSVs
+            const podsInStock = podsOnGround.filter((p) => p.ammoPltId === AMMO_PLT_ID && !p.rsvId)
+            const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
 
             return (
               <div
@@ -689,7 +834,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+                    gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(100px, 1fr))',
                     gap: '0.5rem',
                     marginBottom: '0.75rem',
                     fontSize: isMobile ? '0.7rem' : '0.75rem',
@@ -700,8 +845,12 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
                     <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{ammoPltRSVs.length}</div>
                   </div>
                   <div>
-                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>On Ground</div>
-                    <div style={{ fontWeight: 'bold', color: 'var(--accent)' }}>{podsOnGround.length}</div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>In Stock</div>
+                    <div style={{ fontWeight: 'bold', color: 'var(--accent)' }}>{podsInStock.length}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>On RSVs</div>
+                    <div style={{ fontWeight: 'bold', color: 'var(--accent)' }}>{podsOnRSVs.length}</div>
                   </div>
                   <div>
                     <div style={{ color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>On Launchers</div>
@@ -800,13 +949,13 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
                     </div>
                     <div
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(180px, 1fr))',
+                        display: 'flex',
+                        flexDirection: 'column',
                         gap: '0.5rem',
                       }}
                     >
                       {ammoPltRSVs.map((rsv) => {
-                        const rsvPods = pods.filter((p) => p.rsvId === rsv.id)
+                        const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
                         return (
                           <div
                             key={rsv.id}
@@ -821,10 +970,30 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
                               boxSizing: 'border-box',
                             }}
                           >
-                            <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{rsv.name}</div>
-                            <div style={{ color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
-                              {rsvPods.length} pod{rsvPods.length !== 1 ? 's' : ''}
+                            <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                              {rsv.name} ({rsvPods.length} pod{rsvPods.length !== 1 ? 's' : ''})
                             </div>
+                            {rsvPods.length > 0 && (
+                              <div style={{ marginLeft: '0.5rem', marginTop: '0.25rem' }}>
+                                {rsvPods.map((pod) => {
+                                  const roundType = pod.rounds[0]?.type || 'N/A'
+                                  const totalRounds = pod.rounds.length
+                                  const availableRounds = pod.rounds.filter((r) => r.status === 'available').length
+                                  return (
+                                    <div
+                                      key={pod.id}
+                                      style={{
+                                        color: 'var(--text-secondary)',
+                                        fontSize: isMobile ? '0.65rem' : '0.7rem',
+                                        marginBottom: '0.15rem',
+                                      }}
+                                    >
+                                      • {pod.name}: {roundType} - {availableRounds}/{totalRounds} rounds
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
                           </div>
                         )
                       })}

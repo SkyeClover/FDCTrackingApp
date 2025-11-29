@@ -8,6 +8,7 @@ import POCDetailModal from '../components/POCDetailModal'
 import AmmoPltDetailModal from '../components/AmmoPltDetailModal'
 import ReloadModal from '../components/ReloadModal'
 import ReportModal from '../components/ReportModal'
+import LauncherDetailModal from '../components/LauncherDetailModal'
 import { useIsMobile } from '../hooks/useIsMobile'
 
 const AMMO_PLT_ID = 'ammo-plt-1'
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [isAmmoPltModalOpen, setIsAmmoPltModalOpen] = useState(false)
   const [reloadLauncherId, setReloadLauncherId] = useState<string | null>(null)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [selectedLauncherId, setSelectedLauncherId] = useState<string | null>(null)
   const isMobile = useIsMobile()
 
   // Check if Ammo PLT has any RSVs or pods assigned
@@ -133,6 +135,7 @@ export default function Dashboard() {
               bocs={bocs}
               onReload={handleReloadLauncher}
               onClick={() => setSelectedPOC(poc.id)}
+              onLauncherClick={setSelectedLauncherId}
             />
           ))}
         </div>
@@ -238,6 +241,21 @@ export default function Dashboard() {
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
       />
+
+      {/* Launcher Detail Modal */}
+      {selectedLauncherId && (() => {
+        const selectedLauncher = launchers.find((l) => l.id === selectedLauncherId)
+        if (!selectedLauncher) return null
+        const launcherPod = pods.find((p) => p.launcherId === selectedLauncherId)
+        return (
+          <LauncherDetailModal
+            launcher={selectedLauncher}
+            pod={launcherPod}
+            isOpen={!!selectedLauncherId}
+            onClose={() => setSelectedLauncherId(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

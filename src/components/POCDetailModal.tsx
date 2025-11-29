@@ -2,10 +2,11 @@ import { POC, Pod, Launcher, RSV, BOC } from '../types'
 import { X, Package, Truck } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useModal } from '../hooks/useModal'
 import { useSwipe } from '../hooks/useSwipe'
+import RSVDetailModal from './RSVDetailModal'
 
 interface POCDetailModalProps {
   poc: POC
@@ -22,6 +23,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
   // Hooks must be called at the top level - but only access when modal is open
   const { roundTypes = {} } = useAppData()
   const isMobile = useIsMobile()
+  const [selectedRSV, setSelectedRSV] = useState<RSV | null>(null)
   
   // Handle ESC key and body scroll lock
   useModal(isOpen, onClose)
@@ -263,12 +265,23 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
                 return (
                   <div
                     key={rsv.id}
+                    onClick={() => setSelectedRSV(rsv)}
                     style={{
                       padding: '0.5rem 0.75rem',
                       backgroundColor: 'var(--bg-tertiary)',
                       borderRadius: '6px',
                       border: '1px solid var(--border)',
                       fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-primary)'
+                      e.currentTarget.style.borderColor = 'var(--accent)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+                      e.currentTarget.style.borderColor = 'var(--border)'
                     }}
                   >
                     <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{rsv.name}</span>
@@ -560,6 +573,16 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
             </div>
           )}
         </div>
+
+        {/* RSV Detail Modal */}
+        {selectedRSV && (
+          <RSVDetailModal
+            rsv={selectedRSV}
+            pods={safePods}
+            isOpen={!!selectedRSV}
+            onClose={() => setSelectedRSV(null)}
+          />
+        )}
       </div>
     </div>
   )

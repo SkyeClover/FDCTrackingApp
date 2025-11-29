@@ -1,6 +1,6 @@
 import { useState, memo, useMemo, useCallback, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
-import { Plus, X, Trash2 } from 'lucide-react'
+import { Plus, X, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import { getEnabledRoundTypeOptions, RoundType } from '../constants/roundTypes'
 import PodsManagement from '../components/PodsManagement'
 import PodsToRSVAssignment from '../components/PodsToRSVAssignment'
@@ -526,6 +526,10 @@ export default function Inventory() {
   const [showPodForm, setShowPodForm] = useState(false)
   const [showRSVForm, setShowRSVForm] = useState(false)
   
+  // Collapse state for Pods sections
+  const [isPodsManagementCollapsed, setIsPodsManagementCollapsed] = useState(false)
+  const [isPodsToRSVCollapsed, setIsPodsToRSVCollapsed] = useState(false)
+  
   // Selection state for mass operations
   const [selectedBOCIds, setSelectedBOCIds] = useState<Set<string>>(new Set())
   const [selectedPOCIds, setSelectedPOCIds] = useState<Set<string>>(new Set())
@@ -732,14 +736,60 @@ export default function Inventory() {
         Inventory
       </h1>
 
-      {/* Pods Management - Full Width */}
+      {/* Pods Management - Full Width - Collapsible */}
       <div style={{ marginBottom: '2rem' }}>
-        <PodsManagement onAddPod={() => setShowPodForm(true)} />
+        <button
+          onClick={() => setIsPodsManagementCollapsed(!isPodsManagementCollapsed)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.75rem 1rem',
+            marginBottom: isPodsManagementCollapsed ? '0' : '0.5rem',
+            backgroundColor: 'var(--bg-tertiary)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+          }}
+        >
+          <span>Pods Management</span>
+          {isPodsManagementCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+        </button>
+        {!isPodsManagementCollapsed && (
+          <PodsManagement onAddPod={() => setShowPodForm(true)} />
+        )}
       </div>
 
-      {/* Pods to RSV Assignment - Full Width */}
+      {/* Pods to RSV Assignment - Full Width - Collapsible */}
       <div style={{ marginBottom: '2rem' }}>
-        <PodsToRSVAssignment />
+        <button
+          onClick={() => setIsPodsToRSVCollapsed(!isPodsToRSVCollapsed)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.75rem 1rem',
+            marginBottom: isPodsToRSVCollapsed ? '0' : '0.5rem',
+            backgroundColor: 'var(--bg-tertiary)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+          }}
+        >
+          <span>Assign Pods to RSVs</span>
+          {isPodsToRSVCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+        </button>
+        {!isPodsToRSVCollapsed && (
+          <PodsToRSVAssignment />
+        )}
       </div>
 
       {/* Pod Creation Modal */}

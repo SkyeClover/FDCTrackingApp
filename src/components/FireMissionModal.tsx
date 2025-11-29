@@ -11,10 +11,15 @@ interface FireMissionModalProps {
 }
 
 export default function FireMissionModal({ isOpen, onClose }: FireMissionModalProps) {
-  const { launchers, pods, startFireMission, addLog } = useAppData()
+  const { launchers, pods, startFireMission, addLog, roundTypes } = useAppData()
   const [selectedLaunchers, setSelectedLaunchers] = useState<Set<string>>(new Set())
-  const [missionName, setMissionName] = useState('')
+  const [targetNumber, setTargetNumber] = useState('')
   const [roundsPerLauncher, setRoundsPerLauncher] = useState<number | ''>(1)
+  const [selectedRoundType, setSelectedRoundType] = useState<string>('')
+  const [grid, setGrid] = useState('')
+  const [methodOfControl, setMethodOfControl] = useState('')
+  const [totTime, setTotTime] = useState('')
+  const [remarks, setRemarks] = useState('')
   const isMobile = useIsMobile()
   
   // Handle ESC key and body scroll lock
@@ -29,12 +34,26 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
 
   if (!isOpen) return null
 
+  // Get enabled round types
+  const enabledRoundTypes = Object.entries(roundTypes)
+    .filter(([_, config]) => config.enabled)
+    .map(([name]) => name)
+    .sort()
+
   // Get available launchers (those with pods and available rounds)
   const availableLaunchers = launchers.filter((launcher) => {
     const pod = pods.find((p) => p.launcherId === launcher.id)
     if (!pod) return false
     const availableRounds = pod.rounds.filter((r) => r.status === 'available')
-    return availableRounds.length > 0 && launcher.status !== 'active'
+    if (availableRounds.length === 0 || launcher.status === 'active') return false
+    
+    // Filter by round type if selected
+    if (selectedRoundType) {
+      const hasMatchingRound = availableRounds.some((r) => r.type === selectedRoundType)
+      if (!hasMatchingRound) return false
+    }
+    
+    return true
   })
 
   const toggleLauncher = (launcherId: string) => {
@@ -55,23 +74,65 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
       return
     }
 
-    if (!missionName.trim()) {
-      alert('Please enter a mission name')
+    if (!targetNumber.trim()) {
+      alert('Please enter a target number')
       return
     }
 
-    const name = missionName.trim() || `Fire Mission ${new Date().toLocaleTimeString()}`
     const rounds = typeof roundsPerLauncher === 'number' ? roundsPerLauncher : 1
-    startFireMission(Array.from(selectedLaunchers), name, rounds)
+    const timeOfReceipt = new Date()
+    
+    // Auto-populate unit assigned from selected launchers
+    const unitAssignedNames = Array.from(selectedLaunchers)
+      .map((id) => {
+        const launcher = launchers.find((l) => l.id === id)
+        return launcher?.name || 'Unknown'
+      })
+      .join(', ')
+    
+    // Auto-determine ammo type from selected launchers' pods
+    const ammoTypes = Array.from(selectedLaunchers)
+      .map((id) => {
+        const pod = pods.find((p) => p.launcherId === id)
+        return pod?.rounds[0]?.type
+      })
+      .filter((type): type is string => !!type)
+    const uniqueAmmoTypes = [...new Set(ammoTypes)]
+    const ammoType = uniqueAmmoTypes.length > 0 ? uniqueAmmoTypes[0] : selectedRoundType || ''
+    
+    if (!ammoType) {
+      alert('Selected launchers must have ammo loaded')
+      return
+    }
+    
+    startFireMission(
+      Array.from(selectedLaunchers),
+      targetNumber.trim(),
+      rounds,
+      ammoType,
+      {
+        grid: grid.trim() || undefined,
+        unitAssigned: unitAssignedNames,
+        timeOfReceipt,
+        methodOfControl: methodOfControl.trim() || undefined,
+        totTime: totTime.trim() || undefined,
+        remarks: remarks.trim() || undefined,
+      }
+    )
     addLog({
       type: 'success',
-      message: `Fire Mission "${name}" initiated with ${selectedLaunchers.size} launcher(s)`,
+      message: `Fire Mission "${targetNumber.trim()}" initiated with ${selectedLaunchers.size} launcher(s)`,
     })
 
     // Reset form
     setSelectedLaunchers(new Set())
-    setMissionName('')
+    setTargetNumber('')
     setRoundsPerLauncher(1)
+    setSelectedRoundType('')
+    setGrid('')
+    setMethodOfControl('')
+    setTotTime('')
+    setRemarks('')
     onClose()
   }
 
@@ -145,7 +206,7 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
           </button>
         </div>
 
-        {/* Mission Name */}
+        {/* Target Number - Required */}
         <div style={{ marginBottom: '1.5rem' }}>
           <label
             style={{
@@ -155,13 +216,14 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
               fontWeight: '500',
             }}
           >
-            Mission Name
+            Target Number <span style={{ color: 'var(--danger)' }}>*</span>
           </label>
           <input
             type="text"
-            value={missionName}
-            onChange={(e) => setMissionName(e.target.value)}
-            placeholder="Enter mission name"
+            value={targetNumber}
+            onChange={(e) => setTargetNumber(e.target.value)}
+            placeholder="e.g., DF0001"
+            required
             style={{
               width: '100%',
               padding: '0.75rem',
@@ -174,7 +236,7 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
           />
         </div>
 
-        {/* Rounds Per Launcher */}
+        {/* Grid - Optional */}
         <div style={{ marginBottom: '1.5rem' }}>
           <label
             style={{
@@ -184,7 +246,158 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
               fontWeight: '500',
             }}
           >
-            Rounds Per Launcher
+            Grid (Optional)
+          </label>
+          <input
+            type="text"
+            value={grid}
+            onChange={(e) => setGrid(e.target.value)}
+            placeholder="e.g., 38T PK 12345 67890"
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              color: 'var(--text-primary)',
+              fontSize: '1rem',
+            }}
+          />
+        </div>
+
+        {/* Unit Assigned - Auto-populated from selected launchers */}
+        {selectedLaunchers.size > 0 && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label
+              style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                color: 'var(--text-primary)',
+                fontWeight: '500',
+              }}
+            >
+              Unit Assigned (Auto-filled)
+            </label>
+            <div
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                color: 'var(--text-primary)',
+                fontSize: '1rem',
+              }}
+            >
+              {Array.from(selectedLaunchers)
+                .map((id) => {
+                  const launcher = launchers.find((l) => l.id === id)
+                  return launcher?.name || 'Unknown'
+                })
+                .join(', ')}
+            </div>
+          </div>
+        )}
+
+        {/* Ammo Type Filter - Optional */}
+        {enabledRoundTypes.length > 0 && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label
+              style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                color: 'var(--text-primary)',
+                fontWeight: '500',
+              }}
+            >
+              Filter by Ammo Type (Optional)
+            </label>
+            <select
+              value={selectedRoundType}
+              onChange={(e) => {
+                setSelectedRoundType(e.target.value)
+                setSelectedLaunchers(new Set()) // Clear selection when filter changes
+              }}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                backgroundColor: 'var(--bg-primary)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                color: 'var(--text-primary)',
+                fontSize: '1rem',
+              }}
+            >
+              <option value="">All Ammo Types</option>
+              {enabledRoundTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+            <div
+              style={{
+                color: 'var(--text-secondary)',
+                fontSize: '0.75rem',
+                marginTop: '0.25rem',
+              }}
+            >
+              Filter launchers by the round type they have loaded
+            </div>
+          </div>
+        )}
+
+        {/* Ammo Type Display - Auto-filled from selected launchers */}
+        {selectedLaunchers.size > 0 && (() => {
+          // Get ammo types from selected launchers
+          const ammoTypes = Array.from(selectedLaunchers)
+            .map((id) => {
+              const pod = pods.find((p) => p.launcherId === id)
+              return pod?.rounds[0]?.type
+            })
+            .filter((type): type is string => !!type)
+          const uniqueAmmoTypes = [...new Set(ammoTypes)]
+          
+          return (
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: 'var(--text-primary)',
+                  fontWeight: '500',
+                }}
+              >
+                Ammo Type to Fire (Auto-filled)
+              </label>
+              <div
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  color: 'var(--text-primary)',
+                  fontSize: '1rem',
+                }}
+              >
+                {uniqueAmmoTypes.length > 0 ? uniqueAmmoTypes.join(', ') : 'N/A'}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Number of Rounds to Fire - Required */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label
+            style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              color: 'var(--text-primary)',
+              fontWeight: '500',
+            }}
+          >
+            Number of Rounds to Fire <span style={{ color: 'var(--danger)' }}>*</span>
           </label>
           <input
             type="number"
@@ -208,6 +421,7 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
             onFocus={(e) => e.target.select()}
             min="1"
             max="6"
+            required
             style={{
               width: '100%',
               padding: '0.75rem',
@@ -216,6 +430,104 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
               borderRadius: '4px',
               color: 'var(--text-primary)',
               fontSize: '1rem',
+            }}
+          />
+          <div
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: '0.75rem',
+              marginTop: '0.25rem',
+            }}
+          >
+            This value will be saved as "Number of Rounds to Fire" in the mission log
+          </div>
+        </div>
+
+        {/* Method of Control - Optional */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label
+            style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              color: 'var(--text-primary)',
+              fontWeight: '500',
+            }}
+          >
+            Method of Control (Optional)
+          </label>
+          <input
+            type="text"
+            value={methodOfControl}
+            onChange={(e) => setMethodOfControl(e.target.value)}
+            placeholder="e.g., Time on Target"
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              color: 'var(--text-primary)',
+              fontSize: '1rem',
+            }}
+          />
+        </div>
+
+        {/* TOT Time - Optional */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label
+            style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              color: 'var(--text-primary)',
+              fontWeight: '500',
+            }}
+          >
+            TOT Time (Optional)
+          </label>
+          <input
+            type="text"
+            value={totTime}
+            onChange={(e) => setTotTime(e.target.value)}
+            placeholder="e.g., 1200Z"
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              color: 'var(--text-primary)',
+              fontSize: '1rem',
+            }}
+          />
+        </div>
+
+        {/* Remarks - Optional */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label
+            style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              color: 'var(--text-primary)',
+              fontWeight: '500',
+            }}
+          >
+            Remarks (Optional)
+          </label>
+          <textarea
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            placeholder="Additional notes..."
+            rows={3}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              color: 'var(--text-primary)',
+              fontSize: '1rem',
+              resize: 'vertical',
+              fontFamily: 'inherit',
             }}
           />
         </div>
@@ -320,14 +632,14 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
           </button>
           <button
             onClick={handleStartMission}
-            disabled={selectedLaunchers.size === 0}
+            disabled={selectedLaunchers.size === 0 || !targetNumber.trim()}
             style={{
               padding: '0.75rem 1.5rem',
-              backgroundColor: selectedLaunchers.size === 0 ? 'var(--bg-tertiary)' : '#dc2626',
+              backgroundColor: (selectedLaunchers.size === 0 || !targetNumber.trim()) ? 'var(--bg-tertiary)' : '#dc2626',
               border: 'none',
               borderRadius: '4px',
               color: 'white',
-              cursor: selectedLaunchers.size === 0 ? 'not-allowed' : 'pointer',
+              cursor: (selectedLaunchers.size === 0 || !targetNumber.trim()) ? 'not-allowed' : 'pointer',
               fontSize: '1rem',
               fontWeight: 'bold',
             }}

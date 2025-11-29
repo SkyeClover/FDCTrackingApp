@@ -73,8 +73,17 @@ interface AppDataContextType {
   assignRSVToBOC: (rsvId: string, bocId: string) => void
   assignRSVToAmmoPlt: (rsvId: string, ammoPltId: string) => void
   assignTaskToLauncher: (taskId: string, launcherId: string) => void
-  startFireMission: (launcherIds: string[], missionName: string, roundsPerLauncher: number) => void
+  startFireMission: (launcherIds: string[], targetNumber: string, roundsPerLauncher: number, ammoType: string, additionalData?: {
+    grid?: string
+    unitAssigned?: string
+    timeOfReceipt?: Date
+    methodOfControl?: string
+    totTime?: string
+    remarks?: string
+  }) => void
   updateTaskProgress: (taskId: string, progress: number) => void
+  updateTask: (taskId: string, updates: Partial<Task>) => void
+  endTaskEarly: (taskId: string) => void
   consumeRound: (roundId: string) => void
   completeFireMission: (taskId: string) => void
   reloadLauncher: (launcherId: string, newPodId?: string) => void
@@ -176,7 +185,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
           return {
             ...prev,
             tasks: prev.tasks.map((t) =>
-              t.id === task.id ? { ...t, status: 'completed' as const, progress: 100 } : t
+              t.id === task.id ? { ...t, status: 'completed' as const, progress: 100, completedTime: new Date() } : t
             ),
             launchers: updatedLaunchers,
           }
@@ -246,7 +255,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
             return {
               ...state,
               tasks: state.tasks.map((t) =>
-                t.id === task.id ? { ...t, status: 'completed' as const, progress: 100 } : t
+                t.id === task.id ? { ...t, status: 'completed' as const, progress: 100, completedTime: new Date() } : t
               ),
               launchers: updatedLaunchers,
             }
@@ -678,7 +687,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
               return {
                 ...state,
                 tasks: state.tasks.map((t) =>
-                  t.id === newTask.id ? { ...t, status: 'completed' as const, progress: 100 } : t
+                  t.id === newTask.id ? { ...t, status: 'completed' as const, progress: 100, completedTime: new Date() } : t
                 ),
                 launchers: updatedLaunchers,
               }
@@ -804,7 +813,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
               return {
                 ...state,
                 tasks: state.tasks.map((t) =>
-                  t.id === newTask.id ? { ...t, status: 'completed' as const, progress: 100 } : t
+                  t.id === newTask.id ? { ...t, status: 'completed' as const, progress: 100, completedTime: new Date() } : t
                 ),
                 launchers: updatedLaunchers,
               }
@@ -1002,10 +1011,68 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
       const pod = prev.pods.find((p) => p.id === podId)
       
       if (!rsvId) {
-        // Unassign pod from RSV
+        // Unassign pod from RSV - restore to parent unit
+        const podToUnassign = prev.pods.find((p) => p.id === podId)
+        if (!podToUnassign || !podToUnassign.rsvId) {
+          // Pod doesn't exist or isn't on an RSV, nothing to do
+          return prev
+        }
+        
+        // Find the RSV to determine its parent unit
+        const rsv = prev.rsvs.find((r) => r.id === podToUnassign.rsvId)
+        if (!rsv) {
+          // RSV not found, just clear the assignment
+          return {
+            ...prev,
+            pods: prev.pods.map((p) => (p.id === podId ? { ...p, rsvId: undefined } : p)),
+          }
+        }
+        
+        // Restore pod to RSV's parent unit
+        const AMMO_PLT_ID = 'ammo-plt-1'
+        let updatedPod = { ...podToUnassign, rsvId: undefined }
+        
+        if (rsv.ammoPltId === AMMO_PLT_ID) {
+          // RSV is attached to ammo plt, restore pod to ammo plt
+          updatedPod = { ...updatedPod, ammoPltId: AMMO_PLT_ID, pocId: undefined }
+          if (podToUnassign) {
+            addLog({
+              type: 'info',
+              message: `Pod "${podToUnassign.name}" removed from RSV and returned to Ammo PLT`,
+            })
+          }
+        } else if (rsv.pocId) {
+          // RSV is attached to a POC, restore pod to that POC
+          updatedPod = { ...updatedPod, pocId: rsv.pocId, ammoPltId: undefined }
+          const poc = prev.pocs.find((p) => p.id === rsv.pocId)
+          if (podToUnassign && poc) {
+            addLog({
+              type: 'info',
+              message: `Pod "${podToUnassign.name}" removed from RSV and returned to POC "${poc.name}"`,
+            })
+          }
+        } else if (rsv.bocId) {
+          // RSV is attached to a BOC, but pods don't directly belong to BOCs
+          // So we'll just unassign it (no parent unit to restore to)
+          if (podToUnassign) {
+            addLog({
+              type: 'info',
+              message: `Pod "${podToUnassign.name}" removed from RSV`,
+            })
+          }
+        } else {
+          // RSV has no parent assignment, just unassign
+          if (podToUnassign) {
+            addLog({
+              type: 'info',
+              message: `Pod "${podToUnassign.name}" removed from RSV`,
+            })
+          }
+        }
+        
         return {
           ...prev,
-          pods: prev.pods.map((p) => (p.id === podId ? { ...p, rsvId: undefined } : p)),
+          pods: prev.pods.map((p) => (p.id === podId ? updatedPod : p)),
         }
       }
 
@@ -1271,20 +1338,36 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   }, [addLog])
 
   const startFireMission = useCallback(
-    (launcherIds: string[], missionName: string, roundsPerLauncher: number) => {
+    (launcherIds: string[], targetNumber: string, roundsPerLauncher: number, ammoType: string, additionalData?: {
+      grid?: string
+      unitAssigned?: string
+      timeOfReceipt?: Date
+      methodOfControl?: string
+      totTime?: string
+      remarks?: string
+    }) => {
       // Find Fire Mission template duration, default to 168 seconds (2:48)
       const fireTemplate = stateRef.current.taskTemplates.find((t) => t.type === 'fire')
       const duration = fireTemplate?.duration || 168
       
       const newTask: Task = {
         id: Date.now().toString(),
-        name: missionName,
+        name: targetNumber, // Mission name is the target number (e.g., DF0001)
         description: `Fire Mission: ${roundsPerLauncher} rounds per launcher`,
         status: 'in-progress',
         progress: 0,
         startTime: new Date(),
         duration,
         launcherIds,
+        targetNumber,
+        numberOfRoundsToFire: roundsPerLauncher,
+        ammoTypeToFire: ammoType,
+        grid: additionalData?.grid,
+        unitAssigned: additionalData?.unitAssigned,
+        timeOfReceipt: additionalData?.timeOfReceipt || new Date(),
+        methodOfControl: additionalData?.methodOfControl,
+        totTime: additionalData?.totTime,
+        remarks: additionalData?.remarks,
       }
 
       setState((prev) => {
@@ -1312,7 +1395,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
           if (launcherIds.includes(l.id)) {
             addLog({
               type: 'success',
-              message: `Fire Mission "${missionName}" started on launcher "${l.name}"`,
+              message: `Fire Mission "${targetNumber}" started on launcher "${l.name}"`,
             })
             return {
               ...l,
@@ -1398,6 +1481,77 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     }))
   }, [])
 
+  const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
+    setState((prev) => {
+      const task = prev.tasks.find((t) => t.id === taskId)
+      if (!task) return prev
+
+      const updatedTask = { ...task, ...updates }
+      
+      // Update launchers that reference this task
+      const updatedLaunchers = prev.launchers.map((l) => {
+        if (l.currentTask?.id === taskId) {
+          return {
+            ...l,
+            currentTask: updatedTask,
+          }
+        }
+        return l
+      })
+
+      // Log the update
+      addLog({ type: 'info', message: `Fire Mission "${task.name || 'Unknown'}" updated` })
+
+      return {
+        ...prev,
+        tasks: prev.tasks.map((t) => (t.id === taskId ? updatedTask : t)),
+        launchers: updatedLaunchers,
+      }
+    })
+  }, [addLog])
+
+  const endTaskEarly = useCallback((taskId: string) => {
+    // Clear the interval for this task
+    const intervalToClear = intervalsRef.current.get(taskId)
+    if (intervalToClear) {
+      clearInterval(intervalToClear)
+      intervalsRef.current.delete(taskId)
+    }
+    
+    // Remove progress tracking
+    if (removeProgress) {
+      removeProgress(taskId)
+    }
+    
+    // Update state to complete the task early
+    setState((prev) => {
+      const task = prev.tasks.find((t) => t.id === taskId)
+      const updatedLaunchers = prev.launchers.map((l) => {
+        if (l.currentTask?.id === taskId) {
+          addLog({
+            type: 'info',
+            message: `Task "${task?.name || 'Unknown'}" ended early on launcher "${l.name}"`,
+          })
+          return {
+            ...l,
+            status: 'idle' as const,
+            currentTask: undefined,
+            lastIdleTime: new Date(),
+          }
+        }
+        return l
+      })
+      
+      return {
+        ...prev,
+        tasks: prev.tasks.map((t) =>
+          t.id === taskId ? { ...t, status: 'completed' as const, progress: 100, completedTime: new Date() } : t
+        ),
+        launchers: updatedLaunchers,
+      }
+    })
+  }, [addLog, removeProgress])
+
   const consumeRound = useCallback((roundId: string) => {
     setState((prev) => ({
       ...prev,
@@ -1432,7 +1586,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
       return {
         ...prev,
         tasks: prev.tasks.map((t) =>
-          t.id === taskId ? { ...t, status: 'completed' as const, progress: 100 } : t
+          t.id === taskId ? { ...t, status: 'completed' as const, progress: 100, completedTime: new Date() } : t
         ),
         launchers: updatedLaunchers,
       }
@@ -1787,6 +1941,8 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         assignTaskToLauncher,
         startFireMission,
         updateTaskProgress,
+        updateTask,
+        endTaskEarly,
         consumeRound,
         completeFireMission,
         reloadLauncher,

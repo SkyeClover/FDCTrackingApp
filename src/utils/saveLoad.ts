@@ -2,7 +2,7 @@ import { AppState } from '../types'
 import { DEFAULT_ROUND_TYPES } from '../constants/roundTypes'
 
 const STORAGE_KEY = 'fdc-tracker-state'
-const APP_VERSION = '1.0.0'
+const APP_VERSION = '1.0.2'
 
 // Convert Date objects to ISO strings for JSON serialization
 function serializeState(state: AppState): string {
@@ -19,6 +19,10 @@ function serializeState(state: AppState): string {
     tasks: state.tasks.map((task) => ({
       ...task,
       startTime: task.startTime ? task.startTime.toISOString() : undefined,
+      completedTime: task.completedTime ? task.completedTime.toISOString() : undefined,
+      timeOfReceipt: task.timeOfReceipt ? task.timeOfReceipt.toISOString() : undefined,
+      timeMsnSent: task.timeMsnSent ? task.timeMsnSent.toISOString() : undefined,
+      timeMfrReceived: task.timeMfrReceived ? task.timeMfrReceived.toISOString() : undefined,
     })),
     logs: state.logs.map((log) => ({
       ...log,
@@ -69,6 +73,10 @@ function deserializeState(json: string): AppState {
     tasks: parsed.tasks?.map((task: any) => ({
       ...task,
       startTime: task.startTime ? new Date(task.startTime) : undefined,
+      completedTime: task.completedTime ? new Date(task.completedTime) : undefined,
+      timeOfReceipt: task.timeOfReceipt ? new Date(task.timeOfReceipt) : undefined,
+      timeMsnSent: task.timeMsnSent ? new Date(task.timeMsnSent) : undefined,
+      timeMfrReceived: task.timeMfrReceived ? new Date(task.timeMfrReceived) : undefined,
     })) || [],
     logs: parsed.logs?.map((log: any) => ({
       ...log,
