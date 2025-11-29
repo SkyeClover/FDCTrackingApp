@@ -1135,6 +1135,9 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
                   }}
                 >
                   <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>🔐 Password Protection:</strong> Added client-side authentication with customizable credentials
+                  </p>
+                  <p style={{ margin: 0 }}>
                     <strong style={{ color: 'var(--text-primary)' }}>✨ Mobile UI:</strong> Full mobile-friendly interface with responsive design
                   </p>
                   <p style={{ margin: 0 }}>
@@ -1147,13 +1150,34 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
                     <strong style={{ color: 'var(--text-primary)' }}>🎯 Touch-Friendly:</strong> Improved button sizes and interactions for mobile devices
                   </p>
                   <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>📋 Task Management:</strong> Completed tasks remain visible until manually cleared, with alerts and cancel functionality
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>🎯 Fire Missions Page:</strong> New dedicated page for viewing and managing fire missions with statistics
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>📖 Interactive Guide:</strong> Step-by-step walkthrough guide accessible from Settings
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>👋 First Time Guide:</strong> Welcome guide shown to new users after role selection
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>📄 Report Improvements:</strong> Enhanced readability with full words instead of acronyms, improved mobile layout
+                  </p>
+                  <p style={{ margin: 0 }}>
                     <strong style={{ color: 'var(--text-primary)' }}>⌨️ Keyboard Support:</strong> ESC key to close modals
                   </p>
                   <p style={{ margin: 0 }}>
-                    <strong style={{ color: 'var(--text-primary)' }}>🔢 Input Improvements:</strong> Number inputs now auto-select on focus for easier editing
+                    <strong style={{ color: 'var(--text-primary)' }}>🔢 Input Improvements:</strong> Number inputs now auto-select on focus and allow clearing all digits
                   </p>
                   <p style={{ margin: 0 }}>
                     <strong style={{ color: 'var(--text-primary)' }}>🔄 Reset Feature:</strong> Added "Reset All Data" button in Debug section
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>🚀 Deployment:</strong> Configured Vercel deployment with comprehensive documentation
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>🐛 TypeScript Fixes:</strong> Resolved multiple build errors and improved type safety
                   </p>
                   <p style={{ margin: 0 }}>
                     <strong style={{ color: 'var(--text-primary)' }}>📋 Changelog:</strong> Added changelog section to track updates
