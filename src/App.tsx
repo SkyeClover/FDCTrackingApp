@@ -84,11 +84,12 @@ function AppContentWithData() {
               flex: 1,
               overflow: 'auto',
               overflowX: 'hidden', // Prevent horizontal scrolling
-              padding: '1rem',
-              paddingTop: 'calc(56px + 1rem)', // Fixed header height + padding
+              padding: isMobile ? '0.75rem' : '1rem',
+              paddingTop: isMobile ? 'calc(56px + 0.75rem)' : 'calc(56px + 1rem)', // Fixed header height + padding
               width: '100%',
               maxWidth: '100vw',
               boxSizing: 'border-box',
+              position: 'relative',
             }}
           >
             {currentPage === 'dashboard' && <Dashboard />}

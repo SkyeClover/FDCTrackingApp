@@ -48,6 +48,8 @@ const AssignmentItem = memo(({
           justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: isExpanded || currentValue ? '0.75rem' : '0',
+          gap: '0.5rem',
+          minWidth: 0,
         }}
       >
         <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
@@ -82,10 +84,13 @@ const AssignmentItem = memo(({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
+                width: '100%',
+                boxSizing: 'border-box',
+                minWidth: 0,
               }}
             >
-              <Check size={16} color="var(--success)" />
-              <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+              <Check size={16} color="var(--success)" style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                 {optionLabel}: <strong>{currentOption.name}</strong>
               </span>
               <button
@@ -102,6 +107,8 @@ const AssignmentItem = memo(({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.25rem',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
                 }}
               >
                 <X size={12} />
@@ -626,7 +633,7 @@ export default function Management() {
   )
 
   return (
-    <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
+    <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <h1
         style={{
           fontSize: isMobile ? '1.5rem' : '2rem',
@@ -646,6 +653,7 @@ export default function Management() {
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
+          minWidth: 0,
         }}
       >
         {/* Task Templates Section */}
