@@ -32,10 +32,10 @@ const AssignmentItem = memo(({
   return (
     <div
       style={{
-        padding: isMobile ? '0.75rem' : '1rem',
+        padding: isMobile ? '0.5rem' : '1rem',
         backgroundColor: 'var(--bg-tertiary)',
-        borderRadius: '8px',
-        border: `2px solid ${currentValue ? 'var(--accent)' : 'var(--border)'}`,
+        borderRadius: isMobile ? '6px' : '8px',
+        border: `${isMobile ? '1px' : '2px'} solid ${currentValue ? 'var(--accent)' : 'var(--border)'}`,
         transition: 'all 0.2s',
         width: '100%',
         maxWidth: '100%',
@@ -55,17 +55,17 @@ const AssignmentItem = memo(({
         <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
           <div
             style={{
-              fontSize: '0.75rem',
+              fontSize: isMobile ? '0.65rem' : '0.75rem',
               color: 'var(--text-secondary)',
               textTransform: 'uppercase',
-              marginBottom: '0.25rem',
+              marginBottom: isMobile ? '0.15rem' : '0.25rem',
             }}
           >
             {itemLabel}
           </div>
           <div
             style={{
-              fontSize: isMobile ? '0.9rem' : '1rem',
+              fontSize: isMobile ? '0.8rem' : '1rem',
               fontWeight: '600',
               color: 'var(--text-primary)',
               wordBreak: 'break-word',
@@ -77,33 +77,33 @@ const AssignmentItem = memo(({
           {currentOption && (
             <div
               style={{
-                marginTop: '0.5rem',
-                padding: '0.5rem',
+                marginTop: isMobile ? '0.35rem' : '0.5rem',
+                padding: isMobile ? '0.4rem' : '0.5rem',
                 backgroundColor: 'var(--bg-secondary)',
                 borderRadius: '4px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem',
+                gap: isMobile ? '0.35rem' : '0.5rem',
                 width: '100%',
                 boxSizing: 'border-box',
                 minWidth: 0,
               }}
             >
-              <Check size={16} color="var(--success)" style={{ flexShrink: 0 }} />
-              <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+              <Check size={isMobile ? 14 : 16} color="var(--success)" style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: isMobile ? '0.75rem' : '0.9rem', color: 'var(--text-primary)', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                 {optionLabel}: <strong>{currentOption.name}</strong>
               </span>
               <button
                 onClick={() => onUnassign(item.id)}
                 style={{
                   marginLeft: 'auto',
-                  padding: '0.25rem 0.5rem',
+                  padding: isMobile ? '0.2rem 0.4rem' : '0.25rem 0.5rem',
                   backgroundColor: 'var(--danger)',
                   border: 'none',
                   borderRadius: '4px',
                   color: 'white',
                   cursor: 'pointer',
-                  fontSize: '0.75rem',
+                  fontSize: isMobile ? '0.7rem' : '0.75rem',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.25rem',
@@ -111,8 +111,8 @@ const AssignmentItem = memo(({
                   whiteSpace: 'nowrap',
                 }}
               >
-                <X size={12} />
-                Unassign
+                <X size={isMobile ? 10 : 12} />
+                {isMobile ? '' : 'Unassign'}
               </button>
             </div>
           )}
@@ -126,13 +126,13 @@ const AssignmentItem = memo(({
               onClick={() => setIsExpanded(true)}
               style={{
                 width: '100%',
-                padding: '0.75rem',
+                padding: isMobile ? '0.5rem' : '0.75rem',
                 backgroundColor: 'var(--accent)',
                 border: 'none',
                 borderRadius: '6px',
                 color: 'white',
                 cursor: 'pointer',
-                fontSize: '0.9rem',
+                fontSize: isMobile ? '0.8rem' : '0.9rem',
                 fontWeight: '500',
                 display: 'flex',
                 alignItems: 'center',
@@ -140,7 +140,7 @@ const AssignmentItem = memo(({
                 gap: '0.5rem',
               }}
             >
-              <Plus size={16} />
+              <Plus size={isMobile ? 14 : 16} />
               Assign {optionLabel}
             </button>
           ) : (
@@ -149,8 +149,8 @@ const AssignmentItem = memo(({
                 style={{
                   display: 'grid',
                   gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(150px, 1fr))',
-                  gap: '0.5rem',
-                  marginBottom: '0.5rem',
+                  gap: isMobile ? '0.35rem' : '0.5rem',
+                  marginBottom: isMobile ? '0.35rem' : '0.5rem',
                 }}
               >
                 {options.map((option) => (
@@ -161,13 +161,13 @@ const AssignmentItem = memo(({
                       setIsExpanded(false)
                     }}
                     style={{
-                      padding: '0.75rem',
+                      padding: isMobile ? '0.5rem' : '0.75rem',
                       backgroundColor: 'var(--bg-secondary)',
                       border: '1px solid var(--border)',
                       borderRadius: '6px',
                       color: 'var(--text-primary)',
                       cursor: 'pointer',
-                      fontSize: '0.85rem',
+                      fontSize: isMobile ? '0.75rem' : '0.85rem',
                       fontWeight: '500',
                       transition: 'all 0.2s',
                     }}
@@ -188,13 +188,13 @@ const AssignmentItem = memo(({
                 onClick={() => setIsExpanded(false)}
                 style={{
                   width: '100%',
-                  padding: '0.5rem',
+                  padding: isMobile ? '0.4rem' : '0.5rem',
                   backgroundColor: 'transparent',
                   border: '1px solid var(--border)',
                   borderRadius: '4px',
                   color: 'var(--text-secondary)',
                   cursor: 'pointer',
-                  fontSize: '0.85rem',
+                  fontSize: isMobile ? '0.75rem' : '0.85rem',
                 }}
               >
                 Cancel
@@ -274,10 +274,12 @@ const TaskTemplateForm = memo(({
   editingTemplate,
   onSubmit,
   onCancel,
+  isMobile = false,
 }: {
   editingTemplate: TaskTemplate | null
   onSubmit: (data: { name: string; description: string; duration: number; type: TaskTemplate['type'] }) => void
   onCancel: () => void
+  isMobile?: boolean
 }) => {
   const [name, setName] = useState(editingTemplate?.name || '')
   const [description, setDescription] = useState(editingTemplate?.description || '')
@@ -300,13 +302,13 @@ const TaskTemplateForm = memo(({
     <form
       onSubmit={handleSubmit}
       style={{
-        marginBottom: '1rem',
-        padding: '1rem',
+        marginBottom: isMobile ? '0.75rem' : '1rem',
+        padding: isMobile ? '0.6rem' : '1rem',
         backgroundColor: 'var(--bg-tertiary)',
         borderRadius: '6px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
+        gap: isMobile ? '0.5rem' : '0.75rem',
         width: '100%',
         maxWidth: '100%',
         boxSizing: 'border-box',
@@ -444,37 +446,37 @@ const AssignmentCard = memo(({
   children: React.ReactNode
   isMobile?: boolean
 }) => (
-  <div
-    style={{
-      backgroundColor: 'var(--bg-secondary)',
-      border: '1px solid var(--border)',
-      borderRadius: '8px',
-      padding: isMobile ? '1rem' : '1.5rem',
-      width: '100%',
-      maxWidth: '100%',
-      boxSizing: 'border-box',
-      overflow: 'hidden',
-    }}
-  >
     <div
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
-        marginBottom: '1.5rem',
+        backgroundColor: 'var(--bg-secondary)',
+        border: '1px solid var(--border)',
+        borderRadius: isMobile ? '6px' : '8px',
+        padding: isMobile ? '0.75rem' : '1.5rem',
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
       }}
     >
-      {Icon && <Icon size={isMobile ? 20 : 24} color="var(--accent)" />}
-      <h2
+      <div
         style={{
-          fontSize: isMobile ? '1.1rem' : '1.25rem',
-          fontWeight: 'bold',
-          color: 'var(--text-primary)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: isMobile ? '0.5rem' : '0.75rem',
+          marginBottom: isMobile ? '0.75rem' : '1.5rem',
         }}
       >
-        {title}
-      </h2>
-    </div>
+        {Icon && <Icon size={isMobile ? 18 : 24} color="var(--accent)" />}
+        <h2
+          style={{
+            fontSize: isMobile ? '0.95rem' : '1.25rem',
+            fontWeight: 'bold',
+            color: 'var(--text-primary)',
+          }}
+        >
+          {title}
+        </h2>
+      </div>
     {children}
   </div>
 ))
@@ -636,9 +638,9 @@ export default function Management() {
     <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <h1
         style={{
-          fontSize: isMobile ? '1.5rem' : '2rem',
+          fontSize: isMobile ? '1.25rem' : '2rem',
           fontWeight: 'bold',
-          marginBottom: isMobile ? '1rem' : '2rem',
+          marginBottom: isMobile ? '0.75rem' : '2rem',
           color: 'var(--text-primary)',
         }}
       >
@@ -649,7 +651,7 @@ export default function Management() {
         style={{
           display: 'grid',
           gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(min(450px, 100%), 1fr))',
-          gap: isMobile ? '1rem' : '1.5rem',
+          gap: isMobile ? '0.75rem' : '1.5rem',
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
@@ -658,7 +660,7 @@ export default function Management() {
       >
         {/* Task Templates Section */}
         <AssignmentCard title="Task Templates" icon={Edit} isMobile={isMobile}>
-          <div style={{ marginBottom: '1rem' }}>
+          <div style={{ marginBottom: isMobile ? '0.75rem' : '1rem' }}>
             <button
               onClick={() => {
                 setEditingTemplate(null)
@@ -668,13 +670,13 @@ export default function Management() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                padding: isMobile ? '0.6rem 0.75rem' : '0.5rem 1rem',
+                padding: isMobile ? '0.5rem 0.6rem' : '0.5rem 1rem',
                 backgroundColor: 'var(--accent)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
                 cursor: 'pointer',
-                fontSize: isMobile ? '0.85rem' : '0.9rem',
+                fontSize: isMobile ? '0.8rem' : '0.9rem',
                 width: isMobile ? '100%' : 'auto',
                 justifyContent: 'center',
               }}
@@ -692,12 +694,13 @@ export default function Management() {
                 setShowTaskTemplateForm(false)
                 setEditingTemplate(null)
               }}
+              isMobile={isMobile}
             />
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.5rem' : '0.75rem' }}>
             {taskTemplatesMemo.length === 0 ? (
-              <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+              <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: isMobile ? '0.75rem' : 'inherit' }}>
                 No task templates. Create one to define custom task durations.
               </p>
             ) : (
@@ -705,7 +708,7 @@ export default function Management() {
                 <div
                   key={template.id}
                   style={{
-                    padding: isMobile ? '0.6rem' : '0.75rem',
+                    padding: isMobile ? '0.5rem' : '0.75rem',
                     backgroundColor: 'var(--bg-tertiary)',
                     borderRadius: '6px',
                     display: 'flex',
@@ -723,7 +726,7 @@ export default function Management() {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        marginBottom: '0.25rem',
+                        marginBottom: isMobile ? '0.15rem' : '0.25rem',
                         flexWrap: 'wrap',
                       }}
                     >
@@ -731,7 +734,7 @@ export default function Management() {
                         style={{
                           color: 'var(--text-primary)',
                           fontWeight: '600',
-                          fontSize: isMobile ? '0.85rem' : '0.95rem',
+                          fontSize: isMobile ? '0.8rem' : '0.95rem',
                           wordBreak: 'break-word',
                           overflowWrap: 'break-word',
                         }}
@@ -817,15 +820,15 @@ export default function Management() {
               Create launchers and task templates first
             </p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.6rem' : '1rem' }}>
               {launchersMemo.map((launcher) => (
                 <div
                   key={launcher.id}
                   style={{
-                    padding: isMobile ? '0.75rem' : '1rem',
+                    padding: isMobile ? '0.5rem' : '1rem',
                     backgroundColor: 'var(--bg-tertiary)',
-                    borderRadius: '8px',
-                    border: `2px solid ${
+                    borderRadius: isMobile ? '6px' : '8px',
+                    border: `${isMobile ? '1px' : '2px'} solid ${
                       launcher.status === 'active' ? 'var(--accent)' : 'var(--border)'
                     }`,
                     width: '100%',
@@ -838,24 +841,24 @@ export default function Management() {
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      marginBottom: launcher.currentTask ? '0.5rem' : '0',
+                      marginBottom: launcher.currentTask ? (isMobile ? '0.35rem' : '0.5rem') : '0',
                       gap: '0.5rem',
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                       <div
                         style={{
-                          fontSize: '0.75rem',
+                          fontSize: isMobile ? '0.65rem' : '0.75rem',
                           color: 'var(--text-secondary)',
                           textTransform: 'uppercase',
-                          marginBottom: '0.25rem',
+                          marginBottom: isMobile ? '0.15rem' : '0.25rem',
                         }}
                       >
                         Launcher
                       </div>
                       <div
                         style={{
-                          fontSize: isMobile ? '0.9rem' : '1rem',
+                          fontSize: isMobile ? '0.8rem' : '1rem',
                           fontWeight: '600',
                           color: 'var(--text-primary)',
                           wordBreak: 'break-word',
@@ -868,12 +871,13 @@ export default function Management() {
                     {launcher.status === 'active' && (
                       <span
                         style={{
-                          padding: '0.25rem 0.75rem',
+                          padding: isMobile ? '0.2rem 0.5rem' : '0.25rem 0.75rem',
                           backgroundColor: 'var(--accent)',
                           borderRadius: '4px',
-                          fontSize: '0.75rem',
+                          fontSize: isMobile ? '0.7rem' : '0.75rem',
                           color: 'white',
                           fontWeight: '500',
+                          whiteSpace: 'nowrap',
                         }}
                       >
                         Active
@@ -1017,10 +1021,10 @@ export default function Management() {
                   <div
                     key={poc.id}
                     style={{
-                      padding: isMobile ? '0.75rem' : '1rem',
+                      padding: isMobile ? '0.5rem' : '1rem',
                       backgroundColor: 'var(--bg-tertiary)',
-                      borderRadius: '8px',
-                      border: `2px solid ${
+                      borderRadius: isMobile ? '6px' : '8px',
+                      border: `${isMobile ? '1px' : '2px'} solid ${
                         hasActiveLaunchers ? 'var(--accent)' : 'var(--border)'
                       }`,
                       width: '100%',
@@ -1033,24 +1037,24 @@ export default function Management() {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        marginBottom: '0.5rem',
+                        marginBottom: isMobile ? '0.35rem' : '0.5rem',
                         gap: '0.5rem',
                       }}
                     >
                       <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                         <div
                           style={{
-                            fontSize: '0.75rem',
+                            fontSize: isMobile ? '0.65rem' : '0.75rem',
                             color: 'var(--text-secondary)',
                             textTransform: 'uppercase',
-                            marginBottom: '0.25rem',
+                            marginBottom: isMobile ? '0.15rem' : '0.25rem',
                           }}
                         >
                           POC
                         </div>
                         <div
                           style={{
-                            fontSize: isMobile ? '0.9rem' : '1rem',
+                            fontSize: isMobile ? '0.8rem' : '1rem',
                             fontWeight: '600',
                             color: 'var(--text-primary)',
                             wordBreak: 'break-word',
@@ -1061,9 +1065,9 @@ export default function Management() {
                         </div>
                         <div
                           style={{
-                            fontSize: '0.75rem',
+                            fontSize: isMobile ? '0.7rem' : '0.75rem',
                             color: 'var(--text-secondary)',
-                            marginTop: '0.25rem',
+                            marginTop: isMobile ? '0.15rem' : '0.25rem',
                           }}
                         >
                           {pocLaunchers.length} launcher{pocLaunchers.length !== 1 ? 's' : ''}
@@ -1072,12 +1076,13 @@ export default function Management() {
                       {hasActiveLaunchers && (
                         <span
                           style={{
-                            padding: '0.25rem 0.75rem',
+                            padding: isMobile ? '0.2rem 0.5rem' : '0.25rem 0.75rem',
                             backgroundColor: 'var(--accent)',
                             borderRadius: '4px',
-                            fontSize: '0.75rem',
+                            fontSize: isMobile ? '0.7rem' : '0.75rem',
                             color: 'white',
                             fontWeight: '500',
+                            whiteSpace: 'nowrap',
                           }}
                         >
                           Active
