@@ -34,24 +34,21 @@ export default function POCCard({
     if (r.pocId === poc.id) return true
     // Battery level slants - RSV's assigned to BOC
     if (r.bocId === poc.bocId) return true
-    // Ammo PLT RSV's are available to all
-    if (r.ammoPltId) return true
     return false
   })
   
-  // Get pods on RSV's assigned to this POC, or directly assigned to Ammo PLT
+  // Get pods on RSV's assigned to this POC, or directly assigned to this POC
   const podsOnRSVs = pods.filter((p) => {
     if (p.launcherId) return false
     
-    // Pod directly assigned to Ammo PLT (available to all)
-    if (p.ammoPltId) return true
+    // Pod directly assigned to this POC
+    if (p.pocId === poc.id) return true
     
     if (!p.rsvId) return false
     const rsv = rsvs.find((r) => r.id === p.rsvId)
     if (!rsv) return false
     if (rsv.pocId === poc.id) return true
     if (rsv.bocId === poc.bocId) return true
-    if (rsv.ammoPltId) return true
     return false
   })
   

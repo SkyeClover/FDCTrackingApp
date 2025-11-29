@@ -195,25 +195,21 @@ export default function Dashboard() {
         const poc = pocs.find((p) => p.id === launcher.pocId)
         if (!poc) return null
         
-        // Find available pods from RSV's assigned to the POC, BOC, or Ammo PLT
+        // Find available pods from RSV's assigned to the POC or BOC, or directly assigned to the POC
         const availablePods = pods.filter((p) => {
           if (p.launcherId) return false
           
-          // Pod directly assigned to Ammo PLT (available to all)
-          if (p.ammoPltId === AMMO_PLT_ID) return true
+          // Direct POC assignment
+          if (p.pocId === launcher.pocId) return true
           
-          // Check if pod is on an RSV assigned to this POC's BOC, the POC itself, or Ammo PLT
+          // Check if pod is on an RSV assigned to this POC or its BOC
           if (p.rsvId) {
             const rsv = rsvs.find((r) => r.id === p.rsvId)
             if (rsv) {
               if (rsv.pocId === launcher.pocId) return true
               if (rsv.bocId === poc.bocId) return true
-              if (rsv.ammoPltId === AMMO_PLT_ID) return true
             }
           }
-          
-          // Direct POC assignment (backwards compatibility)
-          if (p.pocId === launcher.pocId) return true
           
           return false
         })

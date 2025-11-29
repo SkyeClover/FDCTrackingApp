@@ -59,8 +59,6 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
     if (r.pocId === poc.id) return true
     // Battery level slants - RSV's assigned to BOC
     if (r.bocId === poc.bocId) return true
-    // Ammo PLT RSV's are available to all
-    if (r.ammoPltId) return true
     return false
   })
 
@@ -80,11 +78,8 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
       if (rsv) {
         if (rsv.pocId === poc.id) return true
         if (rsv.bocId === poc.bocId) return true
-        if (rsv.ammoPltId) return true
       }
     }
-    // Pod directly assigned to Ammo PLT (available to all)
-    if (p.ammoPltId) return true
     return false
   })
   

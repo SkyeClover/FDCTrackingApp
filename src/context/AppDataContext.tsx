@@ -1503,15 +1503,14 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         return prev
       }
 
-      // Find available pods from RSV's assigned to the POC, BOC, or Ammo PLT
-      // Also include pods directly assigned to POC or Ammo PLT (for backwards compatibility)
+      // Find available pods from RSV's assigned to the POC or BOC, or directly assigned to the POC
       const availablePods = prev.pods.filter((p) => {
         if (p.launcherId) return false // Pod is on a launcher
         
-        // Pod directly assigned to Ammo PLT (available to all)
-        if (p.ammoPltId) return true
+        // Direct POC assignment
+        if (p.pocId === launcher.pocId) return true
         
-        // Check if pod is on an RSV assigned to this POC's BOC, the POC itself, or Ammo PLT
+        // Check if pod is on an RSV assigned to this POC or its BOC
         if (p.rsvId) {
           const rsv = prev.rsvs.find((r) => r.id === p.rsvId)
           if (rsv) {
@@ -1522,13 +1521,8 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
               const poc = prev.pocs.find((p) => p.id === launcher.pocId)
               if (poc?.bocId === rsv.bocId) return true
             }
-            // RSV assigned to Ammo PLT (available to all)
-            if (rsv.ammoPltId) return true
           }
         }
-        
-        // Direct POC assignment (backwards compatibility)
-        if (p.pocId === launcher.pocId) return true
         
         return false
       })
