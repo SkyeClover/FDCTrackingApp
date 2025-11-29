@@ -14,7 +14,7 @@ interface LauncherDetailModalProps {
 }
 
 export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: LauncherDetailModalProps) {
-  const { tasks, logs, taskTemplates, clearTask, endTaskEarly, pods } = useAppData()
+  const { tasks, logs, taskTemplates, clearTask, endTaskEarly } = useAppData()
   const isMobile = useIsMobile()
   const [currentTime, setCurrentTime] = useState(new Date())
   
