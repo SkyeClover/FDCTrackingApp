@@ -209,21 +209,43 @@ const AssignmentItem = memo(({
 
 AssignmentItem.displayName = 'AssignmentItem'
 
-const TaskProgressBar = memo(({ taskId, taskName, taskProgress, onCancel }: { taskId: string; taskName: string; taskProgress: { [key: string]: number }; onCancel?: (taskId: string) => void }) => {
+const TaskProgressBar = memo(({ taskId, taskName, taskProgress, taskStatus, onCancel, onClear, launcherId }: { taskId: string; taskName: string; taskProgress: { [key: string]: number }; taskStatus?: 'pending' | 'in-progress' | 'completed'; onCancel?: (taskId: string) => void; onClear?: (launcherId: string) => void; launcherId?: string }) => {
   const progress = taskProgress[taskId] ?? 0
+  const isCompleted = taskStatus === 'completed' || progress >= 100
   return (
     <div style={{ marginTop: '0.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
         <p
           style={{
             fontSize: '0.85rem',
-            color: 'var(--text-secondary)',
+            color: isCompleted ? 'var(--success)' : 'var(--text-secondary)',
             margin: 0,
+            fontWeight: isCompleted ? '600' : 'normal',
           }}
         >
-          {progress.toFixed(0)}% - {taskName}
+          {isCompleted ? '✓ ' : ''}{progress.toFixed(0)}% - {taskName}
+          {isCompleted ? ' (Complete)' : ''}
         </p>
-        {onCancel && (
+        {isCompleted && onClear && launcherId ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onClear(launcherId)
+            }}
+            style={{
+              padding: '0.25rem 0.5rem',
+              backgroundColor: 'var(--accent)',
+              border: 'none',
+              borderRadius: '4px',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              fontWeight: '500',
+            }}
+          >
+            Clear
+          </button>
+        ) : onCancel && !isCompleted ? (
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -242,7 +264,7 @@ const TaskProgressBar = memo(({ taskId, taskName, taskProgress, onCancel }: { ta
           >
             Cancel
           </button>
-        )}
+        ) : null}
       </div>
       <div
         style={{
@@ -256,9 +278,9 @@ const TaskProgressBar = memo(({ taskId, taskName, taskProgress, onCancel }: { ta
       >
         <div
           style={{
-            width: `${progress}%`,
+            width: `${Math.min(100, progress)}%`,
             height: '100%',
-            backgroundColor: 'var(--accent)',
+            backgroundColor: isCompleted ? 'var(--success)' : 'var(--accent)',
             transition: 'width 0.3s',
           }}
         />
@@ -578,6 +600,7 @@ export default function Management() {
     pocs,
     launchers,
     taskTemplates,
+    tasks,
     addRSV,
     addTaskTemplate,
     updateTaskTemplate,
@@ -585,6 +608,7 @@ export default function Management() {
     startTaskFromTemplate,
     startTaskFromTemplateForPOC,
     cancelTask,
+    clearTask,
   } = useAppData()
   
   const { taskProgress } = useProgress()
@@ -890,7 +914,10 @@ export default function Management() {
                       taskId={launcher.currentTask.id}
                       taskName={launcher.currentTask.name}
                       taskProgress={taskProgress}
+                      taskStatus={tasks.find(t => t.id === launcher.currentTask?.id)?.status}
                       onCancel={cancelTask}
+                      onClear={clearTask}
+                      launcherId={launcher.id}
                     />
                   ) : (
                     <div>

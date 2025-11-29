@@ -57,6 +57,7 @@ interface AppDataContextType {
   startTaskFromTemplate: (templateId: string, launcherId: string) => void
   startTaskFromTemplateForPOC: (templateId: string, pocId: string) => void
   cancelTask: (taskId: string) => void
+  clearTask: (launcherId: string) => void
   updateBOC: (id: string, updates: Partial<BOC>) => void
   updatePOC: (id: string, updates: Partial<POC>) => void
   updateLauncher: (id: string, updates: Partial<Launcher>) => void
@@ -160,10 +161,11 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
                 type: 'info',
                 message: `Task "${task.name}" was completed while app was closed on launcher "${l.name}"`,
               })
+              // Keep the task visible but mark launcher as idle
               return {
                 ...l,
                 status: 'idle' as const,
-                currentTask: undefined,
+                // Keep currentTask so user can see it's completed and clear it manually
                 lastIdleTime: new Date(),
               }
             }
@@ -229,10 +231,11 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
                   type: 'success',
                   message: getRandomCompletionMessage(`Task "${currentTask.name}" completed on launcher "${l.name}".`),
                 })
+                // Keep the task visible but mark launcher as idle
                 return {
                   ...l,
                   status: 'idle' as const,
-                  currentTask: undefined,
+                  // Keep currentTask so user can see it's completed and clear it manually
                   lastIdleTime: new Date(),
                 }
               }
@@ -626,10 +629,11 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
                     type: 'success',
                     message: getRandomCompletionMessage(`Task "${task.name}" completed on launcher "${l.name}".`),
                   })
+                  // Keep the task visible but mark launcher as idle
                   return {
                     ...l,
                     status: 'idle' as const,
-                    currentTask: undefined,
+                    // Keep currentTask so user can see it's completed and clear it manually
                     lastIdleTime: new Date(),
                   }
                 }
@@ -751,10 +755,11 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
                     type: 'success',
                     message: getRandomCompletionMessage(`Task "${task.name}" completed on launcher "${l.name}".`),
                   })
+                  // Keep the task visible but mark launcher as idle
                   return {
                     ...l,
                     status: 'idle' as const,
-                    currentTask: undefined,
+                    // Keep currentTask so user can see it's completed and clear it manually
                     lastIdleTime: new Date(),
                   }
                 }
@@ -835,6 +840,33 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
       }
     })
   }, [addLog, removeProgress])
+
+  const clearTask = useCallback((launcherId: string) => {
+    setState((prev) => {
+      const launcher = prev.launchers.find((l) => l.id === launcherId)
+      if (!launcher || !launcher.currentTask) return prev
+      
+      const task = launcher.currentTask
+      addLog({
+        type: 'info',
+        message: `Task "${task.name}" cleared from launcher "${launcher.name}"`,
+      })
+      
+      return {
+        ...prev,
+        launchers: prev.launchers.map((l) => {
+          if (l.id === launcherId) {
+            return {
+              ...l,
+              currentTask: undefined,
+              lastIdleTime: new Date(),
+            }
+          }
+          return l
+        }),
+      }
+    })
+  }, [addLog])
 
   const updateBOC = useCallback((id: string, updates: Partial<BOC>) => {
     setState((prev) => {
@@ -1350,10 +1382,11 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
             type: 'success',
             message: getRandomCompletionMessage(`Fire Mission completed on launcher "${l.name}".`),
           })
+          // Keep the task visible but mark launcher as idle
           return {
             ...l,
             status: 'idle' as const,
-            currentTask: undefined,
+            // Keep currentTask so user can see it's completed and clear it manually
             lastIdleTime: new Date(),
           }
         }
@@ -1694,6 +1727,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         startTaskFromTemplate,
         startTaskFromTemplateForPOC,
         cancelTask,
+        clearTask,
         updateBOC,
         updatePOC,
         updateLauncher,

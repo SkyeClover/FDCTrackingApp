@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Launcher, Pod } from '../types'
 import { RotateCcw } from 'lucide-react'
 import { useProgress } from '../context/ProgressContext'
+import { useAppData } from '../context/AppDataContext'
 
 interface LauncherCardProps {
   launcher: Launcher
@@ -11,6 +12,7 @@ interface LauncherCardProps {
 
 export default function LauncherCard({ launcher, pod, onReload }: LauncherCardProps) {
   const { taskProgress } = useProgress()
+  const { tasks, clearTask } = useAppData()
   const [currentTime, setCurrentTime] = useState(new Date())
   const availableRounds = pod?.rounds.filter((r) => r.status === 'available').length || 0
   const usedRounds = pod?.rounds.filter((r) => r.status === 'used').length || 0
@@ -34,6 +36,10 @@ export default function LauncherCard({ launcher, pod, onReload }: LauncherCardPr
   const taskProgressValue = currentProgress
   const taskDuration = launcher.currentTask?.duration || 168 // Default 2:48 (168 seconds)
   const taskStartTime = launcher.currentTask?.startTime
+  const taskStatus = launcher.currentTask?.id 
+    ? tasks.find(t => t.id === launcher.currentTask?.id)?.status 
+    : undefined
+  const isTaskCompleted = taskStatus === 'completed' || taskProgressValue >= 100
   
   // Calculate elapsed time
   let taskElapsed = 0
@@ -280,21 +286,51 @@ export default function LauncherCard({ launcher, pod, onReload }: LauncherCardPr
           style={{
             marginTop: '0.25rem',
             padding: '0.5rem',
-            backgroundColor: 'var(--bg-secondary)',
+            backgroundColor: isTaskCompleted ? 'var(--bg-secondary)' : 'var(--bg-secondary)',
             borderRadius: '4px',
-            border: '1px solid var(--border)',
+            border: isTaskCompleted ? '2px solid var(--success)' : '1px solid var(--border)',
           }}
         >
           <div
             style={{
-              fontSize: '0.7rem',
-              color: 'var(--text-secondary)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
               marginBottom: '0.5rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
             }}
           >
-            Current Task: {launcher.currentTask.name}
+            <div
+              style={{
+                fontSize: '0.7rem',
+                color: isTaskCompleted ? 'var(--success)' : 'var(--text-secondary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                fontWeight: isTaskCompleted ? '600' : 'normal',
+              }}
+            >
+              {isTaskCompleted ? '✓ ' : ''}Current Task: {launcher.currentTask.name}
+              {isTaskCompleted ? ' (Complete)' : ''}
+            </div>
+            {isTaskCompleted && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  clearTask(launcher.id)
+                }}
+                style={{
+                  padding: '0.25rem 0.5rem',
+                  backgroundColor: 'var(--accent)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '0.7rem',
+                  fontWeight: '500',
+                }}
+              >
+                Clear
+              </button>
+            )}
           </div>
           <div
             style={{
@@ -309,9 +345,9 @@ export default function LauncherCard({ launcher, pod, onReload }: LauncherCardPr
           >
             <div
               style={{
-                width: `${taskProgressValue}%`,
+                width: `${Math.min(100, taskProgressValue)}%`,
                 height: '100%',
-                backgroundColor: taskProgressValue > 0 ? 'var(--success)' : 'var(--danger)',
+                backgroundColor: isTaskCompleted ? 'var(--success)' : (taskProgressValue > 0 ? 'var(--success)' : 'var(--danger)'),
                 transition: 'width 0.3s',
               }}
             />
