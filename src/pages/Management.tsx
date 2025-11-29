@@ -32,11 +32,14 @@ const AssignmentItem = memo(({
   return (
     <div
       style={{
-        padding: '1rem',
+        padding: isMobile ? '0.75rem' : '1rem',
         backgroundColor: 'var(--bg-tertiary)',
         borderRadius: '8px',
         border: `2px solid ${currentValue ? 'var(--accent)' : 'var(--border)'}`,
         transition: 'all 0.2s',
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
       }}
     >
       <div
@@ -47,7 +50,7 @@ const AssignmentItem = memo(({
           marginBottom: isExpanded || currentValue ? '0.75rem' : '0',
         }}
       >
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
           <div
             style={{
               fontSize: '0.75rem',
@@ -60,9 +63,11 @@ const AssignmentItem = memo(({
           </div>
           <div
             style={{
-              fontSize: '1rem',
+              fontSize: isMobile ? '0.9rem' : '1rem',
               fontWeight: '600',
               color: 'var(--text-primary)',
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word',
             }}
           >
             {item.name}
@@ -295,6 +300,9 @@ const TaskTemplateForm = memo(({
         display: 'flex',
         flexDirection: 'column',
         gap: '0.75rem',
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
       }}
     >
       <input
@@ -310,6 +318,8 @@ const TaskTemplateForm = memo(({
           border: '1px solid var(--border)',
           borderRadius: '4px',
           color: 'var(--text-primary)',
+          width: '100%',
+          boxSizing: 'border-box',
         }}
       />
       <textarea
@@ -324,9 +334,11 @@ const TaskTemplateForm = memo(({
           borderRadius: '4px',
           color: 'var(--text-primary)',
           resize: 'vertical',
+          width: '100%',
+          boxSizing: 'border-box',
         }}
       />
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: '100%' }}>
         <input
           type="number"
           value={duration}
@@ -418,17 +430,23 @@ const AssignmentCard = memo(({
   title,
   icon: Icon,
   children,
+  isMobile = false,
 }: {
   title: string
   icon?: any
   children: React.ReactNode
+  isMobile?: boolean
 }) => (
   <div
     style={{
       backgroundColor: 'var(--bg-secondary)',
       border: '1px solid var(--border)',
       borderRadius: '8px',
-      padding: '1.5rem',
+      padding: isMobile ? '1rem' : '1.5rem',
+      width: '100%',
+      maxWidth: '100%',
+      boxSizing: 'border-box',
+      overflow: 'hidden',
     }}
   >
     <div
@@ -439,10 +457,10 @@ const AssignmentCard = memo(({
         marginBottom: '1.5rem',
       }}
     >
-      {Icon && <Icon size={24} color="var(--accent)" />}
+      {Icon && <Icon size={isMobile ? 20 : 24} color="var(--accent)" />}
       <h2
         style={{
-          fontSize: '1.25rem',
+          fontSize: isMobile ? '1.1rem' : '1.25rem',
           fontWeight: 'bold',
           color: 'var(--text-primary)',
         }}
@@ -472,7 +490,7 @@ const AssignmentSections = memo(({ isMobile = false }: { isMobile?: boolean }) =
   
   return (
     <>
-      <AssignmentCard title="Assign Launchers to POCs" icon={Target}>
+      <AssignmentCard title="Assign Launchers to POCs" icon={Target} isMobile={isMobile}>
         <div
           style={{
             fontSize: '0.85rem',
@@ -506,7 +524,7 @@ const AssignmentSections = memo(({ isMobile = false }: { isMobile?: boolean }) =
         )}
       </AssignmentCard>
 
-      <AssignmentCard title="Assign POCs to BOCs" icon={Target}>
+      <AssignmentCard title="Assign POCs to BOCs" icon={Target} isMobile={isMobile}>
         <div
           style={{
             fontSize: '0.85rem',
@@ -608,7 +626,7 @@ export default function Management() {
   )
 
   return (
-    <div>
+    <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       <h1
         style={{
           fontSize: isMobile ? '1.5rem' : '2rem',
@@ -623,14 +641,15 @@ export default function Management() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(450px, 1fr))',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(min(450px, 100%), 1fr))',
           gap: isMobile ? '1rem' : '1.5rem',
           width: '100%',
           maxWidth: '100%',
+          boxSizing: 'border-box',
         }}
       >
         {/* Task Templates Section */}
-        <AssignmentCard title="Task Templates" icon={Edit}>
+        <AssignmentCard title="Task Templates" icon={Edit} isMobile={isMobile}>
           <div style={{ marginBottom: '1rem' }}>
             <button
               onClick={() => {
@@ -641,13 +660,15 @@ export default function Management() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                padding: '0.5rem 1rem',
+                padding: isMobile ? '0.6rem 0.75rem' : '0.5rem 1rem',
                 backgroundColor: 'var(--accent)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
                 cursor: 'pointer',
-                fontSize: '0.9rem',
+                fontSize: isMobile ? '0.85rem' : '0.9rem',
+                width: isMobile ? '100%' : 'auto',
+                justifyContent: 'center',
               }}
             >
               <Plus size={16} />
@@ -676,28 +697,35 @@ export default function Management() {
                 <div
                   key={template.id}
                   style={{
-                    padding: '0.75rem',
+                    padding: isMobile ? '0.6rem' : '0.75rem',
                     backgroundColor: 'var(--bg-tertiary)',
                     borderRadius: '6px',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
+                    gap: '0.5rem',
                   }}
                 >
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                     <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
                         marginBottom: '0.25rem',
+                        flexWrap: 'wrap',
                       }}
                     >
                       <span
                         style={{
                           color: 'var(--text-primary)',
                           fontWeight: '600',
-                          fontSize: '0.95rem',
+                          fontSize: isMobile ? '0.85rem' : '0.95rem',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'break-word',
                         }}
                       >
                         {template.name}
@@ -775,7 +803,7 @@ export default function Management() {
         </AssignmentCard>
 
         {/* Assign Tasks from Templates */}
-        <AssignmentCard title="Assign Tasks to Launchers" icon={Rocket}>
+        <AssignmentCard title="Assign Tasks to Launchers" icon={Rocket} isMobile={isMobile}>
           {launchersMemo.length === 0 || taskTemplatesMemo.length === 0 ? (
             <p style={{ color: 'var(--text-secondary)' }}>
               Create launchers and task templates first
@@ -786,12 +814,15 @@ export default function Management() {
                 <div
                   key={launcher.id}
                   style={{
-                    padding: '1rem',
+                    padding: isMobile ? '0.75rem' : '1rem',
                     backgroundColor: 'var(--bg-tertiary)',
                     borderRadius: '8px',
                     border: `2px solid ${
                       launcher.status === 'active' ? 'var(--accent)' : 'var(--border)'
                     }`,
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
                   }}
                 >
                   <div
@@ -800,9 +831,10 @@ export default function Management() {
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       marginBottom: launcher.currentTask ? '0.5rem' : '0',
+                      gap: '0.5rem',
                     }}
                   >
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                       <div
                         style={{
                           fontSize: '0.75rem',
@@ -815,9 +847,11 @@ export default function Management() {
                       </div>
                       <div
                         style={{
-                          fontSize: '1rem',
+                          fontSize: isMobile ? '0.9rem' : '1rem',
                           fontWeight: '600',
                           color: 'var(--text-primary)',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'break-word',
                         }}
                       >
                         {launcher.name}
@@ -949,7 +983,7 @@ export default function Management() {
         </AssignmentCard>
 
         {/* Assign Tasks from Templates to POCs */}
-        <AssignmentCard title="Assign Tasks to POCs" icon={Rocket}>
+        <AssignmentCard title="Assign Tasks to POCs" icon={Rocket} isMobile={isMobile}>
           <div
             style={{
               fontSize: '0.85rem',
@@ -975,12 +1009,15 @@ export default function Management() {
                   <div
                     key={poc.id}
                     style={{
-                      padding: '1rem',
+                      padding: isMobile ? '0.75rem' : '1rem',
                       backgroundColor: 'var(--bg-tertiary)',
                       borderRadius: '8px',
                       border: `2px solid ${
                         hasActiveLaunchers ? 'var(--accent)' : 'var(--border)'
                       }`,
+                      width: '100%',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
                     }}
                   >
                     <div
@@ -989,9 +1026,10 @@ export default function Management() {
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         marginBottom: '0.5rem',
+                        gap: '0.5rem',
                       }}
                     >
-                      <div>
+                      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                         <div
                           style={{
                             fontSize: '0.75rem',
@@ -1004,9 +1042,11 @@ export default function Management() {
                         </div>
                         <div
                           style={{
-                            fontSize: '1rem',
+                            fontSize: isMobile ? '0.9rem' : '1rem',
                             fontWeight: '600',
                             color: 'var(--text-primary)',
+                            wordBreak: 'break-word',
+                            overflowWrap: 'break-word',
                           }}
                         >
                           {poc.name}
