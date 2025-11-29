@@ -14,7 +14,7 @@ interface LauncherDetailModalProps {
 }
 
 export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: LauncherDetailModalProps) {
-  const { tasks, logs, taskTemplates, clearTask } = useAppData()
+  const { tasks, logs, taskTemplates, clearTask, endTaskEarly, pods } = useAppData()
   const isMobile = useIsMobile()
   const [currentTime, setCurrentTime] = useState(new Date())
   
@@ -56,33 +56,62 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
     })
   }, [tasks, launcher.id, launcher.pocId])
 
-  // Get completed tasks
+  // Get completed tasks (excluding reload tasks and fire missions since they're shown separately)
   const completedTasks = useMemo(() => {
-    return launcherTasks.filter((task) => task.status === 'completed')
+    return launcherTasks.filter((task) => {
+      if (task.status !== 'completed') return false
+      const template = taskTemplates.find((t) => t.id === task.templateId)
+      // Exclude reload tasks - they're shown in the reload tasks section
+      const isReload = template?.type === 'reload' || task.name.toLowerCase().includes('reload')
+      // Exclude fire missions - they're shown in the fire missions section
+      const isFireMission = template?.type === 'fire' || 
+                           task.description.toLowerCase().includes('fire mission') ||
+                           task.name.toLowerCase().includes('fire')
+      return !isReload && !isFireMission
+    })
       .sort((a, b) => {
         const aTime = a.startTime?.getTime() || 0
         const bTime = b.startTime?.getTime() || 0
         return bTime - aTime // Most recent first
       })
-  }, [launcherTasks])
+  }, [launcherTasks, taskTemplates])
 
   // Get fire missions (tasks with 'fire' type or fire-related description)
   const fireMissions = useMemo(() => {
-    return completedTasks.filter((task) => {
+    return launcherTasks.filter((task) => {
+      if (task.status !== 'completed') return false
       const template = taskTemplates.find((t) => t.id === task.templateId)
       return template?.type === 'fire' || 
              task.description.toLowerCase().includes('fire mission') ||
              task.name.toLowerCase().includes('fire')
     })
-  }, [completedTasks, taskTemplates])
+      .sort((a, b) => {
+        const aTime = a.startTime?.getTime() || 0
+        const bTime = b.startTime?.getTime() || 0
+        return bTime - aTime // Most recent first
+      })
+  }, [launcherTasks, taskTemplates])
 
-  // Get reload history from logs
+  // Get reload tasks (completed and in-progress)
+  const reloadTasks = useMemo(() => {
+    return launcherTasks.filter((task) => {
+      const template = taskTemplates.find((t) => t.id === task.templateId)
+      return template?.type === 'reload' || 
+             task.name.toLowerCase().includes('reload')
+    }).sort((a, b) => {
+      const aTime = a.startTime?.getTime() || 0
+      const bTime = b.startTime?.getTime() || 0
+      return bTime - aTime // Most recent first
+    })
+  }, [launcherTasks, taskTemplates])
+
+  // Get reload history from logs showing pod swaps
   const reloadHistory = useMemo(() => {
     return logs
       .filter((log: LogEntry) => {
         const message = log.message.toLowerCase()
         return message.includes(`launcher "${launcher.name.toLowerCase()}"`) &&
-               (message.includes('reloaded') || message.includes('unloaded'))
+               (message.includes('reloading:') || message.includes('completed reload') || message.includes('unloaded'))
       })
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       .slice(0, 20) // Limit to last 20 reloads
@@ -323,23 +352,49 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
                   Current Task: {launcher.currentTask.name}
                 </h3>
               </div>
-              {launcher.currentTask.status === 'completed' && (
-                <button
-                  onClick={() => clearTask(launcher.id)}
-                  style={{
-                    padding: '0.35rem 0.65rem',
-                    backgroundColor: 'var(--accent)',
-                    border: 'none',
-                    borderRadius: '4px',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    fontWeight: '500',
-                  }}
-                >
-                  Clear
-                </button>
-              )}
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {launcher.currentTask.status === 'in-progress' && (
+                  <button
+                    onClick={() => {
+                      const template = taskTemplates.find((t) => t.id === launcher.currentTask?.templateId)
+                      const taskType = template?.type || 'task'
+                      const taskTypeName = taskType === 'fire' ? 'fire mission' : taskType === 'reload' ? 'reload task' : 'task'
+                      if (confirm(`End this ${taskTypeName} early?`)) {
+                        endTaskEarly(launcher.currentTask!.id)
+                      }
+                    }}
+                    style={{
+                      padding: '0.35rem 0.65rem',
+                      backgroundColor: 'var(--warning)',
+                      border: 'none',
+                      borderRadius: '4px',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      fontWeight: '500',
+                    }}
+                  >
+                    End Early
+                  </button>
+                )}
+                {launcher.currentTask.status === 'completed' && (
+                  <button
+                    onClick={() => clearTask(launcher.id)}
+                    style={{
+                      padding: '0.35rem 0.65rem',
+                      backgroundColor: 'var(--accent)',
+                      border: 'none',
+                      borderRadius: '4px',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      fontWeight: '500',
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
             {launcher.currentTask.description && (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
@@ -482,7 +537,91 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
           )}
         </div>
 
-        {/* Reload History */}
+        {/* Reload Tasks */}
+        <div style={{ marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+            <RotateCcw size={20} />
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              Reload Tasks ({reloadTasks.length})
+            </h3>
+          </div>
+          {reloadTasks.length === 0 ? (
+            <div
+              style={{
+                padding: '1.5rem',
+                backgroundColor: 'var(--bg-secondary)',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                textAlign: 'center',
+              }}
+            >
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                No reload tasks yet
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {reloadTasks.map((task) => {
+                const isCompleted = task.status === 'completed'
+                const actualDuration = task.startTime && task.completedTime
+                  ? (task.completedTime.getTime() - task.startTime.getTime()) / 1000
+                  : task.startTime
+                  ? (Date.now() - task.startTime.getTime()) / 1000
+                  : null
+                return (
+                  <div
+                    key={task.id}
+                    style={{
+                      padding: '1rem',
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                      <div>
+                        <div style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                          {task.name}
+                        </div>
+                        {task.description && (
+                          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                            {task.description}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: isCompleted ? 'var(--success)' : 'var(--accent)', fontWeight: '600' }}>
+                        {isCompleted ? 'COMPLETED' : 'IN PROGRESS'}
+                      </div>
+                    </div>
+                    {task.startTime && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                        Started: {formatDateTime(task.startTime)}
+                        {task.duration && ` • Expected: ${formatDuration(task.duration)}`}
+                      </div>
+                    )}
+                    {isCompleted && task.completedTime && actualDuration && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-primary)', fontWeight: '500' }}>
+                        Completed: {formatDateTime(task.completedTime)} • Actual: {formatDuration(actualDuration)}
+                      </div>
+                    )}
+                    {!isCompleted && actualDuration && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Elapsed: {formatDuration(actualDuration)}
+                        {task.duration && actualDuration > task.duration && (
+                          <span style={{ color: 'var(--warning)', marginLeft: '0.5rem' }}>
+                            (+{formatDuration(actualDuration - task.duration)} over)
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Reload History (from logs) */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
             <RotateCcw size={20} />

@@ -29,6 +29,7 @@ export default function FireMissions() {
       })
   }, [tasks, taskTemplates])
 
+
   // Calculate stats
   const stats = useMemo(() => {
     const completedMissions = fireMissions.filter((t) => t.status === 'completed' && !t.canceled)

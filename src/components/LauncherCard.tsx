@@ -13,7 +13,7 @@ interface LauncherCardProps {
 
 export default function LauncherCard({ launcher, pod, onReload, onClick }: LauncherCardProps) {
   const { taskProgress } = useProgress()
-  const { tasks, clearTask } = useAppData()
+  const { tasks, clearTask, taskTemplates, endTaskEarly } = useAppData()
   const [currentTime, setCurrentTime] = useState(new Date())
   const availableRounds = pod?.rounds.filter((r) => r.status === 'available').length || 0
   const usedRounds = pod?.rounds.filter((r) => r.status === 'used').length || 0
@@ -40,7 +40,14 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
   const taskStatus = launcher.currentTask?.id 
     ? tasks.find(t => t.id === launcher.currentTask?.id)?.status 
     : undefined
-  const isTaskCompleted = taskStatus === 'completed' || taskProgressValue >= 100
+  
+  // Check if this is a reload task
+  const isReloadTask = launcher.currentTask?.templateId
+    ? taskTemplates.find((t) => t.id === launcher.currentTask?.templateId)?.type === 'reload'
+    : false
+  
+  // For reload tasks, don't mark as completed just because progress >= 100%
+  const isTaskCompleted = taskStatus === 'completed' || (!isReloadTask && taskProgressValue >= 100)
   
   // Calculate elapsed time
   let taskElapsed = 0
@@ -50,7 +57,8 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
   
   if (taskStartTime && launcher.currentTask) {
     const elapsedSeconds = Math.floor((Date.now() - taskStartTime.getTime()) / 1000)
-    taskElapsed = Math.min(elapsedSeconds, taskDuration)
+    // For reload tasks, allow elapsed time to exceed expected duration
+    taskElapsed = isReloadTask ? elapsedSeconds : Math.min(elapsedSeconds, taskDuration)
     taskTotal = taskDuration
     
     // Format start time in 24-hour format
@@ -327,26 +335,53 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
               {isTaskCompleted ? '✓ ' : ''}Current Task: {launcher.currentTask.name}
               {isTaskCompleted ? ' (Complete)' : ''}
             </div>
-            {isTaskCompleted && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  clearTask(launcher.id)
-                }}
-                style={{
-                  padding: '0.25rem 0.5rem',
-                  backgroundColor: 'var(--accent)',
-                  border: 'none',
-                  borderRadius: '4px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '0.7rem',
-                  fontWeight: '500',
-                }}
-              >
-                Clear
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {!isTaskCompleted && launcher.currentTask && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const template = taskTemplates.find((t) => t.id === launcher.currentTask?.templateId)
+                    const taskType = template?.type || 'task'
+                    const taskTypeName = taskType === 'fire' ? 'fire mission' : taskType === 'reload' ? 'reload task' : 'task'
+                    if (confirm(`End this ${taskTypeName} early?`)) {
+                      endTaskEarly(launcher.currentTask!.id)
+                    }
+                  }}
+                  style={{
+                    padding: '0.25rem 0.5rem',
+                    backgroundColor: 'var(--warning)',
+                    border: 'none',
+                    borderRadius: '4px',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '0.7rem',
+                    fontWeight: '500',
+                  }}
+                >
+                  End Early
+                </button>
+              )}
+              {isTaskCompleted && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    clearTask(launcher.id)
+                  }}
+                  style={{
+                    padding: '0.25rem 0.5rem',
+                    backgroundColor: 'var(--accent)',
+                    border: 'none',
+                    borderRadius: '4px',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '0.7rem',
+                    fontWeight: '500',
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
           <div
             style={{
@@ -357,6 +392,7 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
               overflow: 'hidden',
               border: '1px solid var(--border)',
               marginBottom: '0.5rem',
+              position: 'relative',
             }}
           >
             <div
@@ -367,6 +403,20 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
                 transition: 'width 0.3s',
               }}
             />
+            {/* Show overflow indicator for reload tasks exceeding 100% */}
+            {isReloadTask && taskProgressValue > 100 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '100%',
+                  top: 0,
+                  bottom: 0,
+                  width: `${Math.min(100, taskProgressValue - 100)}%`,
+                  backgroundColor: 'var(--warning)',
+                  opacity: 0.7,
+                }}
+              />
+            )}
           </div>
           <div
             style={{
@@ -377,9 +427,10 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
               marginBottom: '0.25rem',
             }}
           >
-            <span style={{ color: 'var(--success)' }}>
+            <span style={{ color: isReloadTask && taskElapsed > taskTotal ? 'var(--warning)' : 'var(--success)' }}>
               {String(Math.floor(taskElapsed / 60)).padStart(2, '0')}:
               {String(taskElapsed % 60).padStart(2, '0')}
+              {isReloadTask && taskElapsed > taskTotal && ` (+${Math.floor((taskElapsed - taskTotal) / 60)}:${String((taskElapsed - taskTotal) % 60).padStart(2, '0')})`}
             </span>
             <span style={{ color: 'var(--danger)' }}>
               {String(Math.floor(taskTotal / 60)).padStart(2, '0')}:

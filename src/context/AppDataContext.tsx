@@ -161,10 +161,15 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
       if (!task.startTime || !task.duration) return
       
       const elapsed = (Date.now() - task.startTime.getTime()) / 1000
-      const progress = Math.min(100, (elapsed / task.duration) * 100)
+      const template = state.taskTemplates.find((t) => t.id === task.templateId)
+      const isReload = template?.type === 'reload'
+      // For reload tasks, allow progress to exceed 100% (negative time)
+      const progress = isReload 
+        ? (elapsed / task.duration) * 100
+        : Math.min(100, (elapsed / task.duration) * 100)
       
-      // If task is already complete, mark it as completed
-      if (progress >= 100) {
+      // If task is already complete, mark it as completed (but not for reload tasks - they must be ended manually)
+      if (progress >= 100 && !isReload) {
         setState((prev) => {
           const updatedLaunchers = prev.launchers.map((l) => {
             if (l.currentTask?.id === task.id) {
@@ -219,13 +224,19 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         if (!currentTask.startTime || !currentTask.duration) return
 
         const currentElapsed = (Date.now() - currentTask.startTime.getTime()) / 1000
-        const currentProgress = Math.min(100, (currentElapsed / currentTask.duration) * 100)
+        const template = currentState.taskTemplates.find((t) => t.id === currentTask.templateId)
+        const isReload = template?.type === 'reload'
+        // For reload tasks, allow progress to exceed 100% (negative time)
+        const currentProgress = isReload
+          ? (currentElapsed / currentTask.duration) * 100
+          : Math.min(100, (currentElapsed / currentTask.duration) * 100)
 
         if (updateProgress) {
           updateProgress(task.id, currentProgress)
         }
 
-        if (currentProgress >= 100) {
+        // Don't auto-complete reload tasks - they must be ended manually
+        if (currentProgress >= 100 && !isReload) {
           const intervalToClear = intervalsRef.current.get(task.id)
           if (intervalToClear) {
             clearInterval(intervalToClear)
@@ -649,14 +660,20 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
           const elapsed = task.startTime
             ? (Date.now() - task.startTime.getTime()) / 1000
             : 0
-          const progress = Math.min(100, (elapsed / (task.duration || 168)) * 100)
+          const template = currentState.taskTemplates.find((t) => t.id === task.templateId)
+          const isReload = template?.type === 'reload'
+          // For reload tasks, allow progress to exceed 100% (negative time)
+          const progress = isReload
+            ? (elapsed / (task.duration || 168)) * 100
+            : Math.min(100, (elapsed / (task.duration || 168)) * 100)
 
           // Update progress via callback (doesn't trigger full context re-render)
           if (updateProgress) {
             updateProgress(newTask.id, progress)
           }
 
-          if (progress >= 100) {
+          // Don't auto-complete reload tasks - they must be ended manually
+          if (progress >= 100 && !isReload) {
             const intervalToClear = intervalsRef.current.get(newTask.id)
             if (intervalToClear) {
               clearInterval(intervalToClear)
@@ -775,14 +792,20 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
           const elapsed = task.startTime
             ? (Date.now() - task.startTime.getTime()) / 1000
             : 0
-          const progress = Math.min(100, (elapsed / (task.duration || 168)) * 100)
+          const template = currentState.taskTemplates.find((t) => t.id === task.templateId)
+          const isReload = template?.type === 'reload'
+          // For reload tasks, allow progress to exceed 100% (negative time)
+          const progress = isReload
+            ? (elapsed / (task.duration || 168)) * 100
+            : Math.min(100, (elapsed / (task.duration || 168)) * 100)
 
           // Update progress via callback (doesn't trigger full context re-render)
           if (updateProgress) {
             updateProgress(newTask.id, progress)
           }
 
-          if (progress >= 100) {
+          // Don't auto-complete reload tasks - they must be ended manually
+          if (progress >= 100 && !isReload) {
             const intervalToClear = intervalsRef.current.get(newTask.id)
             if (intervalToClear) {
               clearInterval(intervalToClear)
@@ -1461,24 +1484,35 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   )
 
   const updateTaskProgress = useCallback((taskId: string, progress: number) => {
-    setState((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) =>
-        t.id === taskId ? { ...t, progress: Math.min(100, Math.max(0, progress)) } : t
-      ),
-      launchers: prev.launchers.map((l) => {
-        if (l.currentTask?.id === taskId) {
-          return {
-            ...l,
-            currentTask: {
-              ...l.currentTask,
-              progress: Math.min(100, Math.max(0, progress)),
-            },
+    setState((prev) => {
+      const task = prev.tasks.find((t) => t.id === taskId)
+      const template = task?.templateId ? prev.taskTemplates.find((t) => t.id === task.templateId) : null
+      const isReload = template?.type === 'reload'
+      // For reload tasks, allow progress to exceed 100% (negative time)
+      // For other tasks, cap at 0-100%
+      const clampedProgress = isReload
+        ? Math.max(0, progress) // Allow > 100% for reload tasks
+        : Math.min(100, Math.max(0, progress))
+      
+      return {
+        ...prev,
+        tasks: prev.tasks.map((t) =>
+          t.id === taskId ? { ...t, progress: clampedProgress } : t
+        ),
+        launchers: prev.launchers.map((l) => {
+          if (l.currentTask?.id === taskId) {
+            return {
+              ...l,
+              currentTask: {
+                ...l.currentTask,
+                progress: clampedProgress,
+              },
+            }
           }
-        }
-        return l
-      }),
-    }))
+          return l
+        }),
+      }
+    })
   }, [])
 
   const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
@@ -1526,12 +1560,35 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     // Update state to complete the task early
     setState((prev) => {
       const task = prev.tasks.find((t) => t.id === taskId)
+      if (!task) return prev
+      
+      // Calculate actual time taken
+      const completedTime = new Date()
+      const actualDuration = task.startTime
+        ? (completedTime.getTime() - task.startTime.getTime()) / 1000 // seconds
+        : task.duration || 0
+      const actualProgress = task.duration
+        ? (actualDuration / task.duration) * 100
+        : 100
+      
       const updatedLaunchers = prev.launchers.map((l) => {
         if (l.currentTask?.id === taskId) {
-          addLog({
-            type: 'info',
-            message: `Task "${task?.name || 'Unknown'}" ended early on launcher "${l.name}"`,
-          })
+          const template = prev.taskTemplates.find((t) => t.id === task.templateId)
+          const isReloadTask = template?.type === 'reload'
+          // For reload tasks, extract pod names from task description
+          if (isReloadTask) {
+            const podMatch = task.description?.match(/pod "([^"]+)"/)
+            const podName = podMatch ? podMatch[1] : 'Unknown'
+            addLog({
+              type: 'success',
+              message: `Launcher "${l.name}" completed reload with pod "${podName}" (${Math.floor(actualDuration / 60)}m ${Math.floor(actualDuration % 60)}s)`,
+            })
+          } else {
+            addLog({
+              type: 'info',
+              message: `Task "${task?.name || 'Unknown'}" ended early on launcher "${l.name}"`,
+            })
+          }
           return {
             ...l,
             status: 'idle' as const,
@@ -1545,7 +1602,12 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
       return {
         ...prev,
         tasks: prev.tasks.map((t) =>
-          t.id === taskId ? { ...t, status: 'completed' as const, progress: 100, completedTime: new Date() } : t
+          t.id === taskId ? { 
+            ...t, 
+            status: 'completed' as const, 
+            progress: actualProgress,
+            completedTime,
+          } : t
         ),
         launchers: updatedLaunchers,
       }
@@ -1704,6 +1766,23 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         return prev
       }
 
+      // Find reload task template
+      const reloadTemplate = prev.taskTemplates.find((t) => t.type === 'reload')
+      const reloadDuration = reloadTemplate?.duration || 900 // Default 15 minutes
+
+      // Create reload task
+      const reloadTask: Task = {
+        id: Date.now().toString(),
+        name: `Reload: ${selectedPod.name}`,
+        description: `Reload launcher with pod "${selectedPod.name}"`,
+        status: 'in-progress',
+        progress: 0,
+        startTime: new Date(),
+        duration: reloadDuration,
+        templateId: reloadTemplate?.id,
+        launcherIds: [launcherId],
+      }
+
       // Swap pods: remove current pod from launcher, assign new pod to launcher
       // If current pod exists, unassign it from launcher (it goes back to POC inventory)
       const updatedPods = prev.pods.map((p) => {
@@ -1731,23 +1810,69 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
           return {
             ...l,
             podId: selectedPod.id,
+            currentTask: reloadTask,
+            status: 'active' as const,
+            // Clear lastIdleTime when task starts
+            lastIdleTime: undefined,
           }
         }
         return l
       })
 
-      addLog({
-        type: 'success',
-        message: `Launcher "${launcher.name}" reloaded with pod "${selectedPod.name}"`,
-      })
+      // Log the pod swap
+      if (currentPod) {
+        addLog({
+          type: 'success',
+          message: `Launcher "${launcher.name}" reloading: replacing pod "${currentPod.name}" with pod "${selectedPod.name}"`,
+        })
+      } else {
+        addLog({
+          type: 'success',
+          message: `Launcher "${launcher.name}" reloading: loading pod "${selectedPod.name}"`,
+        })
+      }
+
+      // Start progress timer for reload task - allow it to exceed 100%
+      const interval = setInterval(() => {
+        const currentState = stateRef.current
+        const task = currentState.tasks.find((t) => t.id === reloadTask.id)
+        if (!task || task.status === 'completed') {
+          const intervalToClear = intervalsRef.current.get(reloadTask.id)
+          if (intervalToClear) {
+            clearInterval(intervalToClear)
+            intervalsRef.current.delete(reloadTask.id)
+          }
+          if (removeProgress) {
+            removeProgress(reloadTask.id)
+          }
+          return
+        }
+
+        const elapsed = task.startTime
+          ? (Date.now() - task.startTime.getTime()) / 1000
+          : 0
+        // For reload tasks, allow progress to exceed 100% (negative time)
+        const progress = (elapsed / (task.duration || reloadDuration)) * 100
+
+        // Update progress via callback (doesn't trigger full context re-render)
+        if (updateProgress) {
+          updateProgress(reloadTask.id, progress)
+        }
+
+        // Note: We don't auto-complete reload tasks - user must end them manually
+        // This allows tasks to continue into negative time
+      }, 500) // Update every 500ms
+      
+      intervalsRef.current.set(reloadTask.id, interval)
 
       return {
         ...prev,
+        tasks: [...prev.tasks, reloadTask],
         pods: updatedPods,
         launchers: updatedLaunchers,
       }
     })
-  }, [addLog])
+  }, [addLog, updateProgress, removeProgress])
 
   const saveToFile = useCallback(() => {
     try {
