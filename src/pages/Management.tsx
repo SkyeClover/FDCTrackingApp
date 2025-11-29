@@ -269,13 +269,14 @@ const TaskTemplateForm = memo(({
 }) => {
   const [name, setName] = useState(editingTemplate?.name || '')
   const [description, setDescription] = useState(editingTemplate?.description || '')
-  const [duration, setDuration] = useState(editingTemplate?.duration || 60)
+  const [duration, setDuration] = useState<number | ''>(editingTemplate?.duration || 60)
   const [type, setType] = useState<TaskTemplate['type']>(editingTemplate?.type || 'custom')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (name.trim()) {
-      onSubmit({ name: name.trim(), description, duration, type })
+      const finalDuration = typeof duration === 'number' ? duration : 60
+      onSubmit({ name: name.trim(), description, duration: finalDuration, type })
       setName('')
       setDescription('')
       setDuration(60)
@@ -329,7 +330,22 @@ const TaskTemplateForm = memo(({
         <input
           type="number"
           value={duration}
-          onChange={(e) => setDuration(Math.max(1, parseInt(e.target.value) || 60))}
+          onChange={(e) => {
+            const value = e.target.value
+            if (value === '') {
+              setDuration('')
+            } else {
+              const num = parseInt(value)
+              if (!isNaN(num)) {
+                setDuration(Math.max(1, num))
+              }
+            }
+          }}
+          onBlur={(e) => {
+            if (e.target.value === '' || parseInt(e.target.value) < 1) {
+              setDuration(60)
+            }
+          }}
           onFocus={(e) => e.target.select()}
           placeholder="Duration (seconds)"
           min="1"

@@ -14,7 +14,7 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
   const { launchers, pods, startFireMission, addLog } = useAppData()
   const [selectedLaunchers, setSelectedLaunchers] = useState<Set<string>>(new Set())
   const [missionName, setMissionName] = useState('')
-  const [roundsPerLauncher, setRoundsPerLauncher] = useState(1)
+  const [roundsPerLauncher, setRoundsPerLauncher] = useState<number | ''>(1)
   const isMobile = useIsMobile()
   
   // Handle ESC key and body scroll lock
@@ -61,7 +61,8 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
     }
 
     const name = missionName.trim() || `Fire Mission ${new Date().toLocaleTimeString()}`
-    startFireMission(Array.from(selectedLaunchers), name, roundsPerLauncher)
+    const rounds = typeof roundsPerLauncher === 'number' ? roundsPerLauncher : 1
+    startFireMission(Array.from(selectedLaunchers), name, rounds)
     addLog({
       type: 'success',
       message: `Fire Mission "${name}" initiated with ${selectedLaunchers.size} launcher(s)`,
@@ -188,7 +189,22 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
           <input
             type="number"
             value={roundsPerLauncher}
-            onChange={(e) => setRoundsPerLauncher(Math.max(1, parseInt(e.target.value) || 1))}
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === '') {
+                setRoundsPerLauncher('')
+              } else {
+                const num = parseInt(value)
+                if (!isNaN(num)) {
+                  setRoundsPerLauncher(Math.max(1, Math.min(6, num)))
+                }
+              }
+            }}
+            onBlur={(e) => {
+              if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                setRoundsPerLauncher(1)
+              }
+            }}
             onFocus={(e) => e.target.select()}
             min="1"
             max="6"

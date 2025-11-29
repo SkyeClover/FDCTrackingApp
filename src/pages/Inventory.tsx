@@ -22,8 +22,8 @@ const ItemForm = memo(({
 }) => {
   const [name, setName] = useState('')
   const [roundType, setRoundType] = useState<RoundType>(roundTypeOptions[0]?.value || '')
-  const [roundCount, setRoundCount] = useState(6)
-  const [quantity, setQuantity] = useState(1)
+  const [roundCount, setRoundCount] = useState<number | ''>(6)
+  const [quantity, setQuantity] = useState<number | ''>(1)
   const [pocId, setPocId] = useState('')
 
   // Update roundType when roundTypeOptions change
@@ -48,8 +48,8 @@ const ItemForm = memo(({
       onSubmit({ 
         name: name.trim(), 
         roundType, 
-        roundCount,
-        quantity: title === 'Pods' ? quantity : undefined,
+        roundCount: typeof roundCount === 'number' ? roundCount : 6,
+        quantity: title === 'Pods' ? (typeof quantity === 'number' ? quantity : 1) : undefined,
         pocId: title === 'Pods' && pocId ? pocId : undefined,
       })
       setName('')
@@ -127,7 +127,22 @@ const ItemForm = memo(({
           <input
             type="number"
             value={roundCount}
-            onChange={(e) => setRoundCount(Math.max(0, Math.min(6, parseInt(e.target.value) || 0)))}
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === '') {
+                setRoundCount('')
+              } else {
+                const num = parseInt(value)
+                if (!isNaN(num)) {
+                  setRoundCount(Math.max(0, Math.min(6, num)))
+                }
+              }
+            }}
+            onBlur={(e) => {
+              if (e.target.value === '' || parseInt(e.target.value) < 0) {
+                setRoundCount(6)
+              }
+            }}
             onFocus={(e) => e.target.select()}
             placeholder="Rounds per Pod"
             min="0"
@@ -144,7 +159,22 @@ const ItemForm = memo(({
           <input
             type="number"
             value={quantity}
-            onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === '') {
+                setQuantity('')
+              } else {
+                const num = parseInt(value)
+                if (!isNaN(num)) {
+                  setQuantity(Math.max(1, num))
+                }
+              }
+            }}
+            onBlur={(e) => {
+              if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                setQuantity(1)
+              }
+            }}
             onFocus={(e) => e.target.select()}
             placeholder="Number of Pods"
             min="1"
