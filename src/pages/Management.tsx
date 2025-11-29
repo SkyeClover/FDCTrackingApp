@@ -148,9 +148,11 @@ const AssignmentItem = memo(({
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(150px, 1fr))',
-                  gap: isMobile ? '0.35rem' : '0.5rem',
-                  marginBottom: isMobile ? '0.35rem' : '0.5rem',
+                  gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(150px, 1fr))',
+                  gap: isMobile ? '0.5rem' : '0.5rem',
+                  marginBottom: isMobile ? '0.5rem' : '0.5rem',
+                  width: '100%',
+                  boxSizing: 'border-box',
                 }}
               >
                 {options.map((option) => (
@@ -170,6 +172,11 @@ const AssignmentItem = memo(({
                       fontSize: isMobile ? '0.75rem' : '0.85rem',
                       fontWeight: '500',
                       transition: 'all 0.2s',
+                      width: '100%',
+                      minWidth: 0,
+                      wordBreak: 'break-word',
+                      overflowWrap: 'break-word',
+                      boxSizing: 'border-box',
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = 'var(--bg-primary)'
@@ -214,13 +221,17 @@ const TaskProgressBar = memo(({ taskId, taskName, taskProgress, taskStatus, onCa
   const isCompleted = taskStatus === 'completed' || progress >= 100
   return (
     <div style={{ marginTop: '0.5rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem', minWidth: 0 }}>
         <p
           style={{
             fontSize: '0.85rem',
             color: isCompleted ? 'var(--success)' : 'var(--text-secondary)',
             margin: 0,
             fontWeight: isCompleted ? '600' : 'normal',
+            flex: 1,
+            minWidth: 0,
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
           }}
         >
           {isCompleted ? '✓ ' : ''}{progress.toFixed(0)}% - {taskName}
@@ -241,6 +252,8 @@ const TaskProgressBar = memo(({ taskId, taskName, taskProgress, taskStatus, onCa
               cursor: 'pointer',
               fontSize: '0.75rem',
               fontWeight: '500',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
             }}
           >
             Clear
@@ -260,6 +273,8 @@ const TaskProgressBar = memo(({ taskId, taskName, taskProgress, taskStatus, onCa
               cursor: 'pointer',
               fontSize: '0.75rem',
               fontWeight: '500',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
             }}
           >
             Cancel
@@ -369,7 +384,7 @@ const TaskTemplateForm = memo(({
           boxSizing: 'border-box',
         }}
       />
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: '100%' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
         <input
           type="number"
           value={duration}
@@ -395,22 +410,27 @@ const TaskTemplateForm = memo(({
           required
           style={{
             flex: 1,
+            minWidth: isMobile ? '100%' : '120px',
             padding: '0.5rem',
             backgroundColor: 'var(--bg-primary)',
             border: '1px solid var(--border)',
             borderRadius: '4px',
             color: 'var(--text-primary)',
+            boxSizing: 'border-box',
           }}
         />
         <select
           value={type}
           onChange={(e) => setType(e.target.value as TaskTemplate['type'])}
           style={{
+            flex: isMobile ? '1 1 100%' : '0 0 auto',
+            minWidth: isMobile ? '100%' : '150px',
             padding: '0.5rem',
             backgroundColor: 'var(--bg-primary)',
             border: '1px solid var(--border)',
             borderRadius: '4px',
             color: 'var(--text-primary)',
+            boxSizing: 'border-box',
           }}
         >
           <option value="reload">Reload</option>
@@ -420,17 +440,19 @@ const TaskTemplateForm = memo(({
           <option value="custom">Custom</option>
         </select>
       </div>
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
         <button
           type="submit"
           style={{
             flex: 1,
+            minWidth: 0,
             padding: '0.5rem 1rem',
             backgroundColor: 'var(--success)',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
+            boxSizing: 'border-box',
           }}
         >
           {editingTemplate ? 'Update Template' : 'Create Template'}
@@ -439,12 +461,14 @@ const TaskTemplateForm = memo(({
           type="button"
           onClick={onCancel}
           style={{
+            flexShrink: 0,
             padding: '0.5rem 1rem',
             backgroundColor: 'var(--bg-primary)',
             color: 'var(--text-primary)',
             border: '1px solid var(--border)',
             borderRadius: '4px',
             cursor: 'pointer',
+            boxSizing: 'border-box',
           }}
         >
           Cancel
@@ -477,7 +501,6 @@ const AssignmentCard = memo(({
         width: '100%',
         maxWidth: '100%',
         boxSizing: 'border-box',
-        overflow: 'hidden',
       }}
     >
       <div
@@ -659,13 +682,15 @@ export default function Management() {
   )
 
   return (
-    <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
+    <div style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', minWidth: 0 }}>
       <h1
         style={{
-          fontSize: isMobile ? '1.25rem' : '2rem',
+          fontSize: isMobile ? '1.5rem' : '2rem',
           fontWeight: 'bold',
-          marginBottom: isMobile ? '0.75rem' : '2rem',
+          marginBottom: isMobile ? '1rem' : '2rem',
           color: 'var(--text-primary)',
+          wordBreak: 'break-word',
+          overflowWrap: 'break-word',
         }}
       >
         Management Panel
@@ -673,9 +698,10 @@ export default function Management() {
 
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(min(450px, 100%), 1fr))',
-          gap: isMobile ? '0.75rem' : '1.5rem',
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          flexWrap: isMobile ? 'nowrap' : 'wrap',
+          gap: isMobile ? '1rem' : '1.5rem',
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
@@ -926,9 +952,11 @@ export default function Management() {
                           <div
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(150px, 1fr))',
+                              gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(150px, 1fr))',
                               gap: '0.5rem',
                               marginBottom: '0.5rem',
+                              width: '100%',
+                              boxSizing: 'border-box',
                             }}
                           >
                             {taskTemplatesMemo.map((template) => (
@@ -949,6 +977,11 @@ export default function Management() {
                                   fontWeight: '500',
                                   textAlign: 'left',
                                   transition: 'all 0.2s',
+                                  width: '100%',
+                                  minWidth: 0,
+                                  wordBreak: 'break-word',
+                                  overflowWrap: 'break-word',
+                                  boxSizing: 'border-box',
                                 }}
                                 onMouseEnter={(e) => {
                                   e.currentTarget.style.backgroundColor = 'var(--bg-primary)'
@@ -1132,9 +1165,11 @@ export default function Management() {
                             <div
                               style={{
                                 display: 'grid',
-                                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(150px, 1fr))',
+                                gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fill, minmax(150px, 1fr))',
                                 gap: '0.5rem',
                                 marginBottom: '0.5rem',
+                                width: '100%',
+                                boxSizing: 'border-box',
                               }}
                             >
                               {taskTemplatesMemo.map((template) => (
@@ -1155,6 +1190,11 @@ export default function Management() {
                                     fontWeight: '500',
                                     textAlign: 'left',
                                     transition: 'all 0.2s',
+                                    width: '100%',
+                                    minWidth: 0,
+                                    wordBreak: 'break-word',
+                                    overflowWrap: 'break-word',
+                                    boxSizing: 'border-box',
                                   }}
                                   onMouseEnter={(e) => {
                                     e.currentTarget.style.backgroundColor = 'var(--bg-primary)'
@@ -1229,7 +1269,7 @@ export default function Management() {
         <AssignmentSections isMobile={isMobile} />
 
         {/* RSV Management - Full Width */}
-        <div style={{ gridColumn: '1 / -1' }}>
+        <div style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
           <RSVsManagement onAddRSV={() => setShowRSVForm(true)} />
         </div>
 

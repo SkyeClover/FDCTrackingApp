@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { RSV } from '../types'
 import { Search, Truck, Trash2 } from 'lucide-react'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 type RSVGroup = 'all' | 'poc' | 'boc' | 'ammo-plt' | 'unassigned'
 
@@ -12,6 +13,7 @@ interface RSVsManagementProps {
 const AMMO_PLT_ID = 'ammo-plt-1'
 
 export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
+  const isMobile = useIsMobile()
   const { rsvs, pocs, bocs, pods, assignRSVToPOC, assignRSVToBOC, assignRSVToAmmoPlt, deleteRSV } = useAppData()
   
   const [selectedGroup, setSelectedGroup] = useState<RSVGroup>('all')
@@ -181,8 +183,11 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
       style={{
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
-        borderRadius: '8px',
-        padding: '1.5rem',
+        borderRadius: isMobile ? '6px' : '8px',
+        padding: isMobile ? '0.75rem' : '1.5rem',
+        width: '100%',
+        maxWidth: '100%',
+        boxSizing: 'border-box',
       }}
     >
       {/* Header */}
@@ -191,12 +196,12 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '1.5rem',
+          marginBottom: isMobile ? '0.75rem' : '1.5rem',
           flexWrap: 'wrap',
           gap: '1rem',
         }}
       >
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+        <h2 style={{ fontSize: isMobile ? '1rem' : '1.25rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
           RSVs ({rsvs.length})
         </h2>
         {onAddRSV && (
@@ -226,7 +231,7 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
       <div
         style={{
           position: 'relative',
-          marginBottom: '1.5rem',
+          marginBottom: isMobile ? '0.75rem' : '1.5rem',
         }}
       >
         <Search
@@ -260,11 +265,12 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
       <div
         style={{
           display: 'flex',
-          gap: '0.5rem',
-          marginBottom: '1rem',
+          gap: isMobile ? '0.25rem' : '0.5rem',
+          marginBottom: isMobile ? '0.75rem' : '1rem',
           flexWrap: 'wrap',
           borderBottom: '2px solid var(--border)',
           paddingBottom: '0.5rem',
+          overflowX: 'auto',
         }}
       >
         {(['all', 'poc', 'boc', 'ammo-plt', 'unassigned'] as RSVGroup[]).map((group) => (
@@ -272,15 +278,17 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
             key={group}
             onClick={() => setSelectedGroup(group)}
             style={{
-              padding: '0.5rem 1rem',
+              padding: isMobile ? '0.4rem 0.75rem' : '0.5rem 1rem',
               backgroundColor: selectedGroup === group ? 'var(--accent)' : 'transparent',
               color: selectedGroup === group ? 'white' : 'var(--text-primary)',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
-              fontSize: '0.9rem',
+              fontSize: isMobile ? '0.8rem' : '0.9rem',
               fontWeight: selectedGroup === group ? '600' : '400',
               textTransform: 'capitalize',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
             {group === 'ammo-plt' ? 'Ammo PLT' : group === 'all' ? 'All' : group.toUpperCase()}
@@ -343,12 +351,159 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
         </div>
       )}
 
-      {/* RSVs Table */}
+      {/* RSVs Table/Cards */}
       {filteredRSVs.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center', padding: '2rem' }}>
           No RSVs found
         </p>
+      ) : isMobile ? (
+        // Mobile: Card Layout
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {filteredRSVs.map((rsv) => {
+            const assignment = getRSVAssignment(rsv)
+            const rsvPods = getRSVPods(rsv.id)
+            const isSelected = selectedRSVIds.has(rsv.id)
+
+            return (
+              <div
+                key={rsv.id}
+                style={{
+                  padding: '0.75rem',
+                  backgroundColor: isSelected ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
+                  border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+                  borderRadius: '6px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => handleSelectRSV(rsv.id)}
+                    style={{
+                      cursor: 'pointer',
+                      width: '18px',
+                      height: '18px',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: '600', fontSize: '0.95rem', color: 'var(--text-primary)', wordBreak: 'break-word' }}>
+                      {rsv.name}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                      Pods
+                    </div>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                      <span style={{ fontWeight: '500', color: 'var(--accent)' }}>
+                        {rsvPods.length}
+                      </span>
+                      {' '}pod{rsvPods.length !== 1 ? 's' : ''}
+                      {rsvPods.length > 0 && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                          {rsvPods.slice(0, 3).map((p) => p.name).join(', ')}
+                          {rsvPods.length > 3 && ` +${rsvPods.length - 3} more`}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                      Assignment
+                    </div>
+                    <div>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: 'var(--bg-tertiary)',
+                          borderRadius: '4px',
+                          fontSize: '0.85rem',
+                          fontWeight: '500',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {assignment.displayType}: {assignment.name}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                      Reassign
+                    </div>
+                    <select
+                      value={assignment.id ? `${assignment.type}|${assignment.id}` : 'unassigned|'}
+                      onChange={(e) => {
+                        const [type, ...idParts] = e.target.value.split('|')
+                        const id = idParts.join('|')
+                        handleAssignmentChange(rsv.id, type, id || '')
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem',
+                        backgroundColor: 'var(--bg-secondary)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '4px',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <option value="unassigned|">Unassigned</option>
+                      <option value={`ammo-plt|${AMMO_PLT_ID}`}>Ammo PLT</option>
+                      {pocs.map((poc) => (
+                        <option key={poc.id} value={`poc|${poc.id}`}>
+                          POC: {poc.name}
+                        </option>
+                      ))}
+                      {bocs.map((boc) => (
+                        <option key={boc.id} value={`boc|${boc.id}`}>
+                          BOC: {boc.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to delete RSV "${rsv.name}"? Pods assigned to this RSV will be unassigned.`)) {
+                        deleteRSV(rsv.id)
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      backgroundColor: 'transparent',
+                      border: '1px solid var(--border)',
+                      borderRadius: '4px',
+                      color: 'var(--danger)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    <Trash2 size={16} />
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       ) : (
+        // Desktop: Table Layout
         <div
           style={{
             overflowX: 'auto',
@@ -360,6 +515,7 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
             style={{
               width: '100%',
               borderCollapse: 'collapse',
+              minWidth: '600px',
             }}
           >
             <thead>
@@ -561,7 +717,10 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
                           borderRadius: '4px',
                           color: 'var(--text-primary)',
                           fontSize: '0.85rem',
-                          minWidth: '150px',
+                          minWidth: '120px',
+                          maxWidth: '100%',
+                          width: '100%',
+                          boxSizing: 'border-box',
                         }}
                       >
                         <option value="unassigned|">Unassigned</option>
