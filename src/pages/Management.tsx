@@ -486,13 +486,16 @@ const AssignmentCard = memo(({
   icon: Icon,
   children,
   isMobile = false,
+  'data-guide': dataGuide,
 }: {
   title: string
   icon?: any
   children: React.ReactNode
   isMobile?: boolean
+  'data-guide'?: string
 }) => (
     <div
+      data-guide={dataGuide}
       style={{
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
@@ -544,7 +547,7 @@ const AssignmentSections = memo(({ isMobile = false }: { isMobile?: boolean }) =
   
   return (
     <>
-      <AssignmentCard title="Assign Launchers to POCs" icon={Target} isMobile={isMobile}>
+      <AssignmentCard title="Assign Launchers to POCs" icon={Target} isMobile={isMobile} data-guide="assign-launchers-card">
         <div
           style={{
             fontSize: '0.85rem',

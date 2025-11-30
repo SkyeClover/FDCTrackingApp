@@ -483,9 +483,10 @@ export default function FireMissions() {
               </div>
             ) : (
               <div style={{ maxHeight: isMobile ? 'none' : 'calc(100vh - 400px)', overflowY: 'auto' }}>
-                {fireMissions.map((mission) => (
+                {fireMissions.map((mission, index) => (
                   <div
                     key={mission.id}
+                    data-guide={index === 0 ? 'fire-mission-card' : undefined}
                     style={{
                       padding: '1rem',
                       borderBottom: '1px solid var(--border)',

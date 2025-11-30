@@ -802,6 +802,7 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
         </div>
 
         <div
+          data-guide="round-types-section"
           style={{
             backgroundColor: 'var(--bg-secondary)',
             border: '1px solid var(--border)',

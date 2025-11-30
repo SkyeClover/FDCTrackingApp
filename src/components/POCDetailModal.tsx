@@ -231,6 +231,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
         {/* RSV Information */}
         {pocRSVs.length > 0 && (
           <div
+            data-guide="poc-detail-rsvs"
             style={{
               padding: '1rem',
               backgroundColor: 'var(--bg-secondary)',
@@ -297,6 +298,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
 
         {/* Summary Cards */}
         <div
+          data-guide="poc-detail-summary-cards"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -388,7 +390,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
         )}
 
         {/* Pods by Round Type - On Ground */}
-        <div style={{ marginBottom: '2rem' }}>
+        <div data-guide="poc-detail-pods-available" style={{ marginBottom: '2rem' }}>
           <h3
             style={{
               fontSize: '1.25rem',
@@ -445,7 +447,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
         </div>
 
         {/* Pods by Round Type - On Launchers */}
-        <div style={{ marginBottom: '2rem' }}>
+        <div data-guide="poc-detail-pods-launchers" style={{ marginBottom: '2rem' }}>
           <h3
             style={{
               fontSize: '1.25rem',
@@ -502,7 +504,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
         </div>
 
         {/* Individual Rounds Breakdown */}
-        <div>
+        <div data-guide="poc-detail-rounds-summary">
           <h3
             style={{
               fontSize: '1.25rem',

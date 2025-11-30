@@ -86,6 +86,7 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
 
   return (
     <div
+      data-guide="launcher-card"
       onClick={onClick}
       style={{
         backgroundColor: 'var(--bg-tertiary)',

@@ -550,6 +550,7 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
             </p>
           ) : (
             <div
+              data-guide="fire-mission-launcher-list"
               style={{
                 display: 'flex',
                 flexDirection: 'column',

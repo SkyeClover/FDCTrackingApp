@@ -74,6 +74,7 @@ const ItemForm = memo(({
       }}
     >
       <input
+        data-guide={title === 'Pods' ? 'pod-form-name' : title === 'Launchers' ? 'launcher-form-name' : undefined}
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -106,6 +107,7 @@ const ItemForm = memo(({
             </div>
           ) : (
             <select
+              data-guide="pod-form-round-type"
               value={roundType}
               onChange={(e) => setRoundType(e.target.value as RoundType)}
               style={{
@@ -125,6 +127,7 @@ const ItemForm = memo(({
             </select>
           )}
           <input
+            data-guide="pod-form-round-count"
             type="number"
             value={roundCount}
             onChange={(e) => {
@@ -157,6 +160,7 @@ const ItemForm = memo(({
             }}
           />
           <input
+            data-guide="pod-form-quantity"
             type="number"
             value={quantity}
             onChange={(e) => {
@@ -189,6 +193,7 @@ const ItemForm = memo(({
           />
           {pocs && pocs.length > 0 && (
             <select
+              data-guide="pod-form-poc-assignment"
               value={pocId}
               onChange={(e) => setPocId(e.target.value)}
               style={{
@@ -212,6 +217,7 @@ const ItemForm = memo(({
       )}
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         <button
+          data-guide={title === 'Pods' ? 'pod-form-create-button' : title === 'Launchers' ? 'launcher-form-create-button' : undefined}
           type="submit"
           disabled={!canCreatePods}
           style={{
@@ -737,7 +743,7 @@ export default function Inventory() {
       </h1>
 
       {/* Pods Management - Full Width - Collapsible */}
-      <div style={{ marginBottom: '2rem' }}>
+      <div style={{ marginBottom: '2rem' }} data-guide="pods-management-section">
         <button
           onClick={() => setIsPodsManagementCollapsed(!isPodsManagementCollapsed)}
           style={{

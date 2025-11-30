@@ -71,6 +71,7 @@ export default function POCCard({
 
   return (
     <div
+      data-guide="poc-card"
       style={{
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',

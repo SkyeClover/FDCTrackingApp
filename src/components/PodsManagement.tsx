@@ -509,6 +509,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
                   />
                 </th>
                 <th
+                  data-guide="pods-table-column-name"
                   style={{
                     padding: '0.75rem',
                     textAlign: 'left',
@@ -520,6 +521,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
                   Name
                 </th>
                 <th
+                  data-guide="pods-table-column-round-type"
                   style={{
                     padding: '0.75rem',
                     textAlign: 'left',
@@ -531,6 +533,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
                   Round Type
                 </th>
                 <th
+                  data-guide="pods-table-column-rounds"
                   style={{
                     padding: '0.75rem',
                     textAlign: 'left',
@@ -542,6 +545,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
                   Rounds
                 </th>
                 <th
+                  data-guide="pods-table-column-assignment"
                   style={{
                     padding: '0.75rem',
                     textAlign: 'left',
@@ -553,6 +557,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
                   Assignment
                 </th>
                 <th
+                  data-guide="pods-table-column-reassign"
                   style={{
                     padding: '0.75rem',
                     textAlign: 'left',
@@ -564,6 +569,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
                   Reassign
                 </th>
                 <th
+                  data-guide="pods-table-column-actions"
                   style={{
                     padding: '0.75rem',
                     textAlign: 'left',
