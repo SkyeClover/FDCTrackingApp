@@ -1133,6 +1133,68 @@ export default function InteractiveGuideModal({
           element.removeEventListener('click', handleClick, { capture: true })
         })
       }
+
+      // Detect clicks on clickable elements (like cards with onClick handlers)
+      // Check if element is clickable (has cursor: pointer style, onClick handler, or data-guide attribute)
+      const style = window.getComputedStyle(element)
+      const hasPointerCursor = style.cursor === 'pointer'
+      const hasOnClickAttribute = element.getAttribute('onclick') !== null
+      const hasDataGuide = element.hasAttribute('data-guide')
+      const isClickable = hasPointerCursor || hasOnClickAttribute || hasDataGuide
+      
+      // Only set up click detection for clickable elements if step has autoAdvance enabled
+      if (isClickable && currentStep.autoAdvance) {
+        const handleClick = (e: Event) => {
+          const target = e.target as HTMLElement
+          // Don't auto-advance if clicking the guide's own buttons
+          if (target.closest('[data-guide-card="true"]')) {
+            return
+          }
+
+          console.log('[InteractiveGuide] Clickable element clicked, checking for auto-advance:', element, {
+            hasWaitForCondition: !!currentStep.waitForCondition,
+            stepId: currentStep.id
+          })
+          
+          // If step has waitForCondition, wait for it to be met
+          if (currentStep.waitForCondition) {
+            // Check condition after a short delay to allow modal/UI to open
+            // Use a longer delay and check multiple times to ensure modal is fully rendered
+            let attempts = 0
+            const maxAttempts = 10
+            const checkInterval = setInterval(() => {
+              attempts++
+              if (currentStep.waitForCondition && currentStep.waitForCondition()) {
+                console.log('[InteractiveGuide] Condition met after click, auto-advancing')
+                clearInterval(checkInterval)
+                autoAdvance()
+              } else if (attempts >= maxAttempts) {
+                console.log('[InteractiveGuide] Condition not met after max attempts, auto-advancing anyway')
+                clearInterval(checkInterval)
+                autoAdvance()
+              }
+            }, 200) // Check every 200ms
+            
+            // Store interval for cleanup - combine with click listener cleanup
+            const existingCleanup = autoAdvanceListenersRef.current.get(element)
+            autoAdvanceListenersRef.current.set(element, () => {
+              clearInterval(checkInterval)
+              if (existingCleanup) existingCleanup()
+              element.removeEventListener('click', handleClick, { capture: true })
+            })
+          } else {
+            // No condition, just advance after click
+            setTimeout(() => {
+              autoAdvance()
+            }, 200)
+            // Store cleanup for click listener
+            autoAdvanceListenersRef.current.set(element, () => {
+              element.removeEventListener('click', handleClick, { capture: true })
+            })
+          }
+        }
+        element.addEventListener('click', handleClick, { once: true, capture: true })
+      }
     }
 
     // Set up auto-advance for current highlighted element
