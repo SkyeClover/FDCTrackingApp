@@ -142,8 +142,6 @@ const scrollToElement = (element: HTMLElement, offset = 200): Promise<void> => {
       const scrollY = window.pageYOffset || document.documentElement.scrollTop
       
       // Calculate element position relative to viewport
-      const elementTop = elementRect.top + scrollY
-      const elementHeight = elementRect.height
       const elementLeft = elementRect.left + scrollX
       
       // Account for guide card (estimate ~250px height) and padding
@@ -1033,7 +1031,6 @@ export default function InteractiveGuideModal({
       return
     }
 
-    const stepId = currentStep.id
     const currentElement = highlightedElements[currentHighlightIndex]
     if (!currentElement) return
 
@@ -1064,7 +1061,7 @@ export default function InteractiveGuideModal({
       // Detect form submissions
       const form = element.closest('form') || (element.tagName === 'FORM' ? element : null)
       if (form) {
-        const handleSubmit = (e: Event) => {
+        const handleSubmit = () => {
           console.log('[InteractiveGuide] Form submitted, auto-advancing:', form)
           autoAdvance()
         }
