@@ -52,8 +52,8 @@ export default function PasswordProtection({ children }: PasswordProtectionProps
     e.preventDefault()
     
     // Get credentials from environment variables (fallback to defaults for development)
-    const validUsername = import.meta.env.VITE_AUTH_USERNAME || 'admin'
-    const validPassword = import.meta.env.VITE_AUTH_PASSWORD || 'changeme'
+    const validUsername = import.meta.env.VITE_AUTH_USERNAME || 'Walker'
+    const validPassword = import.meta.env.VITE_AUTH_PASSWORD || '58559'
     
     if (username === validUsername && password === validPassword) {
       sessionStorage.setItem('fdc_auth', 'authenticated')

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { X, ChevronRight, ChevronLeft, HelpCircle } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 
-type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings' | 'fire-missions'
+type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings' | 'fire-missions' | 'system-info'
 
 interface ElementSelector {
   selector?: string

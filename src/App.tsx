@@ -7,15 +7,20 @@ import Management from './pages/Management'
 import Logs from './pages/Logs'
 import Settings from './pages/Settings'
 import FireMissions from './pages/FireMissions'
+import SystemInfo from './pages/SystemInfo'
 import { AppDataProvider, useAppData } from './context/AppDataContext'
 import { ProgressProvider, useProgress } from './context/ProgressContext'
 import StartupRoleModal from './components/StartupRoleModal'
 import FirstTimeGuideModal from './components/FirstTimeGuideModal'
 import InteractiveGuideModal from './components/InteractiveGuideModal'
 import PasswordProtection from './components/PasswordProtection'
+import BootSplash from './components/BootSplash'
+import KioskExit from './components/KioskExit'
+import SimpleKeyboard from './components/SimpleKeyboard'
+import KeyboardToggleButton from './components/KeyboardToggleButton'
 import { useIsMobile } from './hooks/useIsMobile'
 
-type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings' | 'fire-missions'
+type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings' | 'fire-missions' | 'system-info'
 
 function AppContent() {
   const { updateProgress, removeProgress } = useProgress()
@@ -33,6 +38,7 @@ function AppContentWithData() {
   const [showStartupModal, setShowStartupModal] = useState(false)
   const [showFirstTimeGuide, setShowFirstTimeGuide] = useState(false)
   const [showInteractiveGuide, setShowInteractiveGuide] = useState(false)
+  const [keyboardVisible, setKeyboardVisible] = useState(false)
   const isMobile = useIsMobile()
 
   // Check if app is empty (no BOCs or POCs) and show startup modal
@@ -107,6 +113,7 @@ function AppContentWithData() {
             {currentPage === 'fire-missions' && <FireMissions />}
             {currentPage === 'logs' && <Logs />}
             {currentPage === 'settings' && <Settings onShowInteractiveGuide={() => setShowInteractiveGuide(true)} />}
+            {currentPage === 'system-info' && <SystemInfo />}
           </main>
         </div>
       ) : (
@@ -120,20 +127,59 @@ function AppContentWithData() {
             {currentPage === 'fire-missions' && <FireMissions />}
             {currentPage === 'logs' && <Logs />}
             {currentPage === 'settings' && <Settings onShowInteractiveGuide={() => setShowInteractiveGuide(true)} />}
+            {currentPage === 'system-info' && <SystemInfo />}
           </main>
         </div>
       )}
+      {/* Simple Keyboard - Always available via toggle button */}
+      <SimpleKeyboard
+        visible={keyboardVisible}
+        onToggle={() => setKeyboardVisible(!keyboardVisible)}
+      />
+      {/* Keyboard Toggle Button - Always visible in bottom right */}
+      <KeyboardToggleButton
+        onToggle={() => setKeyboardVisible(!keyboardVisible)}
+        isVisible={keyboardVisible}
+      />
     </>
   )
 }
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true)
+  const [exitedKiosk, setExitedKiosk] = useState(false)
+
+  const handleExitKiosk = () => {
+    setExitedKiosk(true)
+    // Try to exit fullscreen if in kiosk mode
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {})
+    }
+  }
+
   return (
-    <PasswordProtection>
-      <ProgressProvider>
-        <AppContent />
-      </ProgressProvider>
-    </PasswordProtection>
+    <>
+      {showSplash && (
+        <BootSplash onComplete={() => setShowSplash(false)} />
+      )}
+      {!showSplash && !exitedKiosk && (
+        <>
+          <KioskExit onExit={handleExitKiosk} />
+          <PasswordProtection>
+            <ProgressProvider>
+              <AppContent />
+            </ProgressProvider>
+          </PasswordProtection>
+        </>
+      )}
+      {exitedKiosk && (
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <h1>Kiosk Mode Exited</h1>
+          <p>The app is still running. Close this window or restart the service to return to kiosk mode.</p>
+          <button onClick={() => window.location.reload()}>Reload App</button>
+        </div>
+      )}
+    </>
   )
 }
 

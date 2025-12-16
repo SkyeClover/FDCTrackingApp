@@ -68,6 +68,7 @@ export default function StartupRoleModal({ isOpen, onClose }: StartupRoleModalPr
           justifyContent: 'center',
           zIndex: 10000,
           padding: '1rem',
+          pointerEvents: 'auto',
         }}
         onClick={(e) => {
           // Prevent closing by clicking outside
