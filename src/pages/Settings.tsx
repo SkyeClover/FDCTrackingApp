@@ -1,6 +1,6 @@
 import { useState, memo, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
-import { Plus, Trash2, Check, X as XIcon, Edit, ChevronDown, ChevronUp, Bug, History, BookOpen } from 'lucide-react'
+import { Plus, Trash2, Check, X as XIcon, Edit, ChevronDown, ChevronUp, Bug, History, BookOpen, LogOut, RefreshCw, Power, RotateCw } from 'lucide-react'
 import { getAllRoundTypeOptions } from '../constants/roundTypes'
 import { useIsMobile } from '../hooks/useIsMobile'
 
@@ -751,6 +751,10 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
               A tracking application for rounds, pods, and launchers. Designed for AFATDS Operators
               to manage ammunition tracking and report generation.
             </p>
+            <p style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>© {new Date().getFullYear()} </span>
+              <strong style={{ color: 'var(--text-primary)' }}>@jacob walker</strong>
+            </p>
           </div>
         </div>
 
@@ -1277,6 +1281,238 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
               fontSize: '0.8rem',
             }}
           >
+            {/* System Controls */}
+            <div
+              style={{
+                marginBottom: '1.5rem',
+                padding: '1rem',
+                backgroundColor: 'var(--bg-primary)',
+                border: '2px solid var(--accent-color)',
+                borderRadius: '6px',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                  color: 'var(--text-secondary)',
+                  marginBottom: '0.5rem',
+                  textTransform: 'uppercase',
+                }}
+              >
+                System Controls
+              </div>
+              
+              {/* Refresh Button */}
+              <div style={{ marginBottom: '1rem' }}>
+                <p
+                  style={{
+                    fontSize: '0.85rem',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  Reload the application page to refresh all data and UI.
+                </p>
+                <button
+                  onClick={() => {
+                    window.location.reload()
+                  }}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: 'var(--accent-color)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    width: isMobile ? '100%' : 'auto',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <RefreshCw size={18} />
+                  Refresh App
+                </button>
+              </div>
+
+              {/* Restart App Button */}
+              <div style={{ marginBottom: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                <p
+                  style={{
+                    fontSize: '0.85rem',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  Restart the application service on the Raspberry Pi. This will reload the app.
+                </p>
+                <button
+                  onClick={async () => {
+                    if (!confirm('Are you sure you want to restart the app? This will temporarily disconnect the app.')) {
+                      return
+                    }
+                    try {
+                      const response = await fetch('http://localhost:3001/restart-app', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                      })
+                      const data = await response.json()
+                      if (data.success) {
+                        alert('App restart initiated. The app will reload in a few seconds.')
+                        setTimeout(() => {
+                          window.location.reload()
+                        }, 3000)
+                      } else {
+                        alert('Failed to restart app: ' + (data.error || 'Unknown error'))
+                      }
+                    } catch (error) {
+                      console.error('Failed to restart app:', error)
+                      alert('Failed to restart app. The API may not be available.')
+                    }
+                  }}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: 'var(--accent-color)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    width: isMobile ? '100%' : 'auto',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Power size={18} />
+                  Restart App Service
+                </button>
+              </div>
+
+              {/* Restart PI Button */}
+              <div style={{ marginBottom: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                <p
+                  style={{
+                    fontSize: '0.85rem',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  Restart the Raspberry Pi. This will shut down and restart the entire system.
+                </p>
+                <button
+                  onClick={async () => {
+                    if (!confirm('Are you sure you want to restart the Raspberry Pi? This will shut down the entire system.')) {
+                      return
+                    }
+                    if (!confirm('This will restart the PI. Are you absolutely sure?')) {
+                      return
+                    }
+                    try {
+                      const response = await fetch('http://localhost:3001/restart-pi', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                      })
+                      const data = await response.json()
+                      if (data.success) {
+                        alert('PI restart initiated. The system will restart in a few seconds.')
+                      } else {
+                        alert('Failed to restart PI: ' + (data.error || 'Unknown error'))
+                      }
+                    } catch (error) {
+                      console.error('Failed to restart PI:', error)
+                      alert('Failed to restart PI. The API may not be available.')
+                    }
+                  }}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: 'var(--warning)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    width: isMobile ? '100%' : 'auto',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <RotateCw size={18} />
+                  Restart PI
+                </button>
+              </div>
+
+              {/* Exit to Desktop Button */}
+              <div style={{ paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                <p
+                  style={{
+                    fontSize: '0.85rem',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '0.75rem',
+                  }}
+                >
+                  Exit kiosk mode and return to the desktop. This will launch a terminal and close the app.
+                </p>
+                <button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('http://localhost:3001/exit', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                      })
+                      const data = await response.json()
+                      if (data.success) {
+                        // Exit fullscreen if possible
+                        if (document.exitFullscreen) {
+                          document.exitFullscreen().catch(() => {})
+                        }
+                        // Try to close window
+                        window.close()
+                      } else {
+                        alert('Failed to exit kiosk mode. Please try pressing ESC or long-pressing the top-left corner.')
+                      }
+                    } catch (error) {
+                      console.error('Failed to exit kiosk mode:', error)
+                      alert('Failed to exit kiosk mode. The exit handler may not be running.')
+                    }
+                  }}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: 'var(--accent-color)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    width: isMobile ? '100%' : 'auto',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <LogOut size={18} />
+                  Exit to Desktop
+                </button>
+              </div>
+            </div>
+
             {/* Reset All Data Button */}
             <div
               style={{

@@ -1,8 +1,9 @@
 import { Launcher, Pod, LogEntry } from '../types'
-import { X, Rocket, RotateCcw, Activity } from 'lucide-react'
+import { X, Rocket, RotateCcw, Activity, CheckSquare } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { useMemo, useState, useEffect } from 'react'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { useIsTablet } from '../hooks/useIsTablet'
 import { useModal } from '../hooks/useModal'
 import { useSwipe } from '../hooks/useSwipe'
 
@@ -14,9 +15,11 @@ interface LauncherDetailModalProps {
 }
 
 export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: LauncherDetailModalProps) {
-  const { tasks, logs, taskTemplates, clearTask, endTaskEarly } = useAppData()
+  const { tasks, logs, taskTemplates, clearTask, endTaskEarly, startTaskFromTemplate } = useAppData()
   const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [showTaskSelection, setShowTaskSelection] = useState(false)
   
   // Handle ESC key and body scroll lock
   useModal(isOpen, onClose)
@@ -28,15 +31,16 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
     velocityThreshold: 0.2,
   })
 
-  // Update time every second for standby time display
+  // Update time every second for standby time display and task elapsed time
   useEffect(() => {
-    if (launcher.status === 'idle' && launcher.lastIdleTime) {
+    const needsUpdate = (launcher.status === 'idle' && launcher.lastIdleTime) || launcher.currentTask
+    if (needsUpdate) {
       const interval = setInterval(() => {
         setCurrentTime(new Date())
       }, 1000)
       return () => clearInterval(interval)
     }
-  }, [launcher.status, launcher.lastIdleTime])
+  }, [launcher.status, launcher.lastIdleTime, launcher.currentTask])
 
   if (!isOpen || !launcher) return null
 
@@ -132,15 +136,16 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
     return null
   }, [launcher.status, launcher.lastIdleTime, currentTime])
 
-  // Format date/time
+  // Format date/time (without milliseconds)
   const formatDateTime = (date: Date) => {
-    return date.toLocaleString('en-US', {
+    const options: Intl.DateTimeFormatOptions = {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
-    })
+    }
+    return date.toLocaleString('en-US', options)
   }
 
   // Format duration
@@ -172,10 +177,10 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
         style={{
           backgroundColor: 'var(--bg-primary)',
           borderRadius: isMobile ? '0' : '12px',
-          padding: isMobile ? '1rem' : '2rem',
-          maxWidth: isMobile ? '100%' : '900px',
+          padding: isMobile ? '1rem' : isTablet ? '2.5rem' : '2rem',
+          maxWidth: isMobile ? '100%' : isTablet ? '95vw' : '900px',
           width: '100%',
-          maxHeight: isMobile ? '100vh' : '90vh',
+          maxHeight: isMobile ? '100vh' : isTablet ? '95vh' : '90vh',
           height: isMobile ? '100vh' : 'auto',
           overflow: 'auto',
           border: isMobile ? 'none' : '2px solid var(--border)',
@@ -324,6 +329,116 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
                 </div>
               </div>
             </>
+          )}
+        </div>
+
+        {/* Task Out Section */}
+        <div
+          style={{
+            padding: '1rem',
+            backgroundColor: 'var(--bg-secondary)',
+            borderRadius: '8px',
+            border: '1px solid var(--border)',
+            marginBottom: '2rem',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: showTaskSelection ? '1rem' : '0',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <CheckSquare size={18} style={{ color: 'var(--accent)' }} />
+              <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+                Task Out Launcher
+              </h3>
+            </div>
+            <button
+              onClick={() => setShowTaskSelection(!showTaskSelection)}
+              disabled={taskTemplates.length === 0}
+              style={{
+                padding: isTablet ? '0.75rem 1.5rem' : '0.5rem 1rem',
+                backgroundColor: showTaskSelection ? 'var(--bg-tertiary)' : 'var(--accent)',
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                cursor: taskTemplates.length === 0 ? 'not-allowed' : 'pointer',
+                fontSize: isTablet ? '1rem' : '0.85rem',
+                fontWeight: '500',
+                opacity: taskTemplates.length === 0 ? 0.5 : 1,
+                transition: 'all 0.2s',
+                minHeight: isTablet ? '48px' : 'auto',
+              }}
+            >
+              {showTaskSelection ? 'Cancel' : 'Assign Task'}
+            </button>
+          </div>
+
+          {showTaskSelection && (
+            <div>
+              {taskTemplates.length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center', padding: '1rem' }}>
+                  No task templates available. Create templates in the Management page first.
+                </p>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(150px, 1fr))',
+                    gap: '0.75rem',
+                  }}
+                >
+                  {taskTemplates.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => {
+                        startTaskFromTemplate(template.id, launcher.id)
+                        setShowTaskSelection(false)
+                      }}
+                      style={{
+                        padding: isTablet ? '1rem' : '0.75rem',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        color: 'var(--text-primary)',
+                        cursor: 'pointer',
+                        fontSize: isTablet ? '1rem' : '0.85rem',
+                        fontWeight: '500',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem',
+                        minHeight: isTablet ? '80px' : 'auto',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--accent)'
+                        e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border)'
+                        e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+                      }}
+                    >
+                      <div style={{ fontWeight: '600' }}>{template.name}</div>
+                      {template.description && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          {template.description}
+                        </div>
+                      )}
+                      {template.duration && (
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                          Duration: {Math.floor(template.duration / 60)}:{(template.duration % 60).toString().padStart(2, '0')}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -566,7 +681,7 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
                 const actualDuration = task.startTime && task.completedTime
                   ? (task.completedTime.getTime() - task.startTime.getTime()) / 1000
                   : task.startTime
-                  ? (Date.now() - task.startTime.getTime()) / 1000
+                  ? (currentTime.getTime() - task.startTime.getTime()) / 1000
                   : null
                 return (
                   <div

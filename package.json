@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "pi-proxy": "node pi-proxy-server.cjs",
+    "pi-proxy:dev": "node pi-proxy-server.cjs"
   },
   "dependencies": {
     "lucide-react": "^0.294.0",

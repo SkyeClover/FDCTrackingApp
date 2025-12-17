@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { X, Rocket } from 'lucide-react'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { useIsTablet } from '../hooks/useIsTablet'
 import { useModal } from '../hooks/useModal'
 import { useSwipe } from '../hooks/useSwipe'
 
@@ -21,6 +22,7 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
   const [totTime, setTotTime] = useState('')
   const [remarks, setRemarks] = useState('')
   const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
   
   // Handle ESC key and body scroll lock
   useModal(isOpen, onClose)
@@ -158,10 +160,10 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
           backgroundColor: 'var(--bg-secondary)',
           border: isMobile ? 'none' : '1px solid var(--border)',
           borderRadius: isMobile ? '0' : '8px',
-          padding: isMobile ? '1rem' : '2rem',
-          maxWidth: isMobile ? '100%' : '600px',
+          padding: isMobile ? '1rem' : isTablet ? '2.5rem' : '2rem',
+          maxWidth: isMobile ? '100%' : isTablet ? '90vw' : '600px',
           width: isMobile ? '100%' : '90%',
-          maxHeight: isMobile ? '100vh' : '80vh',
+          maxHeight: isMobile ? '100vh' : isTablet ? '95vh' : '80vh',
           height: isMobile ? '100vh' : 'auto',
           overflow: 'auto',
           display: 'flex',
@@ -226,12 +228,13 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
             required
             style={{
               width: '100%',
-              padding: '0.75rem',
+              padding: isTablet ? '1rem' : '0.75rem',
               backgroundColor: 'var(--bg-primary)',
               border: '1px solid var(--border)',
-              borderRadius: '4px',
+              borderRadius: '6px',
               color: 'var(--text-primary)',
-              fontSize: '1rem',
+              fontSize: isTablet ? '1.125rem' : '1rem',
+              minHeight: isTablet ? '48px' : 'auto',
             }}
           />
         </div>
@@ -255,12 +258,13 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
             placeholder="e.g., 38T PK 12345 67890"
             style={{
               width: '100%',
-              padding: '0.75rem',
+              padding: isTablet ? '1rem' : '0.75rem',
               backgroundColor: 'var(--bg-primary)',
               border: '1px solid var(--border)',
-              borderRadius: '4px',
+              borderRadius: '6px',
               color: 'var(--text-primary)',
-              fontSize: '1rem',
+              fontSize: isTablet ? '1.125rem' : '1rem',
+              minHeight: isTablet ? '48px' : 'auto',
             }}
           />
         </div>
@@ -414,7 +418,13 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
               }
             }}
             onBlur={(e) => {
-              if (e.target.value === '' || parseInt(e.target.value) < 1) {
+              const value = e.target.value
+              if (value === '') {
+                // Allow empty value - user can clear it
+                return
+              }
+              const num = parseInt(value)
+              if (isNaN(num) || num < 1) {
                 setRoundsPerLauncher(1)
               }
             }}
@@ -424,12 +434,13 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
             required
             style={{
               width: '100%',
-              padding: '0.75rem',
+              padding: isTablet ? '1rem' : '0.75rem',
               backgroundColor: 'var(--bg-primary)',
               border: '1px solid var(--border)',
-              borderRadius: '4px',
+              borderRadius: '6px',
               color: 'var(--text-primary)',
-              fontSize: '1rem',
+              fontSize: isTablet ? '1.125rem' : '1rem',
+              minHeight: isTablet ? '48px' : 'auto',
             }}
           />
           <div
@@ -462,12 +473,13 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
             placeholder="e.g., Time on Target"
             style={{
               width: '100%',
-              padding: '0.75rem',
+              padding: isTablet ? '1rem' : '0.75rem',
               backgroundColor: 'var(--bg-primary)',
               border: '1px solid var(--border)',
-              borderRadius: '4px',
+              borderRadius: '6px',
               color: 'var(--text-primary)',
-              fontSize: '1rem',
+              fontSize: isTablet ? '1.125rem' : '1rem',
+              minHeight: isTablet ? '48px' : 'auto',
             }}
           />
         </div>
@@ -491,12 +503,13 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
             placeholder="e.g., 1200Z"
             style={{
               width: '100%',
-              padding: '0.75rem',
+              padding: isTablet ? '1rem' : '0.75rem',
               backgroundColor: 'var(--bg-primary)',
               border: '1px solid var(--border)',
-              borderRadius: '4px',
+              borderRadius: '6px',
               color: 'var(--text-primary)',
-              fontSize: '1rem',
+              fontSize: isTablet ? '1.125rem' : '1rem',
+              minHeight: isTablet ? '48px' : 'auto',
             }}
           />
         </div>
@@ -520,12 +533,13 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
             rows={3}
             style={{
               width: '100%',
-              padding: '0.75rem',
+              padding: isTablet ? '1rem' : '0.75rem',
               backgroundColor: 'var(--bg-primary)',
               border: '1px solid var(--border)',
-              borderRadius: '4px',
+              borderRadius: '6px',
               color: 'var(--text-primary)',
-              fontSize: '1rem',
+              fontSize: isTablet ? '1.125rem' : '1rem',
+              minHeight: isTablet ? '48px' : 'auto',
               resize: 'vertical',
               fontFamily: 'inherit',
             }}

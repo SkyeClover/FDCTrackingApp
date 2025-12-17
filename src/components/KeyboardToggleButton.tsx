@@ -8,22 +8,44 @@ interface KeyboardToggleButtonProps {
 export default function KeyboardToggleButton({ onToggle, isVisible }: KeyboardToggleButtonProps) {
   const [isPressed, setIsPressed] = useState(false)
 
+  const handleClick = async (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    try {
+      // Call backend API to toggle system keyboard (Onboard)
+      const response = await fetch('http://localhost:3001/keyboard-toggle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        // Also call the React handler to update UI state
+        onToggle()
+      } else {
+        console.error('Failed to toggle keyboard:', data.error)
+        // Fallback: still call the React handler
+        onToggle()
+      }
+    } catch (error) {
+      console.error('Error toggling keyboard:', error)
+      // Fallback: call the React handler anyway
+      onToggle()
+    }
+  }
+
   return (
     <button
-      onClick={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        onToggle()
-      }}
+      onClick={handleClick}
+      onTouchEnd={handleClick}
       onTouchStart={(e) => {
         e.preventDefault()
         e.stopPropagation()
         setIsPressed(true)
-      }}
-      onTouchEnd={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsPressed(false)
       }}
       onMouseDown={(e) => {
         e.preventDefault()
@@ -38,29 +60,31 @@ export default function KeyboardToggleButton({ onToggle, isVisible }: KeyboardTo
       onMouseLeave={() => setIsPressed(false)}
       style={{
         position: 'fixed',
-        bottom: '20px',
+        bottom: isVisible ? '380px' : '20px', // Move up when keyboard is visible (keyboard is ~350px tall)
         right: '20px',
-        width: '60px',
-        height: '60px',
+        width: '70px',
+        height: '70px',
         borderRadius: '50%',
-        backgroundColor: isVisible ? '#4a9eff' : '#2a2a2a',
-        border: `2px solid ${isVisible ? '#6ab0ff' : '#444'}`,
+        backgroundColor: isVisible ? '#4a9eff' : '#3b82f6',
+        border: `3px solid ${isVisible ? '#6ab0ff' : '#2563eb'}`,
         color: '#fff',
-        fontSize: '28px',
+        fontSize: '32px',
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 10003,
+        zIndex: 999999, // Extremely high z-index - always on top
         boxShadow: isPressed
           ? '0 2px 8px rgba(0, 0, 0, 0.3)'
-          : '0 4px 12px rgba(0, 0, 0, 0.4)',
+          : '0 6px 20px rgba(59, 130, 246, 0.5)',
         transform: isPressed ? 'scale(0.95)' : 'scale(1)',
-        transition: 'all 0.2s ease',
+        transition: 'all 0.3s ease', // Smooth transition when moving
         userSelect: 'none',
         touchAction: 'manipulation',
         pointerEvents: 'auto',
         WebkitTapHighlightColor: 'transparent',
+        opacity: 1, // Ensure it's fully visible
+        visibility: 'visible', // Ensure it's visible
       }}
       title={isVisible ? 'Hide Keyboard' : 'Show Keyboard'}
     >

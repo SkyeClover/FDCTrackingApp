@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Download, Upload } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { useIsTablet } from '../hooks/useIsTablet'
 
 interface DashboardHeaderProps {
   onInitiateFireMission?: () => void
@@ -22,6 +23,7 @@ export default function DashboardHeader({
   const [currentTime, setCurrentTime] = useState(new Date())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -136,17 +138,17 @@ export default function DashboardHeader({
         <button
           onClick={onInitiateFireMission}
           style={{
-            padding: isMobile ? '0.875rem 1.5rem' : '1rem 2rem',
+            padding: isMobile ? '0.875rem 1.5rem' : isTablet ? '1.25rem 2.5rem' : '1rem 2rem',
             backgroundColor: '#dc2626',
             border: '2px solid #000',
-            borderRadius: '6px',
+            borderRadius: '8px',
             color: '#fff',
-            fontSize: isMobile ? '1rem' : '1.1rem',
+            fontSize: isMobile ? '1rem' : isTablet ? '1.25rem' : '1.1rem',
             fontWeight: 'bold',
             cursor: 'pointer',
             textTransform: 'uppercase',
             transition: 'background-color 0.2s',
-            minHeight: '44px', // Touch-friendly
+            minHeight: isTablet ? '56px' : '44px', // Larger for tablets
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = '#b91c1c'
@@ -189,16 +191,17 @@ export default function DashboardHeader({
           <button
             onClick={onReport}
             style={{
-              padding: '0.5rem 1rem',
+              padding: isTablet ? '0.75rem 1.5rem' : '0.5rem 1rem',
               backgroundColor: '#10b981',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: '6px',
               color: '#fff',
-              fontSize: '0.9rem',
+              fontSize: isTablet ? '1.1rem' : '0.9rem',
               fontWeight: '500',
               cursor: 'pointer',
-              minHeight: '44px', // Touch-friendly
+              minHeight: isTablet ? '48px' : '44px',
               flex: isMobile ? '1 1 auto' : 'none',
+              transition: 'all 0.2s',
             }}
           >
             Report
@@ -206,48 +209,50 @@ export default function DashboardHeader({
           <button
             onClick={handleSaveClick}
             style={{
-              padding: '0.5rem 1rem',
+              padding: isTablet ? '0.75rem 1.25rem' : '0.5rem 1rem',
               backgroundColor: 'var(--bg-tertiary)',
               border: '1px solid var(--border)',
-              borderRadius: '4px',
+              borderRadius: '6px',
               color: 'var(--text-primary)',
-              fontSize: '0.9rem',
+              fontSize: isTablet ? '1rem' : '0.9rem',
               fontWeight: '500',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.5rem',
-              minHeight: '44px', // Touch-friendly
-              minWidth: '44px', // Touch-friendly
+              minHeight: isTablet ? '48px' : '44px',
+              minWidth: isTablet ? '48px' : '44px',
+              transition: 'all 0.2s',
             }}
             title="Export to file"
           >
-            <Download size={16} />
-            {isMobile && <span>Save</span>}
+            <Download size={isTablet ? 20 : 16} />
+            {(isMobile || isTablet) && <span>Save</span>}
           </button>
           <button
             onClick={handleLoadClick}
             style={{
-              padding: '0.5rem 1rem',
+              padding: isTablet ? '0.75rem 1.25rem' : '0.5rem 1rem',
               backgroundColor: 'var(--bg-tertiary)',
               border: '1px solid var(--border)',
-              borderRadius: '4px',
+              borderRadius: '6px',
               color: 'var(--text-primary)',
-              fontSize: '0.9rem',
+              fontSize: isTablet ? '1rem' : '0.9rem',
               fontWeight: '500',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.5rem',
-              minHeight: '44px', // Touch-friendly
-              minWidth: '44px', // Touch-friendly
+              minHeight: isTablet ? '48px' : '44px',
+              minWidth: isTablet ? '48px' : '44px',
+              transition: 'all 0.2s',
             }}
             title="Import from file"
           >
-            <Upload size={16} />
-            {isMobile && <span>Load</span>}
+            <Upload size={isTablet ? 20 : 16} />
+            {(isMobile || isTablet) && <span>Load</span>}
           </button>
         </div>
       </div>

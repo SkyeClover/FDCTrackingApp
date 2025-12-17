@@ -250,7 +250,7 @@ export default memo(function PodsToRSVAssignment({}: PodsToRSVAssignmentProps) {
                 }}
               >
                 <Package size={16} />
-                Available Pods ({filteredPods.length})
+                Unassigned Pods ({filteredPods.length})
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 {selectedPods.size > 0 && (
@@ -346,7 +346,7 @@ export default memo(function PodsToRSVAssignment({}: PodsToRSVAssignmentProps) {
             {/* Pods Grid */}
             {filteredPods.length === 0 ? (
               <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center', padding: '2rem' }}>
-                No available pods
+                No unassigned pods
               </p>
             ) : (
               <div

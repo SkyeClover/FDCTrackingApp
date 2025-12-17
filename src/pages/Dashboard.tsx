@@ -10,6 +10,8 @@ import ReloadModal from '../components/ReloadModal'
 import ReportModal from '../components/ReportModal'
 import LauncherDetailModal from '../components/LauncherDetailModal'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { useIsTablet } from '../hooks/useIsTablet'
+import { Rocket, FileText, Activity, Package } from 'lucide-react'
 
 const AMMO_PLT_ID = 'ammo-plt-1'
 
@@ -22,6 +24,7 @@ export default function Dashboard() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [selectedLauncherId, setSelectedLauncherId] = useState<string | null>(null)
   const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
 
   // Check if Ammo PLT has any RSVs or pods assigned
   const hasAmmoPltContent = useMemo(() => {
@@ -97,6 +100,35 @@ export default function Dashboard() {
     return 'repeat(auto-fit, minmax(400px, 1fr))'
   }
 
+  // Calculate quick stats
+  const quickStats = useMemo(() => {
+    const activeLaunchers = launchers.filter(l => l.status === 'active').length
+    const idleLaunchers = launchers.filter(l => l.status === 'idle').length
+    const totalPods = pods.length
+    const availablePods = pods.filter(p => !p.launcherId).length
+    
+    // Calculate available rounds by type (only rounds that haven't been fired)
+    const roundsByType: Record<string, number> = {}
+    pods.forEach(pod => {
+      pod.rounds.forEach(round => {
+        if (round.status === 'available') {
+          roundsByType[round.type] = (roundsByType[round.type] || 0) + 1
+        }
+      })
+    })
+    
+    const totalAvailableRounds = Object.values(roundsByType).reduce((sum, count) => sum + count, 0)
+    
+    return {
+      activeLaunchers,
+      idleLaunchers,
+      totalPods,
+      availablePods,
+      roundsByType,
+      totalAvailableRounds,
+    }
+  }, [launchers, pods])
+
   return (
     <div>
       <DashboardHeader
@@ -106,6 +138,187 @@ export default function Dashboard() {
         onSaveToFile={saveToFile}
         onLoadFromFile={loadFromFile}
       />
+
+      {/* Quick Stats & Actions Panel */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+          gap: isMobile ? '0.75rem' : '1rem',
+          marginBottom: isMobile ? '1rem' : '1.5rem',
+        }}
+      >
+        <div
+          style={{
+            padding: isTablet ? '1rem' : '0.75rem',
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+          }}
+        >
+          <div
+            style={{
+              padding: '0.5rem',
+              backgroundColor: 'var(--accent)',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Activity size={isTablet ? 24 : 20} color="white" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: isTablet ? '0.85rem' : '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+              Active Launchers
+            </div>
+            <div style={{ fontSize: isTablet ? '1.5rem' : '1.25rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              {quickStats.activeLaunchers}
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: isTablet ? '1rem' : '0.75rem',
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+          }}
+        >
+          <div
+            style={{
+              padding: '0.5rem',
+              backgroundColor: 'var(--success)',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Package size={isTablet ? 24 : 20} color="white" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: isTablet ? '0.85rem' : '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+              Pods in Inventory
+            </div>
+            <div style={{ fontSize: isTablet ? '1.5rem' : '1.25rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+              {quickStats.availablePods}/{quickStats.totalPods}
+            </div>
+            <div style={{ fontSize: isTablet ? '0.7rem' : '0.65rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+              Not on launchers
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: isTablet ? '0.75rem' : '0.6rem',
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div
+              style={{
+                padding: '0.4rem',
+                backgroundColor: 'var(--warning)',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Rocket size={isTablet ? 18 : 16} color="white" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: isTablet ? '0.75rem' : '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>
+                Available Rounds
+              </div>
+              <div style={{ fontSize: isTablet ? '1.1rem' : '1rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                {quickStats.totalAvailableRounds}
+              </div>
+            </div>
+          </div>
+          {Object.keys(quickStats.roundsByType).length > 0 && (
+            <div style={{ 
+              display: 'flex', 
+              flexWrap: 'wrap', 
+              gap: '0.35rem',
+              fontSize: isTablet ? '0.7rem' : '0.65rem',
+              color: 'var(--text-secondary)',
+              paddingTop: '0.25rem',
+              borderTop: '1px solid var(--border)',
+            }}>
+              {Object.entries(quickStats.roundsByType)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([type, count]) => (
+                  <span key={type} style={{ 
+                    padding: '0.2rem 0.4rem',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    borderRadius: '4px',
+                  }}>
+                    {type}: {count}
+                  </span>
+                ))}
+            </div>
+          )}
+        </div>
+
+        <div
+          onClick={handleReport}
+          style={{
+            padding: isTablet ? '1rem' : '0.75rem',
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'var(--accent)'
+            e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border)'
+            e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+          }}
+        >
+          <div
+            style={{
+              padding: '0.5rem',
+              backgroundColor: 'var(--success)',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FileText size={isTablet ? 24 : 20} color="white" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: isTablet ? '0.85rem' : '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+              Quick Report
+            </div>
+            <div style={{ fontSize: isTablet ? '1rem' : '0.9rem', fontWeight: '600', color: 'var(--text-primary)' }}>
+              View Report
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div
         style={{

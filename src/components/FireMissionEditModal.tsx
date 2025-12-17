@@ -217,7 +217,13 @@ export default function FireMissionEditModal({
                 marginTop: '0.5rem',
               }}
             >
-              Started: {task.startTime.toLocaleString()}
+              Started: {task.startTime.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })}
             </div>
           )}
         </div>

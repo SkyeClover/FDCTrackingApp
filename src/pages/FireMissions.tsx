@@ -127,14 +127,15 @@ export default function FireMissions() {
 
   const formatDateTime = (date?: Date) => {
     if (!date) return 'N/A'
-    return date.toLocaleString('en-US', {
+    const options: Intl.DateTimeFormatOptions = {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
-    })
+    }
+    return date.toLocaleString('en-US', options)
   }
 
   return (

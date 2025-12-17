@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
 import Dashboard from './pages/Dashboard'
@@ -8,6 +8,7 @@ import Logs from './pages/Logs'
 import Settings from './pages/Settings'
 import FireMissions from './pages/FireMissions'
 import SystemInfo from './pages/SystemInfo'
+import Network from './pages/Network'
 import { AppDataProvider, useAppData } from './context/AppDataContext'
 import { ProgressProvider, useProgress } from './context/ProgressContext'
 import StartupRoleModal from './components/StartupRoleModal'
@@ -18,9 +19,10 @@ import BootSplash from './components/BootSplash'
 import KioskExit from './components/KioskExit'
 import SimpleKeyboard from './components/SimpleKeyboard'
 import KeyboardToggleButton from './components/KeyboardToggleButton'
+import MaintenanceBanner from './components/MaintenanceBanner'
 import { useIsMobile } from './hooks/useIsMobile'
 
-type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings' | 'fire-missions' | 'system-info'
+type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings' | 'fire-missions' | 'system-info' | 'network'
 
 function AppContent() {
   const { updateProgress, removeProgress } = useProgress()
@@ -38,7 +40,6 @@ function AppContentWithData() {
   const [showStartupModal, setShowStartupModal] = useState(false)
   const [showFirstTimeGuide, setShowFirstTimeGuide] = useState(false)
   const [showInteractiveGuide, setShowInteractiveGuide] = useState(false)
-  const [keyboardVisible, setKeyboardVisible] = useState(false)
   const isMobile = useIsMobile()
 
   // Check if app is empty (no BOCs or POCs) and show startup modal
@@ -97,7 +98,7 @@ function AppContentWithData() {
           <main
             style={{
               flex: 1,
-              overflow: 'auto',
+              overflowY: 'auto',
               overflowX: 'hidden', // Prevent horizontal scrolling
               padding: isMobile ? '0.75rem' : '1rem',
               paddingTop: isMobile ? 'calc(56px + 0.75rem)' : 'calc(56px + 1rem)', // Fixed header height + padding
@@ -105,42 +106,67 @@ function AppContentWithData() {
               maxWidth: '100vw',
               boxSizing: 'border-box',
               position: 'relative',
+              WebkitOverflowScrolling: 'touch', // iOS momentum scrolling
+              willChange: 'scroll-position', // Optimize scrolling
+              touchAction: 'pan-y pan-x', // Enable native touch scrolling
+              userSelect: 'none', // Prevent text selection
+              overscrollBehavior: 'contain', // Prevent overscroll bounce
+              scrollBehavior: 'smooth', // Smooth scrolling
+              // Force hardware acceleration
+              transform: 'translateZ(0)',
+              WebkitTransform: 'translateZ(0)',
             }}
           >
-            {currentPage === 'dashboard' && <Dashboard />}
-            {currentPage === 'inventory' && <Inventory />}
-            {currentPage === 'management' && <Management />}
-            {currentPage === 'fire-missions' && <FireMissions />}
-            {currentPage === 'logs' && <Logs />}
-            {currentPage === 'settings' && <Settings onShowInteractiveGuide={() => setShowInteractiveGuide(true)} />}
-            {currentPage === 'system-info' && <SystemInfo />}
+            {useMemo(() => {
+              switch (currentPage) {
+                case 'dashboard': return <Dashboard />
+                case 'inventory': return <Inventory />
+                case 'management': return <Management />
+                case 'fire-missions': return <FireMissions />
+                case 'logs': return <Logs />
+                case 'settings': return <Settings onShowInteractiveGuide={() => setShowInteractiveGuide(true)} />
+                case 'system-info': return <SystemInfo />
+                case 'network': return <Network />
+                default: return null
+              }
+            }, [currentPage])}
           </main>
         </div>
       ) : (
         // Desktop Layout
         <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
           <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
-          <main style={{ flex: 1, overflow: 'auto', padding: '2rem' }}>
-            {currentPage === 'dashboard' && <Dashboard />}
-            {currentPage === 'inventory' && <Inventory />}
-            {currentPage === 'management' && <Management />}
-            {currentPage === 'fire-missions' && <FireMissions />}
-            {currentPage === 'logs' && <Logs />}
-            {currentPage === 'settings' && <Settings onShowInteractiveGuide={() => setShowInteractiveGuide(true)} />}
-            {currentPage === 'system-info' && <SystemInfo />}
+          <main style={{ 
+            flex: 1, 
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: '2rem',
+            WebkitOverflowScrolling: 'touch', // iOS momentum scrolling
+            willChange: 'scroll-position', // Optimize scrolling
+            touchAction: 'pan-y pan-x', // Enable native touch scrolling
+            userSelect: 'none', // Prevent text selection
+            overscrollBehavior: 'contain', // Prevent overscroll bounce
+            scrollBehavior: 'smooth', // Smooth scrolling
+            // Force hardware acceleration
+            transform: 'translateZ(0)',
+            WebkitTransform: 'translateZ(0)',
+          }}>
+            {useMemo(() => {
+              switch (currentPage) {
+                case 'dashboard': return <Dashboard />
+                case 'inventory': return <Inventory />
+                case 'management': return <Management />
+                case 'fire-missions': return <FireMissions />
+                case 'logs': return <Logs />
+                case 'settings': return <Settings onShowInteractiveGuide={() => setShowInteractiveGuide(true)} />
+                case 'system-info': return <SystemInfo />
+                case 'network': return <Network />
+                default: return null
+              }
+            }, [currentPage])}
           </main>
         </div>
       )}
-      {/* Simple Keyboard - Always available via toggle button */}
-      <SimpleKeyboard
-        visible={keyboardVisible}
-        onToggle={() => setKeyboardVisible(!keyboardVisible)}
-      />
-      {/* Keyboard Toggle Button - Always visible in bottom right */}
-      <KeyboardToggleButton
-        onToggle={() => setKeyboardVisible(!keyboardVisible)}
-        isVisible={keyboardVisible}
-      />
     </>
   )
 }
@@ -148,6 +174,10 @@ function AppContentWithData() {
 function App() {
   const [showSplash, setShowSplash] = useState(true)
   const [exitedKiosk, setExitedKiosk] = useState(false)
+  const [keyboardVisible, setKeyboardVisible] = useState(false)
+
+  // Check for maintenance mode via environment variable
+  const isMaintenanceMode = import.meta.env.VITE_MAINTENANCE_MODE === 'true'
 
   const handleExitKiosk = () => {
     setExitedKiosk(true)
@@ -155,6 +185,11 @@ function App() {
     if (document.exitFullscreen) {
       document.exitFullscreen().catch(() => {})
     }
+  }
+
+  // Show maintenance banner if maintenance mode is enabled
+  if (isMaintenanceMode) {
+    return <MaintenanceBanner />
   }
 
   return (
@@ -170,6 +205,16 @@ function App() {
               <AppContent />
             </ProgressProvider>
           </PasswordProtection>
+          {/* Keyboard - Always available, even on login page */}
+          <SimpleKeyboard
+            visible={keyboardVisible}
+            onToggle={() => setKeyboardVisible(!keyboardVisible)}
+          />
+          {/* Keyboard Toggle Button - Always visible in bottom right, even on login */}
+          <KeyboardToggleButton
+            onToggle={() => setKeyboardVisible(!keyboardVisible)}
+            isVisible={keyboardVisible}
+          />
         </>
       )}
       {exitedKiosk && (

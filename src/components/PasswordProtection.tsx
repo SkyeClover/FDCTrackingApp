@@ -67,36 +67,38 @@ export default function PasswordProtection({ children }: PasswordProtectionProps
 
   if (isLoading) {
     return (
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        backgroundColor: '#1a1a1a',
-        color: '#fff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-      }}>
+      <>
         <div style={{
-          fontSize: '1.2rem',
-          marginBottom: '1rem',
-          textAlign: 'center',
-          padding: '0 2rem',
-          minHeight: '3rem',
           display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
           alignItems: 'center',
-          transition: 'opacity 0.3s'
+          height: '100vh',
+          backgroundColor: '#1a1a1a',
+          color: '#fff',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
         }}>
-          {loadingMessage}
+          <div style={{
+            fontSize: '1.2rem',
+            marginBottom: '1rem',
+            textAlign: 'center',
+            padding: '0 2rem',
+            minHeight: '3rem',
+            display: 'flex',
+            alignItems: 'center',
+            transition: 'opacity 0.3s'
+          }}>
+            {loadingMessage}
+          </div>
+          <div style={{
+            fontSize: '0.9rem',
+            color: '#888',
+            textAlign: 'center'
+          }}>
+            Loading...
+          </div>
         </div>
-        <div style={{
-          fontSize: '0.9rem',
-          color: '#888',
-          textAlign: 'center'
-        }}>
-          Loading...
-        </div>
-      </div>
+      </>
     )
   }
 
@@ -105,16 +107,20 @@ export default function PasswordProtection({ children }: PasswordProtectionProps
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '100vh',
-      width: '100vw',
-      backgroundColor: '#1a1a1a',
-      color: '#fff',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-    }}>
+    <>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        width: '100vw',
+        backgroundColor: '#1a1a1a',
+        color: '#fff',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+        position: 'relative',
+        zIndex: 1, // Lower than keyboard button (999999)
+        pointerEvents: 'none' // Allow clicks to pass through to button behind
+      }}>
       <div style={{
         padding: '2rem',
         backgroundColor: '#2a2a2a',
@@ -122,7 +128,9 @@ export default function PasswordProtection({ children }: PasswordProtectionProps
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
         minWidth: '320px',
         maxWidth: '400px',
-        width: '90%'
+        width: '90%',
+        position: 'relative',
+        pointerEvents: 'auto' // Re-enable pointer events for the form
       }}>
         <h2 style={{ 
           marginBottom: '1.5rem', 
@@ -232,7 +240,8 @@ export default function PasswordProtection({ children }: PasswordProtectionProps
           </button>
         </form>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 

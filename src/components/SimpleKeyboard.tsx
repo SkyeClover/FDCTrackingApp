@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface SimpleKeyboardProps {
   visible: boolean
@@ -7,6 +7,92 @@ interface SimpleKeyboardProps {
 
 export default function SimpleKeyboard({ visible }: SimpleKeyboardProps) {
   const [capsLock, setCapsLock] = useState(false)
+
+  // Function to scroll input into view above keyboard
+  const scrollInputIntoView = (element: HTMLElement) => {
+    const keyboardHeight = 350 // Approximate keyboard height
+    const viewportHeight = window.innerHeight
+    const rect = element.getBoundingClientRect()
+    const elementBottom = rect.bottom
+    const spaceAboveKeyboard = viewportHeight - keyboardHeight
+    
+    // If input is below the keyboard area, scroll it into view
+    if (elementBottom > spaceAboveKeyboard) {
+      // Find the scrollable parent (main element)
+      let scrollableParent: HTMLElement | null = element.parentElement
+      while (scrollableParent) {
+        const style = window.getComputedStyle(scrollableParent)
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll' || 
+            scrollableParent.tagName === 'MAIN' || 
+            scrollableParent.id === 'root') {
+          // Calculate scroll amount
+          const scrollAmount = elementBottom - spaceAboveKeyboard + 30 // 30px padding
+          const currentScroll = scrollableParent.scrollTop
+          
+          scrollableParent.scrollTo({
+            top: currentScroll + scrollAmount,
+            behavior: 'smooth'
+          })
+          break
+        }
+        scrollableParent = scrollableParent.parentElement
+      }
+      
+      // Also try scrolling the element itself into view
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'nearest'
+      })
+    }
+  }
+
+  // Auto-scroll to active input when keyboard appears
+  useEffect(() => {
+    if (visible) {
+      // Small delay to ensure keyboard is rendered
+      const timer = setTimeout(() => {
+        const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
+        
+        if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+          scrollInputIntoView(activeElement)
+        }
+      }, 100) // Small delay to ensure keyboard is rendered
+      
+      return () => clearTimeout(timer)
+    }
+  }, [visible])
+
+  // Listen for focus events on inputs to auto-scroll when keyboard is visible
+  useEffect(() => {
+    if (!visible) return
+
+    const handleFocus = (e: Event) => {
+      const target = e.target as HTMLElement
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        // Small delay to ensure focus is complete
+        setTimeout(() => {
+          scrollInputIntoView(target)
+        }, 50)
+      }
+    }
+
+    // Add focus listener to all inputs and textareas
+    const inputs = document.querySelectorAll('input, textarea')
+    inputs.forEach(input => {
+      input.addEventListener('focus', handleFocus)
+    })
+
+    // Also listen on document for dynamically added inputs
+    document.addEventListener('focusin', handleFocus)
+
+    return () => {
+      inputs.forEach(input => {
+        input.removeEventListener('focus', handleFocus)
+      })
+      document.removeEventListener('focusin', handleFocus)
+    }
+  }, [visible])
 
   const handleKeyPress = (key: string) => {
     const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
@@ -156,7 +242,7 @@ export default function SimpleKeyboard({ visible }: SimpleKeyboardProps) {
         padding: '12px',
         paddingLeft: '8px',
         paddingRight: '8px',
-        zIndex: 10002,
+        zIndex: 99998, // Just below keyboard button, but above everything else
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',

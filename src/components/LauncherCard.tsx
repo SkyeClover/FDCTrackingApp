@@ -3,6 +3,7 @@ import { Launcher, Pod } from '../types'
 import { RotateCcw } from 'lucide-react'
 import { useProgress } from '../context/ProgressContext'
 import { useAppData } from '../context/AppDataContext'
+import { useIsTablet } from '../hooks/useIsTablet'
 
 interface LauncherCardProps {
   launcher: Launcher
@@ -15,20 +16,22 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
   const { taskProgress } = useProgress()
   const { tasks, clearTask, taskTemplates, endTaskEarly } = useAppData()
   const [currentTime, setCurrentTime] = useState(new Date())
+  const isTablet = useIsTablet()
   const availableRounds = pod?.rounds.filter((r) => r.status === 'available').length || 0
   const usedRounds = pod?.rounds.filter((r) => r.status === 'used').length || 0
   const roundType = pod?.rounds[0]?.type || 'N/A'
   const maxRounds = 6 // Standard capacity
 
-  // Update time every second for standby time display
+  // Update time every second for standby time display and task elapsed time
   useEffect(() => {
-    if (launcher.status === 'idle' && launcher.lastIdleTime) {
+    const needsUpdate = (launcher.status === 'idle' && launcher.lastIdleTime) || launcher.currentTask
+    if (needsUpdate) {
       const interval = setInterval(() => {
         setCurrentTime(new Date())
       }, 1000)
       return () => clearInterval(interval)
     }
-  }, [launcher.status, launcher.lastIdleTime])
+  }, [launcher.status, launcher.lastIdleTime, launcher.currentTask])
 
   // Use live progress from separate state if available, otherwise use task progress
   const currentProgress = launcher.currentTask?.id 
@@ -56,9 +59,9 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
   let taskEndTime24h = ''
   
   if (taskStartTime && launcher.currentTask) {
-    const elapsedSeconds = Math.floor((Date.now() - taskStartTime.getTime()) / 1000)
-    // For reload tasks, allow elapsed time to exceed expected duration
-    taskElapsed = isReloadTask ? elapsedSeconds : Math.min(elapsedSeconds, taskDuration)
+    const elapsedSeconds = Math.floor((currentTime.getTime() - taskStartTime.getTime()) / 1000)
+    // Allow elapsed time to exceed expected duration for all tasks (so user can see how long over)
+    taskElapsed = elapsedSeconds
     taskTotal = taskDuration
     
     // Format start time in 24-hour format
@@ -91,11 +94,11 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
       style={{
         backgroundColor: 'var(--bg-tertiary)',
         border: '1px solid var(--border)',
-        borderRadius: '6px',
-        padding: '1rem',
+        borderRadius: '8px',
+        padding: isTablet ? '1.25rem' : '1rem',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
+        gap: isTablet ? '1rem' : '0.75rem',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'all 0.2s',
       }}
@@ -136,20 +139,32 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
             onReload?.()
           }}
           style={{
-            padding: '0.35rem 0.65rem',
+            padding: isTablet ? '0.6rem 1rem' : '0.35rem 0.65rem',
             backgroundColor: 'var(--bg-secondary)',
             border: '1px solid var(--border)',
-            borderRadius: '4px',
+            borderRadius: '6px',
             color: 'var(--text-primary)',
             cursor: 'pointer',
-            fontSize: '0.75rem',
+            fontSize: isTablet ? '0.9rem' : '0.75rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.35rem',
+            gap: isTablet ? '0.5rem' : '0.35rem',
             fontWeight: '500',
+            minHeight: isTablet ? '48px' : 'auto',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            if (!isTablet) return
+            e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
+            e.currentTarget.style.borderColor = 'var(--accent)'
+          }}
+          onMouseLeave={(e) => {
+            if (!isTablet) return
+            e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'
+            e.currentTarget.style.borderColor = 'var(--border)'
           }}
         >
-          <RotateCcw size={14} />
+          <RotateCcw size={isTablet ? 18 : 14} />
           Reload
         </button>
       </div>
@@ -349,14 +364,16 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
                     }
                   }}
                   style={{
-                    padding: '0.25rem 0.5rem',
+                    padding: isTablet ? '0.5rem 0.75rem' : '0.25rem 0.5rem',
                     backgroundColor: 'var(--warning)',
                     border: 'none',
-                    borderRadius: '4px',
+                    borderRadius: '6px',
                     color: 'white',
                     cursor: 'pointer',
-                    fontSize: '0.7rem',
+                    fontSize: isTablet ? '0.85rem' : '0.7rem',
                     fontWeight: '500',
+                    minHeight: isTablet ? '40px' : 'auto',
+                    transition: 'all 0.2s',
                   }}
                 >
                   End Early
@@ -369,14 +386,16 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
                     clearTask(launcher.id)
                   }}
                   style={{
-                    padding: '0.25rem 0.5rem',
+                    padding: isTablet ? '0.5rem 0.75rem' : '0.25rem 0.5rem',
                     backgroundColor: 'var(--accent)',
                     border: 'none',
-                    borderRadius: '4px',
+                    borderRadius: '6px',
                     color: 'white',
                     cursor: 'pointer',
-                    fontSize: '0.7rem',
+                    fontSize: isTablet ? '0.85rem' : '0.7rem',
                     fontWeight: '500',
+                    minHeight: isTablet ? '40px' : 'auto',
+                    transition: 'all 0.2s',
                   }}
                 >
                   Clear

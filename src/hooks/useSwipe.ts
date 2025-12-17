@@ -85,18 +85,23 @@ export function useSwipe<T extends HTMLElement = HTMLDivElement>({
         const deltaX = Math.abs(touch.clientX - touchStartRef.current.x)
         const deltaY = Math.abs(touch.clientY - touchStartRef.current.y)
         
-        // Only prevent default for horizontal swipes (drawer)
-        // Vertical swipes (modals) should allow scrolling until threshold is met
-        if (onSwipeLeft || onSwipeRight) {
-          if (deltaX > deltaY && deltaX > 10) {
+        // Only prevent default for strong horizontal swipes (drawer)
+        // Always allow vertical scrolling - never prevent default for vertical movements
+        if ((onSwipeLeft || onSwipeRight) && !onSwipeUp && !onSwipeDown) {
+          // Only for horizontal-only swipe handlers, and only if movement is clearly horizontal
+          // Make threshold higher to be less aggressive
+          if (deltaX > 30 && deltaX > deltaY * 2) {
             e.preventDefault()
           }
         }
+        // For vertical swipes or mixed handlers, never prevent default to allow scrolling
       }
     }
 
-    element.addEventListener('touchstart', handleTouchStart, { passive: false })
+    element.addEventListener('touchstart', handleTouchStart, { passive: true })
     element.addEventListener('touchend', handleTouchEnd, { passive: true })
+    // Use passive: false only when we might prevent default (for horizontal swipes)
+    // This allows native scrolling to work smoothly
     element.addEventListener('touchmove', handleTouchMove, { passive: false })
 
     return () => {

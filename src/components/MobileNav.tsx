@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, Package, Settings, FileText, HelpCircle, Menu, X, Rocket, Cpu } from 'lucide-react'
+import { LayoutDashboard, Package, Settings, FileText, HelpCircle, Menu, X, Rocket, Cpu, Network } from 'lucide-react'
 import { useSwipe } from '../hooks/useSwipe'
 
-type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings' | 'fire-missions' | 'system-info'
+type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings' | 'fire-missions' | 'system-info' | 'network'
 
 interface MobileNavProps {
   currentPage: Page
@@ -16,6 +16,7 @@ const menuItems = [
   { id: 'fire-missions' as Page, label: 'Fire Missions', icon: Rocket },
   { id: 'logs' as Page, label: 'Logs', icon: FileText },
   { id: 'system-info' as Page, label: 'System Info', icon: Cpu },
+  { id: 'network' as Page, label: 'Network', icon: Network },
   { id: 'settings' as Page, label: 'Settings', icon: HelpCircle },
 ]
 

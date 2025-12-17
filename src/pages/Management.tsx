@@ -320,17 +320,21 @@ const TaskTemplateForm = memo(({
 }) => {
   const [name, setName] = useState(editingTemplate?.name || '')
   const [description, setDescription] = useState(editingTemplate?.description || '')
-  const [duration, setDuration] = useState<number | ''>(editingTemplate?.duration || 60)
+  // Duration is stored in minutes in the UI, but converted to seconds for storage
+  const initialDurationMinutes = editingTemplate ? Math.floor(editingTemplate.duration / 60) : 2
+  const [duration, setDuration] = useState<number | ''>(initialDurationMinutes)
   const [type, setType] = useState<TaskTemplate['type']>(editingTemplate?.type || 'custom')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (name.trim()) {
-      const finalDuration = typeof duration === 'number' ? duration : 60
-      onSubmit({ name: name.trim(), description, duration: finalDuration, type })
+      // Convert minutes to seconds for storage
+      const finalDurationMinutes = typeof duration === 'number' ? duration : 2
+      const finalDurationSeconds = finalDurationMinutes * 60
+      onSubmit({ name: name.trim(), description, duration: finalDurationSeconds, type })
       setName('')
       setDescription('')
-      setDuration(60)
+      setDuration(2) // Default to 2 minutes
       setType('custom')
     }
   }
@@ -400,12 +404,18 @@ const TaskTemplateForm = memo(({
             }
           }}
           onBlur={(e) => {
-            if (e.target.value === '' || parseInt(e.target.value) < 1) {
-              setDuration(60)
+            const value = e.target.value
+            if (value === '') {
+              // Allow empty value - user can clear it
+              return
+            }
+            const num = parseInt(value)
+            if (isNaN(num) || num < 1) {
+              setDuration(2) // Default to 2 minutes
             }
           }}
           onFocus={(e) => e.target.select()}
-          placeholder="Duration (seconds)"
+          placeholder="Duration (minutes)"
           min="1"
           required
           style={{

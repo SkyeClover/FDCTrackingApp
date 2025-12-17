@@ -138,13 +138,15 @@ FDCTrackingApp/
 - Configurable round types (default: M28A1, M26, M31, M30)
 - Custom round types can be added and enabled/disabled
 
-## Deployment to Vercel
+## Deployment
+
+### Deployment to Vercel (Web)
 
 📖 **For detailed step-by-step instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md)**
 
 📋 **Quick checklist: [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)**
 
-### Quick Start
+**Quick Start:**
 
 1. **Push your code to GitHub**:
    ```bash
@@ -165,6 +167,33 @@ FDCTrackingApp/
 
 3. **Test**: Visit your deployment URL and verify the login screen appears
 
+### Deployment to Raspberry Pi
+
+📖 **For Raspberry Pi setup, see [pi-setup/README.md](./pi-setup/README.md)**
+
+**Quick Deploy:**
+
+1. **Build the app**:
+   ```bash
+   npm run build
+   ```
+
+2. **Deploy to Pi**:
+   ```bash
+   ./deploy-to-pi-simple.sh [PI_IP_OR_HOSTNAME]
+   ```
+   
+   Default hostname: `fdc-tracker.local`
+
+The deployment script will:
+- Build the app
+- Transfer files to the Pi
+- Install dependencies
+- Restart the service
+- Reboot the Pi
+
+**Note:** Make sure SSH access is configured on your Pi before deploying.
+
 ### Local Development
 
 For local testing, the default credentials are:
@@ -181,7 +210,20 @@ VITE_AUTH_PASSWORD=your_password
 
 The password protection uses client-side authentication, suitable for testing and sharing with friends. For production use with sensitive data, consider server-side authentication.
 
+## Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run pi-proxy` - Start proxy server for remote Pi connection
+
 ## Recent Updates
+
+### Codebase Cleanup
+- Removed duplicate deployment scripts (kept `deploy-to-pi-simple.sh`)
+- Removed unused test files and temporary files
+- Consolidated exit handler (using `.cjs` version)
+- Updated `.gitignore` for better organization
 
 ### Mobile Improvements
 - Reorganized Management page layout for mobile devices
@@ -194,6 +236,13 @@ The password protection uses client-side authentication, suitable for testing an
 - Users receive alerts when tasks complete
 - Clear button added for completed tasks
 - Visual indicators (checkmarks, green styling) for completed tasks
+
+## Additional Documentation
+
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Detailed Vercel deployment guide
+- **[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** - Deployment checklist
+- **[pi-proxy-setup.md](./pi-proxy-setup.md)** - Remote Pi connection setup
+- **[pi-setup/README.md](./pi-setup/README.md)** - Raspberry Pi setup guide
 
 ## Version
 

@@ -210,7 +210,7 @@ export default function ReloadModal({
             }}
           >
             <Truck size={18} />
-            Available Pods by RSV ({availablePods.length})
+            Pods Available for Reload ({availablePods.length})
           </div>
 
           {availablePods.length === 0 ? (
@@ -225,7 +225,7 @@ export default function ReloadModal({
                 border: '1px solid var(--border)',
               }}
             >
-              No available pods in RSV's or POC inventory
+              No pods available for reload in RSV's or POC inventory
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
