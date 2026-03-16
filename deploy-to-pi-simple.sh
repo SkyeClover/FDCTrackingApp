@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 
 # Simple deployment script using SSH with password
 # Usage: ./deploy-to-pi-simple.sh [PI_IP_OR_HOSTNAME]

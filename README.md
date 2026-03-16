@@ -1,8 +1,11 @@
 # FDC Tracker
 
-A modern web application for tracking rounds, pods, and launchers. Designed for AFATDS Operators to manage ammunition tracking and report generation.
+A personal web app for tracking ammunition, pods, and launchers in an FDC (Fire Direction Center) context. Built for use by AFATDS operators to manage HIMARS-style ammunition tracking, assignments, and reporting—developed as a side project while on active duty.
 
-**Author:** Jacob Walker
+The app models your battery/platoon structure (BOCs, POCs, Ammo PLT), launchers, reload supply vehicles (RSVs), and pods; you create inventory, assign assets, run tasks (e.g. fire missions, reloads), and view logs and reports. Data is stored locally in the browser (no backend required). It runs on desktop and mobile, and can be deployed to a Raspberry Pi for field use.
+
+**Author:** Jacob Walker  
+**License:** Proprietary. All rights reserved. See [LICENSE](LICENSE).
 
 ## Features
 
@@ -19,35 +22,6 @@ A modern web application for tracking rounds, pods, and launchers. Designed for 
 - **Logs**: Monitor all system activity and changes
 - **Settings/Help**: Get started guide and terminology reference
 - **User Role Selection**: Set current user role (BOC or POC) for role-based views
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js (v18 or higher)
-- npm or yarn
-
-### Installation
-
-1. Install dependencies:
-```bash
-npm install
-```
-
-2. Start the development server:
-```bash
-npm run dev
-```
-
-3. Open your browser and navigate to `http://localhost:5173`
-
-### Build for Production
-
-```bash
-npm run build
-```
-
-The built files will be in the `dist` directory.
 
 ## Project Structure
 
@@ -138,111 +112,12 @@ FDCTrackingApp/
 - Configurable round types (default: M28A1, M26, M31, M30)
 - Custom round types can be added and enabled/disabled
 
-## Deployment
-
-### Deployment to Vercel (Web)
-
-📖 **For detailed step-by-step instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md)**
-
-📋 **Quick checklist: [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)**
-
-**Quick Start:**
-
-1. **Push your code to GitHub**:
-   ```bash
-   git add .
-   git commit -m "Prepare for deployment"
-   git push origin main
-   ```
-
-2. **Connect to Vercel**:
-   - Go to [vercel.com](https://vercel.com) and sign in
-   - Click "Add New Project"
-   - Import repository: `SkyeClover/FDCTrackingApp`
-   - **IMPORTANT**: Add environment variables before deploying:
-     - `VITE_AUTH_USERNAME` = your username
-     - `VITE_AUTH_PASSWORD` = your password
-     - Enable for Production, Preview, and Development
-   - Click "Deploy"
-
-3. **Test**: Visit your deployment URL and verify the login screen appears
-
-### Deployment to Raspberry Pi
-
-📖 **For Raspberry Pi setup, see [pi-setup/README.md](./pi-setup/README.md)**
-
-**Quick Deploy:**
-
-1. **Build the app**:
-   ```bash
-   npm run build
-   ```
-
-2. **Deploy to Pi**:
-   ```bash
-   ./deploy-to-pi-simple.sh [PI_IP_OR_HOSTNAME]
-   ```
-   
-   Default hostname: `fdc-tracker.local`
-
-The deployment script will:
-- Build the app
-- Transfer files to the Pi
-- Install dependencies
-- Restart the service
-- Reboot the Pi
-
-**Note:** Make sure SSH access is configured on your Pi before deploying.
-
-### Local Development
-
-For local testing, the default credentials are:
-- Username: `admin`
-- Password: `changeme`
-
-To customize, create a `.env` file:
-```env
-VITE_AUTH_USERNAME=your_username
-VITE_AUTH_PASSWORD=your_password
-```
-
-### Security Note
-
-The password protection uses client-side authentication, suitable for testing and sharing with friends. For production use with sensitive data, consider server-side authentication.
-
 ## Scripts
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
-- `npm run pi-proxy` - Start proxy server for remote Pi connection
-
-## Recent Updates
-
-### Codebase Cleanup
-- Removed duplicate deployment scripts (kept `deploy-to-pi-simple.sh`)
-- Removed unused test files and temporary files
-- Consolidated exit handler (using `.cjs` version)
-- Updated `.gitignore` for better organization
-
-### Mobile Improvements
-- Reorganized Management page layout for mobile devices
-- RSVs table converted to card layout on mobile
-- Improved content wrapping and overflow handling
-- Better spacing and font sizing for mobile screens
-
-### Task Management
-- Completed tasks now remain visible until manually cleared
-- Users receive alerts when tasks complete
-- Clear button added for completed tasks
-- Visual indicators (checkmarks, green styling) for completed tasks
-
-## Additional Documentation
-
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Detailed Vercel deployment guide
-- **[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** - Deployment checklist
-- **[pi-proxy-setup.md](./pi-proxy-setup.md)** - Remote Pi connection setup
-- **[pi-setup/README.md](./pi-setup/README.md)** - Raspberry Pi setup guide
+- `npm run pi-proxy` - Start proxy server for Pi system info (optional; app works without it)
 
 ## Version
 

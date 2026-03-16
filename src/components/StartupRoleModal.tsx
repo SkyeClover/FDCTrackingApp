@@ -96,6 +96,28 @@ export default function StartupRoleModal({ isOpen, onClose }: StartupRoleModalPr
           </p>
         </div>
 
+        <div
+          style={{
+            marginBottom: '1.5rem',
+            padding: '0.75rem 1rem',
+            backgroundColor: 'var(--bg-secondary)',
+            borderRadius: '6px',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            This is an older version of the app. I'm currently building a new version (WalkerTrack) from the ground up.{' '}
+            <a
+              href="https://www.walkerjacob.com/blog/walkertrack-devlog-1"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}
+            >
+              Read the devlog
+            </a>
+          </p>
+        </div>
+
         <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: '1.6' }}>
           To get started, please create and assign yourself to a BOC (Battery Operations Center) or POC (PLT Operations Center).
         </p>

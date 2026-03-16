@@ -99,6 +99,28 @@ export default function FirstTimeGuideModal({ isOpen, onClose, onNavigateToSetti
           </div>
         </div>
 
+        <div
+          style={{
+            marginBottom: '1.5rem',
+            padding: '0.75rem 1rem',
+            backgroundColor: 'var(--bg-secondary)',
+            borderRadius: '6px',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            This is an older version. A new version (WalkerTrack) is being rebuilt from the ground up.{' '}
+            <a
+              href="https://www.walkerjacob.com/blog/walkertrack-devlog-1"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}
+            >
+              Read the devlog
+            </a>
+          </p>
+        </div>
+
         <div style={{ marginBottom: '1.5rem' }}>
           <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '1rem' }}>
             Great! You've created and assigned yourself to your first BOC or POC. Now that you're set up, 

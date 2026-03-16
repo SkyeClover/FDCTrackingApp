@@ -199,8 +199,13 @@ export default function SystemInfo() {
 
   if (error) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--danger, #ff4444)' }}>
-        Error: {error}
+      <div style={{ padding: '2rem', textAlign: 'center', maxWidth: '480px', margin: '0 auto' }}>
+        <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>
+          Raspberry Pi System Information
+        </h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
+          System information is available when the Pi proxy is running. Start it with <code style={{ backgroundColor: 'var(--bg-secondary)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>npm run pi-proxy</code> (see pi-proxy-setup.md). The app works normally without it.
+        </p>
         <button
           onClick={() => {
             setLoading(true)

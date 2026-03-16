@@ -14,9 +14,8 @@ import { ProgressProvider, useProgress } from './context/ProgressContext'
 import StartupRoleModal from './components/StartupRoleModal'
 import FirstTimeGuideModal from './components/FirstTimeGuideModal'
 import InteractiveGuideModal from './components/InteractiveGuideModal'
-import PasswordProtection from './components/PasswordProtection'
-import BootSplash from './components/BootSplash'
 import KioskExit from './components/KioskExit'
+import WarningBanner from './components/WarningBanner'
 import SimpleKeyboard from './components/SimpleKeyboard'
 import KeyboardToggleButton from './components/KeyboardToggleButton'
 import MaintenanceBanner from './components/MaintenanceBanner'
@@ -172,7 +171,6 @@ function AppContentWithData() {
 }
 
 function App() {
-  const [showSplash, setShowSplash] = useState(true)
   const [exitedKiosk, setExitedKiosk] = useState(false)
   const [keyboardVisible, setKeyboardVisible] = useState(false)
 
@@ -194,23 +192,17 @@ function App() {
 
   return (
     <>
-      {showSplash && (
-        <BootSplash onComplete={() => setShowSplash(false)} />
-      )}
-      {!showSplash && !exitedKiosk && (
+      {!exitedKiosk && (
         <>
           <KioskExit onExit={handleExitKiosk} />
-          <PasswordProtection>
-            <ProgressProvider>
-              <AppContent />
-            </ProgressProvider>
-          </PasswordProtection>
-          {/* Keyboard - Always available, even on login page */}
+          <WarningBanner />
+          <ProgressProvider>
+            <AppContent />
+          </ProgressProvider>
           <SimpleKeyboard
             visible={keyboardVisible}
             onToggle={() => setKeyboardVisible(!keyboardVisible)}
           />
-          {/* Keyboard Toggle Button - Always visible in bottom right, even on login */}
           <KeyboardToggleButton
             onToggle={() => setKeyboardVisible(!keyboardVisible)}
             isVisible={keyboardVisible}

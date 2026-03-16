@@ -1339,7 +1339,7 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
                 </button>
               </div>
 
-              {/* Restart App Button */}
+              {/* Restart App Button - only works when Pi-side service is running */}
               <div style={{ marginBottom: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
                 <p
                   style={{
@@ -1348,7 +1348,7 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
                     marginBottom: '0.5rem',
                   }}
                 >
-                  Restart the application service on the Raspberry Pi. This will reload the app.
+                  Restart the application service on the Raspberry Pi. Only available when running on Pi with the local service.
                 </p>
                 <button
                   onClick={async () => {
@@ -1358,22 +1358,17 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
                     try {
                       const response = await fetch('http://localhost:3001/restart-app', {
                         method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                       })
                       const data = await response.json()
                       if (data.success) {
                         alert('App restart initiated. The app will reload in a few seconds.')
-                        setTimeout(() => {
-                          window.location.reload()
-                        }, 3000)
+                        setTimeout(() => window.location.reload(), 3000)
                       } else {
                         alert('Failed to restart app: ' + (data.error || 'Unknown error'))
                       }
-                    } catch (error) {
-                      console.error('Failed to restart app:', error)
-                      alert('Failed to restart app. The API may not be available.')
+                    } catch {
+                      alert('Restart service is not available. Run the app on the Pi with the local service for this feature.')
                     }
                   }}
                   style={{
@@ -1397,7 +1392,7 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
                 </button>
               </div>
 
-              {/* Restart PI Button */}
+              {/* Restart PI Button - only works when Pi-side service is running */}
               <div style={{ marginBottom: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
                 <p
                   style={{
@@ -1406,32 +1401,25 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
                     marginBottom: '0.5rem',
                   }}
                 >
-                  Restart the Raspberry Pi. This will shut down and restart the entire system.
+                  Restart the Raspberry Pi. Only available when running on Pi with the local service.
                 </p>
                 <button
                   onClick={async () => {
-                    if (!confirm('Are you sure you want to restart the Raspberry Pi? This will shut down the entire system.')) {
-                      return
-                    }
-                    if (!confirm('This will restart the PI. Are you absolutely sure?')) {
-                      return
-                    }
+                    if (!confirm('Are you sure you want to restart the Raspberry Pi? This will shut down the entire system.')) return
+                    if (!confirm('This will restart the Pi. Are you absolutely sure?')) return
                     try {
                       const response = await fetch('http://localhost:3001/restart-pi', {
                         method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                       })
                       const data = await response.json()
                       if (data.success) {
-                        alert('PI restart initiated. The system will restart in a few seconds.')
+                        alert('Pi restart initiated. The system will restart in a few seconds.')
                       } else {
-                        alert('Failed to restart PI: ' + (data.error || 'Unknown error'))
+                        alert('Failed to restart Pi: ' + (data.error || 'Unknown error'))
                       }
-                    } catch (error) {
-                      console.error('Failed to restart PI:', error)
-                      alert('Failed to restart PI. The API may not be available.')
+                    } catch {
+                      alert('Restart service is not available. Run the app on the Pi with the local service for this feature.')
                     }
                   }}
                   style={{
@@ -1451,11 +1439,11 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
                   }}
                 >
                   <RotateCw size={18} />
-                  Restart PI
+                  Restart Pi
                 </button>
               </div>
 
-              {/* Exit to Desktop Button */}
+              {/* Exit to Desktop - only works when Pi-side service is running */}
               <div style={{ paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
                 <p
                   style={{
@@ -1464,31 +1452,24 @@ export default function Settings({ onShowInteractiveGuide }: SettingsProps = {})
                     marginBottom: '0.75rem',
                   }}
                 >
-                  Exit kiosk mode and return to the desktop. This will launch a terminal and close the app.
+                  Exit kiosk mode and return to the desktop. Only available when running on Pi with the local service.
                 </p>
                 <button
                   onClick={async () => {
                     try {
                       const response = await fetch('http://localhost:3001/exit', {
                         method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                       })
                       const data = await response.json()
                       if (data.success) {
-                        // Exit fullscreen if possible
-                        if (document.exitFullscreen) {
-                          document.exitFullscreen().catch(() => {})
-                        }
-                        // Try to close window
+                        if (document.exitFullscreen) document.exitFullscreen().catch(() => {})
                         window.close()
                       } else {
-                        alert('Failed to exit kiosk mode. Please try pressing ESC or long-pressing the top-left corner.')
+                        alert('Failed to exit kiosk mode. Try ESC or long-press the top-left corner.')
                       }
-                    } catch (error) {
-                      console.error('Failed to exit kiosk mode:', error)
-                      alert('Failed to exit kiosk mode. The exit handler may not be running.')
+                    } catch {
+                      alert('Exit service is not available. Run the app on the Pi with the local service for this feature.')
                     }
                   }}
                   style={{

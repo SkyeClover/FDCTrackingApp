@@ -58,7 +58,7 @@ async function getSystemInfoFromPI5() {
     let temperature = 'N/A';
     try {
       const temp = await executeOnPI5('vcgencmd measure_temp');
-      temperature = temp.replace('temp=', '').replace("'C", '°C');
+      temperature = temp.replace('temp=', '').replace("'C", '\u00B0C');
     } catch (e) {
       console.warn('Could not get temperature:', e.message);
     }

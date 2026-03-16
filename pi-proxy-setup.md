@@ -1,4 +1,4 @@
-# PI5 System Info Proxy Setup
+﻿# PI5 System Info Proxy Setup
 
 This guide explains how to connect the app to a remote PI5 to view system statistics.
 
