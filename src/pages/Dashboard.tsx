@@ -62,45 +62,8 @@ export default function Dashboard() {
     setReloadLauncherId(null)
   }
 
-  if (pocs.length === 0) {
-    return (
-      <div>
-        <DashboardHeader
-          onInitiateFireMission={handleInitiateFireMission}
-          onReport={handleReport}
-          onSaveLoad={handleSaveLoad}
-        />
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '400px',
-            color: 'var(--text-secondary)',
-          }}
-        >
-          <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>
-            Nothing to see here!
-          </h2>
-          <p style={{ fontSize: '1.1rem' }}>
-            Go to Inventory to start creating POCs, Launchers, Pods, and Rounds
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  // Calculate responsive grid columns based on number of POCs
-  // Ammo PLT card will be positioned separately
-  const getGridColumns = () => {
-    if (isMobile) return '1fr' // Single column on mobile
-    if (pocs.length === 1) return '1fr'
-    if (pocs.length === 2) return 'repeat(2, 1fr)'
-    return 'repeat(auto-fit, minmax(400px, 1fr))'
-  }
-
-  // Calculate quick stats
+  // All hooks must run before any conditional return (React rules of hooks)
+  // Calculate quick stats (used in both empty and full dashboard states)
   const quickStats = useMemo(() => {
     const activeLaunchers = launchers.filter(l => l.status === 'active').length
     const idleLaunchers = launchers.filter(l => l.status === 'idle').length
@@ -128,6 +91,45 @@ export default function Dashboard() {
       totalAvailableRounds,
     }
   }, [launchers, pods])
+
+  if (pocs.length === 0) {
+    return (
+      <div>
+        <DashboardHeader
+          onInitiateFireMission={handleInitiateFireMission}
+          onReport={handleReport}
+          onSaveLoad={handleSaveLoad}
+          onSaveToFile={saveToFile}
+          onLoadFromFile={loadFromFile}
+        />
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '400px',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>
+            Nothing to see here!
+          </h2>
+          <p style={{ fontSize: '1.1rem' }}>
+            Go to Inventory to start creating POCs, Launchers, Pods, and Rounds
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Calculate responsive grid columns based on number of POCs
+  const getGridColumns = () => {
+    if (isMobile) return '1fr'
+    if (pocs.length === 1) return '1fr'
+    if (pocs.length === 2) return 'repeat(2, 1fr)'
+    return 'repeat(auto-fit, minmax(400px, 1fr))'
+  }
 
   return (
     <div>

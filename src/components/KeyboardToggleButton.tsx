@@ -13,27 +13,29 @@ export default function KeyboardToggleButton({ onToggle, isVisible }: KeyboardTo
     e.stopPropagation()
     
     try {
-      // Call backend API to toggle system keyboard (Onboard)
+      // Call backend API to toggle system keyboard (Onboard) when running on Pi
       const response = await fetch('http://localhost:3001/keyboard-toggle', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       })
-      
+
       const data = await response.json()
-      
+
       if (data.success) {
-        // Also call the React handler to update UI state
         onToggle()
       } else {
-        console.error('Failed to toggle keyboard:', data.error)
-        // Fallback: still call the React handler
+        console.warn('Keyboard API:', data.error ?? 'Unknown error')
         onToggle()
       }
     } catch (error) {
-      console.error('Error toggling keyboard:', error)
-      // Fallback: call the React handler anyway
+      // Backend not available (e.g. dev in browser or not on Pi) - use in-app keyboard only
+      const isNetworkError =
+        error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('fetch'))
+      if (!isNetworkError) {
+        console.error('Error toggling keyboard:', error)
+      }
       onToggle()
     }
   }
