@@ -245,13 +245,169 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
     alert('ASCII report copied to clipboard!')
   }
 
+  /** Build a self-contained HTML document for printing (no dependency on app layout/CSS). */
+  const buildPrintDocumentHtml = (printedAt: string): string => {
+    const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const sections: string[] = []
+
+    // Header
+    let metaHtml = `<p style="margin:0.25rem 0;font-size:11pt;color:#333;">Generated: ${esc(new Date().toLocaleString())}</p>`
+    metaHtml += `<p style="margin:0.25rem 0;font-size:11pt;color:#333;">Printed: ${esc(printedAt)}</p>`
+    if (selectedBOC) {
+      const boc = bocs.find((b) => b.id === selectedBOC)
+      metaHtml += `<p style="margin:0.25rem 0;font-size:11pt;color:#333;">Filter: BOC ${esc(boc?.name || selectedBOC)}</p>`
+    }
+    if (selectedPOC) {
+      const poc = pocs.find((p) => p.id === selectedPOC)
+      metaHtml += `<p style="margin:0.25rem 0;font-size:11pt;color:#333;">Filter: POC ${esc(poc?.name || selectedPOC)}</p>`
+    }
+    sections.push(`
+      <div class="report-header">
+        <h1>FDC Tracker &ndash; Ammunition Status Report</h1>
+        <div class="report-meta">${metaHtml}</div>
+      </div>
+    `)
+
+    if (filteredPOCs.length === 0) {
+      sections.push('<p class="report-empty">No POCs match the selected filters.</p>')
+    } else {
+      filteredPOCs.forEach((poc) => {
+        const pocPods = getPOCPods(poc)
+        const pocLaunchers = launchers.filter((l) => l.pocId === poc.id)
+        const podsOnGround = pocPods.filter((p) => !p.launcherId)
+        const podsOnLaunchers = pocPods.filter((p) => p.launcherId)
+        const pocRSVs = rsvs.filter((r) => r.pocId === poc.id || r.bocId === poc.bocId)
+        const podsInStock = podsOnGround.filter((p) => p.pocId === poc.id && !p.rsvId)
+        const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
+
+        let sectionHtml = `
+          <div class="report-section">
+            <h2>${esc(poc.name)}</h2>
+            <div class="report-grid">
+              <div class="report-card"><span class="label">Launchers</span><span class="value">${pocLaunchers.length}</span></div>
+              <div class="report-card"><span class="label">RSVs</span><span class="value">${pocRSVs.length}</span></div>
+              <div class="report-card"><span class="label">In Stock</span><span class="value">${podsInStock.length}</span></div>
+              <div class="report-card"><span class="label">On RSVs</span><span class="value">${podsOnRSVs.length}</span></div>
+              <div class="report-card"><span class="label">On Launchers</span><span class="value">${podsOnLaunchers.length}</span></div>
+              <div class="report-card"><span class="label">Total Pods</span><span class="value">${pocPods.length}</span></div>
+            </div>
+        `
+        roundTypeOptions.forEach((option) => {
+          const podsOfType = pocPods.filter((p) => p.rounds[0]?.type === option.value)
+          if (podsOfType.length === 0) return
+          const totalRounds = podsOfType.reduce((sum, p) => sum + p.rounds.length, 0)
+          const availableRounds = podsOfType.reduce((sum, p) => sum + p.rounds.filter((r) => r.status === 'available').length, 0)
+          const usedRounds = podsOfType.reduce((sum, p) => sum + p.rounds.filter((r) => r.status === 'used').length, 0)
+          sectionHtml += `
+            <div class="round-type-card">
+              <strong>${esc(option.label)}</strong>
+              <div>Pods: ${podsOfType.length} &bull; Total: ${totalRounds} &bull; Available: ${availableRounds} &bull; Used: ${usedRounds}</div>
+            </div>
+          `
+        })
+        if (pocLaunchers.length > 0) {
+          sectionHtml += '<div class="subsection-title">Launchers</div><div class="report-grid compact">'
+          pocLaunchers.forEach((launcher) => {
+            const pod = pods.find((p) => p.launcherId === launcher.id)
+            const availableRounds = pod?.rounds.filter((r) => r.status === 'available').length ?? 0
+            const roundType = pod?.rounds[0]?.type ?? 'N/A'
+            sectionHtml += `<div class="report-card">${esc(launcher.name)}: ${esc(roundType)} &ndash; ${availableRounds}/6</div>`
+          })
+          sectionHtml += '</div>'
+        }
+        if (pocRSVs.length > 0) {
+          sectionHtml += '<div class="subsection-title">RSVs</div>'
+          pocRSVs.forEach((rsv) => {
+            const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
+            sectionHtml += `<div class="report-card"><strong>${esc(rsv.name)}</strong> (${rsvPods.length} pod${rsvPods.length !== 1 ? 's' : ''})</div>`
+          })
+        }
+        sectionHtml += '</div>'
+        sections.push(sectionHtml)
+      })
+
+      if (selectedBOC && ammoPltBocId === selectedBOC) {
+        const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === AMMO_PLT_ID)
+        const ammoPltPods = pods.filter((p) => {
+          if (p.ammoPltId === AMMO_PLT_ID) return true
+          if (p.rsvId) {
+            const r = rsvs.find((rv) => rv.id === p.rsvId)
+            return r?.ammoPltId === AMMO_PLT_ID
+          }
+          return false
+        })
+        const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
+        const podsOnLaunchers = ammoPltPods.filter((p) => p.launcherId)
+        const podsInStock = podsOnGround.filter((p) => p.ammoPltId === AMMO_PLT_ID && !p.rsvId)
+        const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
+        let ammoHtml = `
+          <div class="report-section">
+            <h2>Ammo PLT</h2>
+            <div class="report-grid">
+              <div class="report-card"><span class="label">RSVs</span><span class="value">${ammoPltRSVs.length}</span></div>
+              <div class="report-card"><span class="label">In Stock</span><span class="value">${podsInStock.length}</span></div>
+              <div class="report-card"><span class="label">On RSVs</span><span class="value">${podsOnRSVs.length}</span></div>
+              <div class="report-card"><span class="label">On Launchers</span><span class="value">${podsOnLaunchers.length}</span></div>
+              <div class="report-card"><span class="label">Total Pods</span><span class="value">${ammoPltPods.length}</span></div>
+            </div>
+        `
+        ammoPltRSVs.forEach((rsv) => {
+          const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
+          ammoHtml += `<div class="report-card"><strong>${esc(rsv.name)}</strong> (${rsvPods.length} pod${rsvPods.length !== 1 ? 's' : ''})</div>`
+        })
+        ammoHtml += '</div>'
+        sections.push(ammoHtml)
+      }
+    }
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FDC Tracker – Ammunition Status Report</title>
+  <style>
+    @page { size: letter; margin: 0.5in; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0; color: #111; background: #fff; font-size: 11pt; line-height: 1.4; }
+    .report { max-width: 100%; margin: 0; padding: 0.5in; box-sizing: border-box; }
+    .report-header { margin-bottom: 1.5rem; padding-bottom: 0.75rem; border-bottom: 3px solid #000; }
+    .report-header h1 { font-size: 18pt; font-weight: bold; margin: 0 0 0.5rem 0; }
+    .report-meta { font-size: 10pt; color: #333; }
+    .report-meta p { margin: 0.15rem 0; }
+    .report-empty { font-style: italic; color: #555; }
+    .report-section { margin-bottom: 1.25rem; padding: 0.75rem; border: 1px solid #ccc; page-break-inside: avoid; }
+    .report-section h2 { font-size: 14pt; font-weight: bold; margin: 0 0 0.75rem 0; border-bottom: 2px solid #666; padding-bottom: 0.35rem; }
+    .report-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.75rem; }
+    .report-grid.compact { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    .report-card { padding: 0.5rem; border: 1px solid #ddd; background: #f9f9f9; }
+    .report-card .label { display: block; font-size: 9pt; color: #666; }
+    .report-card .value { font-weight: bold; }
+    .round-type-card { padding: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #ddd; background: #f5f5f5; }
+    .round-type-card strong { display: block; margin-bottom: 0.25rem; }
+    .subsection-title { font-size: 10pt; font-weight: 600; margin: 0.75rem 0 0.35rem 0; }
+  </style>
+</head>
+<body>
+  <div class="report">
+    ${sections.join('\n')}
+  </div>
+</body>
+</html>`
+  }
+
   const handlePrint = () => {
-    // Set the print time when print is triggered
-    setPrintTime(new Date().toLocaleString())
-    // Small delay to ensure state updates before print dialog opens
-    setTimeout(() => {
-      window.print()
-    }, 100)
+    const printedAt = new Date().toLocaleString()
+    setPrintTime(printedAt)
+    const html = buildPrintDocumentHtml(printedAt)
+    const win = window.open('', '_blank')
+    if (!win) {
+      alert('Please allow pop-ups to print the report.')
+      return
+    }
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    win.onafterprint = () => win.close()
+    setTimeout(() => win.print(), 300)
   }
 
   return (
@@ -464,23 +620,25 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
           </div>
         </div>
 
-        {/* Print Header - Only visible when printing */}
-        <div className="print-report-header" style={{ display: 'none' }}>
-          <h2>Ammunition Status Report</h2>
-          <p>Generated: {new Date().toLocaleString()}</p>
-          {printTime && (
-            <p>Printed: {printTime}</p>
-          )}
-          {selectedBOC && (
-            <p>Filter: BOC {bocs.find((b) => b.id === selectedBOC)?.name || selectedBOC}</p>
-          )}
-          {selectedPOC && (
-            <p>Filter: POC {pocs.find((p) => p.id === selectedPOC)?.name || selectedPOC}</p>
-          )}
-        </div>
+        {/* Print area: header + report (only this region is visible when printing) */}
+        <div className="print-area">
+          {/* Print Header - Only visible when printing */}
+          <div className="print-report-header" style={{ display: 'none' }}>
+            <h2>FDC Tracker – Ammunition Status Report</h2>
+            <p>Generated: {new Date().toLocaleString()}</p>
+            {printTime && (
+              <p>Printed: {printTime}</p>
+            )}
+            {selectedBOC && (
+              <p>Filter: BOC {bocs.find((b) => b.id === selectedBOC)?.name || selectedBOC}</p>
+            )}
+            {selectedPOC && (
+              <p>Filter: POC {pocs.find((p) => p.id === selectedPOC)?.name || selectedPOC}</p>
+            )}
+          </div>
 
-        {/* Visual Report */}
-        <div style={{ marginBottom: '1rem' }} className="print-report">
+          {/* Visual Report */}
+          <div style={{ marginBottom: '1rem' }} className="print-report">
           {filteredPOCs.length === 0 ? (
             <div
               style={{
@@ -1003,6 +1161,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
               </div>
             )
           })()}
+        </div>
         </div>
 
         {/* ASCII Report Preview */}
