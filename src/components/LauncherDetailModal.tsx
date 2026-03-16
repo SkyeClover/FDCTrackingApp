@@ -42,15 +42,10 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
     }
   }, [launcher.status, launcher.lastIdleTime, launcher.currentTask])
 
-  if (!isOpen || !launcher) return null
-
-  const availableRounds = pod?.rounds.filter((r) => r.status === 'available').length || 0
-  const usedRounds = pod?.rounds.filter((r) => r.status === 'used').length || 0
-  const totalRounds = pod?.rounds.length || 0
-  const roundType = pod?.rounds[0]?.type || 'N/A'
-
+  // All hooks must run before any conditional return (React rules of hooks)
   // Get all tasks for this launcher (completed and current)
   const launcherTasks = useMemo(() => {
+    if (!launcher) return []
     return tasks.filter((task) => {
       // Check if task is assigned to this launcher
       if (task.launcherIds?.includes(launcher.id)) return true
@@ -58,7 +53,7 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
       if (task.pocIds?.includes(launcher.pocId || '')) return true
       return false
     })
-  }, [tasks, launcher.id, launcher.pocId])
+  }, [tasks, launcher?.id, launcher?.pocId])
 
   // Get completed tasks (excluding reload tasks and fire missions since they're shown separately)
   const completedTasks = useMemo(() => {
@@ -111,6 +106,7 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
 
   // Get reload history from logs showing pod swaps
   const reloadHistory = useMemo(() => {
+    if (!launcher) return []
     return logs
       .filter((log: LogEntry) => {
         const message = log.message.toLowerCase()
@@ -119,22 +115,27 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
       })
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       .slice(0, 20) // Limit to last 20 reloads
-  }, [logs, launcher.name])
+  }, [logs, launcher?.name])
 
   // Calculate standby time
   const standbyTimeDisplay = useMemo(() => {
-    if (launcher.status === 'idle' && launcher.lastIdleTime) {
-      const standbySeconds = Math.floor((currentTime.getTime() - launcher.lastIdleTime.getTime()) / 1000)
-      const hours = Math.floor(standbySeconds / 3600)
-      const minutes = Math.floor((standbySeconds % 3600) / 60)
-      const seconds = standbySeconds % 60
-      if (hours > 0) {
-        return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-      }
-      return `${minutes}:${String(seconds).padStart(2, '0')}`
+    if (!launcher || launcher.status !== 'idle' || !launcher.lastIdleTime) return null
+    const standbySeconds = Math.floor((currentTime.getTime() - launcher.lastIdleTime.getTime()) / 1000)
+    const hours = Math.floor(standbySeconds / 3600)
+    const minutes = Math.floor((standbySeconds % 3600) / 60)
+    const seconds = standbySeconds % 60
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
     }
-    return null
-  }, [launcher.status, launcher.lastIdleTime, currentTime])
+    return `${minutes}:${String(seconds).padStart(2, '0')}`
+  }, [launcher?.status, launcher?.lastIdleTime, currentTime])
+
+  if (!isOpen || !launcher) return null
+
+  const availableRounds = pod?.rounds.filter((r) => r.status === 'available').length || 0
+  const usedRounds = pod?.rounds.filter((r) => r.status === 'used').length || 0
+  const totalRounds = pod?.rounds.length || 0
+  const roundType = pod?.rounds[0]?.type || 'N/A'
 
   // Format date/time (without milliseconds)
   const formatDateTime = (date: Date) => {

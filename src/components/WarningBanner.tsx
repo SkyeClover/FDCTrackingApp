@@ -25,19 +25,20 @@ export default function WarningBanner() {
   return (
     <div
       style={{
-        position: 'sticky',
+        position: 'fixed',
         top: 0,
         left: 0,
         right: 0,
+        width: '100%',
         zIndex: 1000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: '0.75rem',
         padding: '0.5rem 1rem',
-        backgroundColor: 'var(--warning-banner-bg, #3d3520)',
-        borderBottom: '1px solid var(--warning-banner-border, #6b5c2e)',
-        color: 'var(--warning-banner-text, #e8dca4)',
+        backgroundColor: 'var(--warning-banner-bg, #fef08a)',
+        borderBottom: '1px solid var(--warning-banner-border, #ca8a04)',
+        color: 'var(--warning-banner-text, #713f12)',
         fontSize: '0.875rem',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
         flexWrap: 'wrap',
@@ -51,7 +52,7 @@ export default function WarningBanner() {
           target="_blank"
           rel="noopener noreferrer"
           style={{
-            color: 'var(--warning-banner-link, #c9b84a)',
+            color: 'var(--warning-banner-link, #713f12)',
             textDecoration: 'underline',
             fontWeight: 500,
           }}
@@ -64,7 +65,7 @@ export default function WarningBanner() {
           target="_blank"
           rel="noopener noreferrer"
           style={{
-            color: 'var(--warning-banner-link, #c9b84a)',
+            color: 'var(--warning-banner-link, #713f12)',
             textDecoration: 'underline',
             fontWeight: 500,
           }}

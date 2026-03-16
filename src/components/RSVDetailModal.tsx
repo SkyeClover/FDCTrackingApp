@@ -29,13 +29,11 @@ export default function RSVDetailModal({ rsv, pods, isOpen, onClose }: RSVDetail
   })
   
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
-  
-  if (!isOpen || !rsv) return null
 
-  // Get pods on this RSV (not on launchers)
-  const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
+  // Get pods on this RSV (not on launchers) - safe when !rsv for hook order
+  const rsvPods = rsv ? pods.filter((p) => p.rsvId === rsv.id && !p.launcherId) : []
 
-  // Group pods by round type
+  // Group pods by round type (all hooks must run before any conditional return)
   const podsByRoundType = useMemo(() => {
     const grouped: Record<string, Pod[]> = {}
     roundTypeOptions.forEach((option) => {
@@ -72,7 +70,9 @@ export default function RSVDetailModal({ rsv, pods, isOpen, onClose }: RSVDetail
     return totals
   }, [rsvPods, roundTypeOptions])
 
-  // Calculate total rounds
+  if (!isOpen || !rsv) return null
+
+  // Calculate total rounds (plain values, not hooks)
   const totalRounds = rsvPods.reduce((sum, pod) => sum + pod.rounds.length, 0)
   const availableRounds = rsvPods.reduce(
     (sum, pod) => sum + pod.rounds.filter((r) => r.status === 'available').length,

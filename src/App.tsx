@@ -174,7 +174,7 @@ function App() {
   const [exitedKiosk, setExitedKiosk] = useState(false)
   const [keyboardVisible, setKeyboardVisible] = useState(false)
 
-  // Check for maintenance mode via environment variable
+  // Check for maintenance mode via environment variable (after all hooks so hook count is stable)
   const isMaintenanceMode = import.meta.env.VITE_MAINTENANCE_MODE === 'true'
 
   const handleExitKiosk = () => {
@@ -196,6 +196,7 @@ function App() {
         <>
           <KioskExit onExit={handleExitKiosk} />
           <WarningBanner />
+          <div style={{ height: '48px', flexShrink: 0 }} aria-hidden />
           <ProgressProvider>
             <AppContent />
           </ProgressProvider>
