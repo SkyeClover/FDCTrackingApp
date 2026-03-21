@@ -11,6 +11,7 @@ import {
   updateSyncMeta,
 } from '../../persistence/sqlite'
 import { fetchIngestStatus } from '../../sync/peerClient'
+import { isSyncSharedSecretConfigured } from '../../sync/syncGuards'
 import { runSnapshotPush } from '../../sync/syncEngine'
 
 export function SyncControlSection({
@@ -35,6 +36,7 @@ export function SyncControlSection({
   const autoBusyRef = useRef(false)
 
   const auditEntries = useMemo(() => listAuditLog(200), [auditTick])
+  const secretOk = useMemo(() => isSyncSharedSecretConfigured(meta), [meta])
 
   const refreshMeta = useCallback(() => {
     setMeta(getSyncMeta())
@@ -52,11 +54,14 @@ export function SyncControlSection({
     return () => clearInterval(id)
   }, [refreshMeta])
 
-  /** Automatic background push (MVP: same as manual snapshot push). */
+  /** Automatic background push (same as manual snapshot push; gated by DB + secret + roster). */
   useEffect(() => {
+    if (!meta.autoPushEnabled) return
     const intervalMs = 90_000
     const t = window.setInterval(() => {
       if (autoBusyRef.current) return
+      if (!getSyncMeta().autoPushEnabled) return
+      if (!isSyncSharedSecretConfigured(getSyncMeta())) return
       const peers = listNetworkRoster().filter((r) => r.host && r.port != null)
       if (peers.length === 0) return
       autoBusyRef.current = true
@@ -76,9 +81,15 @@ export function SyncControlSection({
         })
     }, intervalMs)
     return () => clearInterval(t)
-  }, [getStateSnapshot, onSyncDone, refreshMeta])
+  }, [getStateSnapshot, onSyncDone, refreshMeta, meta.autoPushEnabled])
 
   const doForce = useCallback(async () => {
+    if (!isSyncSharedSecretConfigured(getSyncMeta())) {
+      setLastPath('Set Shared secret (for sync HMAC) before pushing. It must match FDC_SYNC_SECRET on the server.')
+      setLastLog(new Date().toLocaleTimeString())
+      setSyncOutputOpen(true)
+      return
+    }
     setBusy(true)
     setLastPath('')
     try {
@@ -101,6 +112,12 @@ export function SyncControlSection({
   }, [getStateSnapshot, onSyncDone, refreshMeta])
 
   const pullFromThisSiteIngest = useCallback(async () => {
+    if (!isSyncSharedSecretConfigured(getSyncMeta())) {
+      setLastPath('Set Shared secret (for sync HMAC) before pulling. It must match FDC_SYNC_SECRET on the server.')
+      setLastLog(new Date().toLocaleTimeString())
+      setSyncOutputOpen(true)
+      return
+    }
     if (
       !confirm(
         'Replace all local data on this device with the last snapshot stored on this deployment’s ingest (GET /fdc/v1/status)?'
@@ -230,6 +247,29 @@ export function SyncControlSection({
             className="input-no-spinner"
           />
         </label>
+        <label
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.25rem',
+            fontSize: '0.8rem',
+            gridColumn: '1 / -1',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <input
+              type="checkbox"
+              checked={meta.autoPushEnabled}
+              onChange={(e) => saveMeta({ autoPushEnabled: e.target.checked })}
+            />
+            Auto-push snapshot
+          </span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400, lineHeight: 1.4 }}>
+            When enabled, periodically pushes the current database to all roster peers with host/port (~every 90s), only if
+            Shared secret is set and at least one peer is configured. Turn off to push only with &quot;Force push
+            snapshot&quot;.
+          </span>
+        </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', marginTop: '1.1rem' }}>
           <input
             type="checkbox"
@@ -273,10 +313,17 @@ export function SyncControlSection({
         <p style={{ fontSize: '0.75rem', color: 'var(--success)', margin: '0 0 0.35rem' }}>Skip-echelon verified on this device.</p>
       )}
 
+      {!secretOk ? (
+        <p style={{ margin: '0 0 0.5rem', color: 'var(--warning)', fontSize: '0.78rem', lineHeight: 1.4 }}>
+          Enter a <strong>Shared secret</strong> above before any sync runs (auto push, force push, or pull). Match{' '}
+          <code style={{ fontSize: '0.7rem' }}>FDC_SYNC_SECRET</code> on Vercel / peer servers.
+        </p>
+      ) : null}
+
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.5rem' }}>
         <button
           type="button"
-          disabled={busy || pullBusy}
+          disabled={busy || pullBusy || !secretOk}
           onClick={() => void doForce()}
           style={{
             padding: '0.5rem 1rem',
@@ -284,14 +331,15 @@ export function SyncControlSection({
             color: '#fff',
             border: 'none',
             borderRadius: '6px',
-            cursor: busy || pullBusy ? 'wait' : 'pointer',
+            cursor: busy || pullBusy || !secretOk ? 'not-allowed' : 'pointer',
+            opacity: !secretOk ? 0.55 : 1,
           }}
         >
           {busy ? 'Syncing…' : 'Force push snapshot'}
         </button>
         <button
           type="button"
-          disabled={busy || pullBusy}
+          disabled={busy || pullBusy || !secretOk}
           onClick={() => void pullFromThisSiteIngest()}
           title="Fetches last pushed snapshot from this origin’s /fdc/v1/status (Vercel serverless or local peer server)."
           style={{
@@ -300,7 +348,8 @@ export function SyncControlSection({
             color: 'var(--text-primary)',
             border: '1px solid var(--border)',
             borderRadius: '6px',
-            cursor: busy || pullBusy ? 'wait' : 'pointer',
+            cursor: busy || pullBusy || !secretOk ? 'not-allowed' : 'pointer',
+            opacity: !secretOk ? 0.55 : 1,
           }}
         >
           {pullBusy ? 'Pulling…' : 'Pull snapshot (this site ingest)'}

@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS sync_meta (
   last_applied_ingest_state_version INTEGER NOT NULL DEFAULT 0,
   dismissed_ingest_state_version INTEGER NOT NULL DEFAULT 0,
   incoming_alerts_enabled INTEGER NOT NULL DEFAULT 1,
-  sync_alert_style_json TEXT
+  sync_alert_style_json TEXT,
+  auto_push_enabled INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS network_roster (

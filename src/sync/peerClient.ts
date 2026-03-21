@@ -33,6 +33,9 @@ export async function pushSnapshotToPeer(
   state: AppState,
   stateVersion: number
 ): Promise<PushResult> {
+  if (!meta.syncSharedSecret?.trim()) {
+    return { ok: false, path: row.displayName, detail: 'Shared secret not set (Network → Sync).' }
+  }
   const base = baseUrl(row)
   if (!base) {
     return { ok: false, path: row.displayName, detail: 'Missing host/port' }
@@ -98,6 +101,9 @@ export async function fetchIngestStatus(
   meta: SyncMetaRow,
   base: string
 ): Promise<{ ok: boolean; snapshotJson?: string; detail?: string; stateVersion?: number }> {
+  if (!meta.syncSharedSecret?.trim()) {
+    return { ok: false, detail: 'Shared secret not set (Network → Sync).' }
+  }
   const root = base.replace(/\/$/, '')
   const url = `${root}/fdc/v1/status`
   const secret = meta.syncSharedSecret || ''

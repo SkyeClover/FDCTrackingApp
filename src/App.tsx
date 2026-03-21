@@ -7,7 +7,6 @@ import { PersistenceRoot } from './persistence/PersistenceRoot'
 import { NavigationProvider } from './context/NavigationContext'
 import { ProgressProvider, useProgress } from './context/ProgressContext'
 import KioskExit from './components/KioskExit'
-import WarningBanner from './components/WarningBanner'
 import SimpleKeyboard from './components/SimpleKeyboard'
 import KeyboardToggleButton from './components/KeyboardToggleButton'
 import MaintenanceBanner from './components/MaintenanceBanner'
@@ -135,8 +134,6 @@ function App() {
       {!exitedKiosk && (
         <>
           <KioskExit onExit={handleExitKiosk} />
-          <WarningBanner />
-          <div style={{ height: '48px', flexShrink: 0 }} aria-hidden />
           <ProgressProvider>
             <AppContent />
           </ProgressProvider>

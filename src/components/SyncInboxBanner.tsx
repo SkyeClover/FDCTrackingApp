@@ -7,6 +7,7 @@ import {
   updateSyncMeta,
 } from '../persistence/sqlite'
 import { fetchIngestHealth, fetchIngestStatus } from '../sync/peerClient'
+import { isSyncSharedSecretConfigured } from '../sync/syncGuards'
 import { useAppData } from '../context/AppDataContext'
 import { normalizePeerUnitId, parseSyncAlertStyle } from '../lib/syncAlertStyle'
 
@@ -46,6 +47,7 @@ export function SyncInboxBanner() {
 
   const runPoll = useCallback(async () => {
     if (typeof window === 'undefined' || busyRef.current) return
+    if (!isSyncSharedSecretConfigured(getSyncMeta())) return
     const origin = window.location.origin
     const health = await fetchIngestHealth(origin)
     if (!health.ok) return
@@ -57,6 +59,20 @@ export function SyncInboxBanner() {
     const dismissed = meta.dismissedIngestStateVersion
 
     if (ingestSv <= 0) return
+
+    /** Same shared ingest echoes our own push — do not notify or re-apply. */
+    const localUid = meta.localUnitId?.trim()
+    if (
+      fromUid != null &&
+      localUid &&
+      normalizePeerUnitId(String(fromUid)) === normalizePeerUnitId(localUid)
+    ) {
+      if (ingestSv > (lastApplied ?? 0)) {
+        updateSyncMeta({ lastAppliedIngestStateVersion: ingestSv })
+      }
+      setBanner((b) => (b?.kind === 'pending' ? null : b))
+      return
+    }
 
     const pending = ingestSv > lastApplied && ingestSv !== dismissed
     if (!pending) {

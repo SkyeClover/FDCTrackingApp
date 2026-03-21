@@ -8,6 +8,7 @@ import {
   type NetworkRosterRow,
 } from '../persistence/sqlite'
 import { fetchPeerHealth, pushSnapshotToPeer } from './peerClient'
+import { isSyncSharedSecretConfigured } from './syncGuards'
 
 export interface SyncRunSummary {
   targets: { row: NetworkRosterRow; result: string; path: string }[]
@@ -23,6 +24,13 @@ function canUseSkip(meta: ReturnType<typeof getSyncMeta>): boolean {
  */
 export async function runSnapshotPush(state: AppState, forceLabel: string): Promise<SyncRunSummary> {
   const meta = getSyncMeta()
+  if (!isSyncSharedSecretConfigured(meta)) {
+    if (forceLabel !== 'auto') {
+      appendAuditLog('sync', `${forceLabel} skipped`, 'shared secret not set')
+    }
+    return { targets: [], usedSkip: false }
+  }
+
   const roster = listNetworkRoster()
   const sv = getStateVersion()
   const targets: SyncRunSummary['targets'] = []
