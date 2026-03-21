@@ -226,6 +226,16 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
           </button>
         )}
       </div>
+      <p
+        style={{
+          fontSize: '0.8rem',
+          color: 'var(--text-secondary)',
+          marginBottom: isMobile ? '0.75rem' : '1rem',
+          lineHeight: 1.4,
+        }}
+      >
+        New RSVs can also be created from the Inventory page (RSVs card). This panel focuses on assignments and filters.
+      </p>
 
       {/* Search */}
       <div

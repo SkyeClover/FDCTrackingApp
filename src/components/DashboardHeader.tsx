@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { Download, Upload } from 'lucide-react'
+import { Download, Upload, SlidersHorizontal } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
+import { formatRoleDisplay } from '../constants/roles'
+import { useAppNavigation } from '../context/NavigationContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useIsTablet } from '../hooks/useIsTablet'
 
@@ -9,7 +11,7 @@ interface DashboardHeaderProps {
   onReport?: () => void
   onSaveLoad?: () => void
   onSaveToFile?: () => void
-  onLoadFromFile?: (file: File) => Promise<void>
+  onLoadFromFile?: (file: File) => Promise<boolean>
 }
 
 export default function DashboardHeader({
@@ -20,6 +22,7 @@ export default function DashboardHeader({
   onLoadFromFile,
 }: DashboardHeaderProps) {
   const { currentUserRole } = useAppData()
+  const { navigateTo } = useAppNavigation()
   const [currentTime, setCurrentTime] = useState(new Date())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isMobile = useIsMobile()
@@ -62,10 +65,9 @@ export default function DashboardHeader({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file && onLoadFromFile) {
-      try {
-        await onLoadFromFile(file)
-      } catch (error) {
-        alert('Failed to load file. Please ensure it is a valid FDC Tracker save file.')
+      const ok = await onLoadFromFile(file)
+      if (!ok) {
+        alert('Failed to load file. Please ensure it is a valid Walker Track save file.')
       }
     }
     // Reset input so same file can be selected again
@@ -126,40 +128,44 @@ export default function DashboardHeader({
         </div>
       </div>
 
-      {/* Center: Initiate Fire Mission Button */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: isMobile ? 'stretch' : 'center',
-          gap: '0.5rem',
-        }}
-      >
-        <button
-          onClick={onInitiateFireMission}
+      {/* Center: Fire mission — PLT (POC) view role only */}
+      {currentUserRole?.type === 'poc' && (
+        <div
           style={{
-            padding: isMobile ? '0.875rem 1.5rem' : isTablet ? '1.25rem 2.5rem' : '1rem 2rem',
-            backgroundColor: '#dc2626',
-            border: '2px solid #000',
-            borderRadius: '8px',
-            color: '#fff',
-            fontSize: isMobile ? '1rem' : isTablet ? '1.25rem' : '1.1rem',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            textTransform: 'uppercase',
-            transition: 'background-color 0.2s',
-            minHeight: isTablet ? '56px' : '44px', // Larger for tablets
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#b91c1c'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#dc2626'
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: isMobile ? 'stretch' : 'center',
+            gap: '0.5rem',
           }}
         >
-          Initiate Fire Mission
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={onInitiateFireMission}
+            style={{
+              padding: isMobile ? '0.875rem 1.5rem' : isTablet ? '1.25rem 2.5rem' : '1rem 2rem',
+              backgroundColor: '#dc2626',
+              border: '2px solid #000',
+              borderRadius: '8px',
+              color: '#fff',
+              fontSize: isMobile ? '1rem' : isTablet ? '1.25rem' : '1.1rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+              transition: 'background-color 0.2s',
+              minHeight: isTablet ? '56px' : '48px',
+              touchAction: 'manipulation',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#b91c1c'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#dc2626'
+            }}
+          >
+            Initiate Fire Mission
+          </button>
+        </div>
+      )}
 
       {/* Right: User Info and Actions */}
       <div
@@ -179,15 +185,37 @@ export default function DashboardHeader({
             textAlign: isMobile ? 'left' : 'right',
           }}
         >
-          {currentUserRole 
-            ? `${currentUserRole.type.toUpperCase()}: ${currentUserRole.name}`
-            : 'No Role Assigned'}
+          {currentUserRole ? formatRoleDisplay(currentUserRole) : 'No view role set'}
         </div>
         <div style={{ 
           display: 'flex', 
           gap: '0.5rem',
           flexWrap: isMobile ? 'wrap' : 'nowrap',
         }}>
+          {currentUserRole && (
+            <button
+              type="button"
+              onClick={() => navigateTo('settings')}
+              style={{
+                padding: isTablet ? '0.75rem 1rem' : '0.5rem 0.85rem',
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                color: 'var(--text-primary)',
+                fontSize: isTablet ? '1rem' : '0.85rem',
+                fontWeight: '500',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                minHeight: isTablet ? '48px' : '44px',
+              }}
+              title="Change role / view in Settings"
+            >
+              <SlidersHorizontal size={isTablet ? 20 : 16} />
+              {!isMobile && <span>Change view</span>}
+            </button>
+          )}
           <button
             onClick={onReport}
             style={{

@@ -5,6 +5,8 @@ import { useModal } from '../hooks/useModal'
 import { useSwipe } from '../hooks/useSwipe'
 import { Task } from '../types'
 import { useAppData } from '../context/AppDataContext'
+import SegmentedIntPicker from './ui/SegmentedIntPicker'
+import TouchNumericStepper from './ui/TouchNumericStepper'
 
 interface FireMissionEditModalProps {
   task: Task
@@ -23,14 +25,20 @@ export default function FireMissionEditModal({
   const [targetNumber, setTargetNumber] = useState(task.targetNumber || task.name || '')
   const [grid, setGrid] = useState(task.grid || '')
   const [unitAssigned, setUnitAssigned] = useState(task.unitAssigned || '')
-  const [numberOfRoundsToFire, setNumberOfRoundsToFire] = useState(task.numberOfRoundsToFire?.toString() || '')
+  const [roundsToFirePick, setRoundsToFirePick] = useState<number | ''>(
+    task.numberOfRoundsToFire != null && task.numberOfRoundsToFire >= 1 && task.numberOfRoundsToFire <= 6
+      ? task.numberOfRoundsToFire
+      : ''
+  )
   const [ammoTypeToFire, setAmmoTypeToFire] = useState(task.ammoTypeToFire || '')
   const [methodOfControl, setMethodOfControl] = useState(task.methodOfControl || '')
   const [totTime, setTotTime] = useState(task.totTime || '')
   const [timeMsnSent, setTimeMsnSent] = useState(task.timeMsnSent ? task.timeMsnSent.toISOString().slice(0, 16) : '')
   const [missionStatus, setMissionStatus] = useState(task.missionStatus || '')
   const [timeMfrReceived, setTimeMfrReceived] = useState(task.timeMfrReceived ? task.timeMfrReceived.toISOString().slice(0, 16) : '')
-  const [numberOfRoundsFired, setNumberOfRoundsFired] = useState(task.numberOfRoundsFired?.toString() || '')
+  const [roundsFiredPick, setRoundsFiredPick] = useState<number | ''>(
+    task.numberOfRoundsFired != null ? task.numberOfRoundsFired : ''
+  )
   const [remarks, setRemarks] = useState(task.remarks || '')
   const [selectedLauncherIds, setSelectedLauncherIds] = useState<Set<string>>(
     new Set(task.launcherIds || [])
@@ -49,14 +57,18 @@ export default function FireMissionEditModal({
     setTargetNumber(task.targetNumber || task.name || '')
     setGrid(task.grid || '')
     setUnitAssigned(task.unitAssigned || '')
-    setNumberOfRoundsToFire(task.numberOfRoundsToFire?.toString() || '')
+    setRoundsToFirePick(
+      task.numberOfRoundsToFire != null && task.numberOfRoundsToFire >= 1 && task.numberOfRoundsToFire <= 6
+        ? task.numberOfRoundsToFire
+        : ''
+    )
     setAmmoTypeToFire(task.ammoTypeToFire || '')
     setMethodOfControl(task.methodOfControl || '')
     setTotTime(task.totTime || '')
     setTimeMsnSent(task.timeMsnSent ? task.timeMsnSent.toISOString().slice(0, 16) : '')
     setMissionStatus(task.missionStatus || '')
     setTimeMfrReceived(task.timeMfrReceived ? task.timeMfrReceived.toISOString().slice(0, 16) : '')
-    setNumberOfRoundsFired(task.numberOfRoundsFired?.toString() || '')
+    setRoundsFiredPick(task.numberOfRoundsFired != null ? task.numberOfRoundsFired : '')
     setRemarks(task.remarks || '')
     setSelectedLauncherIds(new Set(task.launcherIds || []))
     setCanceled(task.canceled || false)
@@ -97,14 +109,14 @@ export default function FireMissionEditModal({
       targetNumber: targetNumber.trim() || undefined,
       grid: grid.trim() || undefined,
       unitAssigned: unitAssigned.trim() || undefined,
-      numberOfRoundsToFire: numberOfRoundsToFire ? parseInt(numberOfRoundsToFire) : undefined,
+      numberOfRoundsToFire: typeof roundsToFirePick === 'number' ? roundsToFirePick : undefined,
       ammoTypeToFire: ammoTypeToFire.trim() || undefined,
       methodOfControl: methodOfControl.trim() || undefined,
       totTime: totTime.trim() || undefined,
       timeMsnSent: timeMsnSent ? new Date(timeMsnSent) : undefined,
       missionStatus: missionStatus.trim() || undefined,
       timeMfrReceived: timeMfrReceived ? new Date(timeMfrReceived) : undefined,
-      numberOfRoundsFired: numberOfRoundsFired ? parseInt(numberOfRoundsFired) : undefined,
+      numberOfRoundsFired: typeof roundsFiredPick === 'number' ? roundsFiredPick : undefined,
       remarks: remarks.trim() || undefined,
       launcherIds: Array.from(selectedLauncherIds),
       canceled,
@@ -279,21 +291,13 @@ export default function FireMissionEditModal({
             <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)', fontWeight: '500' }}>
               Number of Rounds to Fire
             </label>
-            <input
-              type="number"
-              value={numberOfRoundsToFire}
-              onChange={(e) => setNumberOfRoundsToFire(e.target.value)}
-              min="1"
-              max="6"
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                backgroundColor: 'var(--bg-primary)',
-                border: '1px solid var(--border)',
-                borderRadius: '4px',
-                color: 'var(--text-primary)',
-                fontSize: '1rem',
-              }}
+            <SegmentedIntPicker
+              min={1}
+              max={6}
+              value={roundsToFirePick}
+              onChange={setRoundsToFirePick}
+              allowEmpty
+              compact={isMobile}
             />
           </div>
 
@@ -437,20 +441,11 @@ export default function FireMissionEditModal({
             <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)', fontWeight: '500' }}>
               Number of Rounds Fired (Optional)
             </label>
-            <input
-              type="number"
-              value={numberOfRoundsFired}
-              onChange={(e) => setNumberOfRoundsFired(e.target.value)}
-              min="0"
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                backgroundColor: 'var(--bg-primary)',
-                border: '1px solid var(--border)',
-                borderRadius: '4px',
-                color: 'var(--text-primary)',
-                fontSize: '1rem',
-              }}
+            <TouchNumericStepper
+              value={roundsFiredPick}
+              onChange={setRoundsFiredPick}
+              min={0}
+              max={9999}
             />
           </div>
 

@@ -1,8 +1,12 @@
 import { useAppData } from '../context/AppDataContext'
 import { Info, AlertTriangle, XCircle, CheckCircle } from 'lucide-react'
+import PageShell from '../components/layout/PageShell'
+import CollapsibleSection from '../components/ui/CollapsibleSection'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 export default function Logs() {
-  const { logs } = useAppData()
+  const { logs, clearLogs } = useAppData()
+  const isMobile = useIsMobile()
 
   const getLogIcon = (type: string) => {
     switch (type) {
@@ -31,25 +35,39 @@ export default function Logs() {
   }
 
   return (
-    <div>
-      <h1
-        style={{
-          fontSize: '2rem',
-          fontWeight: 'bold',
-          marginBottom: '2rem',
-          color: 'var(--text-primary)',
-        }}
+    <PageShell title="Logs" isMobile={isMobile}>
+      <CollapsibleSection
+        title="Activity log"
+        subtitle="Recent app actions & changes"
+        badge={logs.length}
+        compact
+        defaultCollapsed={false}
+        headerActions={
+          logs.length > 0 ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                clearLogs()
+              }}
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.2rem 0.5rem',
+                borderRadius: '4px',
+                border: '1px solid var(--border)',
+                background: 'var(--bg-primary)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              Clear
+            </button>
+          ) : null
+        }
       >
-        Logs
-      </h1>
-
       <div
         style={{
-          backgroundColor: 'var(--bg-secondary)',
-          border: '1px solid var(--border)',
-          borderRadius: '8px',
-          padding: '1.5rem',
-          maxHeight: 'calc(100vh - 200px)',
+          maxHeight: 'calc(100vh - 220px)',
           overflowY: 'auto',
         }}
       >
@@ -119,7 +137,8 @@ export default function Logs() {
           </div>
         )}
       </div>
-    </div>
+      </CollapsibleSection>
+    </PageShell>
   )
 }
 

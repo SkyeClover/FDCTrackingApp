@@ -1,4 +1,4 @@
-import { POC, Launcher, Pod, RSV, BOC, RoundType } from '../types'
+import { POC, Launcher, Pod, RSV, BOC } from '../types'
 import LauncherCard from './LauncherCard'
 import { Truck } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
@@ -14,6 +14,8 @@ interface POCCardProps {
   onReload?: (launcherId: string) => void
   onClick?: () => void
   onLauncherClick?: (launcherId: string) => void
+  /** Hide launcher reload / task controls (observe-only echelon) */
+  readOnly?: boolean
 }
 
 export default function POCCard({
@@ -25,6 +27,7 @@ export default function POCCard({
   onReload,
   onClick,
   onLauncherClick,
+  readOnly = false,
 }: POCCardProps) {
   void _bocs // Keep for interface compatibility but not used in logic
   const { roundTypes } = useAppData()
@@ -54,20 +57,27 @@ export default function POCCard({
     return false
   })
   
-  // Group pods by round type
-  const podsByRoundType: Record<RoundType, number> = {
-    M28A1: 0,
-    M26: 0,
-    M31: 0,
-    M30: 0,
-  }
-  
-  podsOnRSVs.forEach((pod) => {
-    const roundType = pod.rounds[0]?.type
-    if (roundType && podsByRoundType[roundType] !== undefined) {
-      podsByRoundType[roundType]++
+  // Pod count (by pod primary type) and available rounds (sum per type) — RSV / PLT stock
+  const { podsByRoundTypeCounts, availableRoundsByType } = useMemo(() => {
+    const pods: Record<string, number> = {}
+    const rnds: Record<string, number> = {}
+    for (const opt of roundTypeOptions) {
+      pods[opt.value] = 0
+      rnds[opt.value] = 0
     }
-  })
+    for (const pod of podsOnRSVs) {
+      const primary = pod.rounds[0]?.type
+      if (primary) {
+        pods[primary] = (pods[primary] ?? 0) + 1
+      }
+      for (const round of pod.rounds) {
+        if (round.status === 'available') {
+          rnds[round.type] = (rnds[round.type] ?? 0) + 1
+        }
+      }
+    }
+    return { podsByRoundTypeCounts: pods, availableRoundsByType: rnds }
+  }, [podsOnRSVs, roundTypeOptions])
 
   return (
     <div
@@ -82,6 +92,7 @@ export default function POCCard({
         gap: '1rem',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'all 0.2s',
+        boxSizing: 'border-box',
       }}
       onClick={onClick}
       onMouseEnter={(e) => {
@@ -138,7 +149,7 @@ export default function POCCard({
             }}
           >
             <Truck size={12} />
-            RSV's ({pocRSVs.length}) - Pods Available
+            RSV's ({pocRSVs.length}) — pods & available rounds
           </div>
           <div
             style={{
@@ -162,8 +173,9 @@ export default function POCCard({
             }}
           >
             {roundTypeOptions.map((option) => {
-              const count = podsByRoundType[option.value]
-              if (count === 0) return null
+              const podCount = podsByRoundTypeCounts[option.value] ?? 0
+              const rndCount = availableRoundsByType[option.value] ?? 0
+              if (podCount === 0 && rndCount === 0) return null
               return (
                 <div
                   key={option.value}
@@ -176,13 +188,50 @@ export default function POCCard({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.35rem',
+                    flexWrap: 'wrap',
                   }}
                 >
                   <span style={{ color: 'var(--text-secondary)' }}>{option.label}:</span>
-                  <span style={{ color: 'var(--accent)', fontWeight: '600' }}>{count}</span>
+                  <span style={{ color: 'var(--accent)', fontWeight: '600' }}>
+                    {podCount > 0 ? `${podCount} pod${podCount === 1 ? '' : 's'}` : ''}
+                    {podCount > 0 && rndCount > 0 ? ' · ' : ''}
+                    {rndCount > 0 ? `${rndCount} rnd` : podCount === 0 ? '0 rnd' : ''}
+                  </span>
                 </div>
               )
             })}
+            {/* Types present on pods but not in enabled round-type list */}
+            {Object.keys({ ...podsByRoundTypeCounts, ...availableRoundsByType })
+              .filter((type) => !roundTypeOptions.some((o) => o.value === type))
+              .filter((type) => (podsByRoundTypeCounts[type] ?? 0) > 0 || (availableRoundsByType[type] ?? 0) > 0)
+              .sort((a, b) => a.localeCompare(b))
+              .map((type) => {
+                const podCount = podsByRoundTypeCounts[type] ?? 0
+                const rndCount = availableRoundsByType[type] ?? 0
+                return (
+                  <div
+                    key={type}
+                    style={{
+                      padding: '0.35rem 0.65rem',
+                      backgroundColor: 'var(--bg-primary)',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border)',
+                      fontSize: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span style={{ color: 'var(--text-secondary)' }}>{type}:</span>
+                    <span style={{ color: 'var(--accent)', fontWeight: '600' }}>
+                      {podCount > 0 ? `${podCount} pod${podCount === 1 ? '' : 's'}` : ''}
+                      {podCount > 0 && rndCount > 0 ? ' · ' : ''}
+                      {rndCount > 0 ? `${rndCount} rnd` : podCount === 0 ? '0 rnd' : ''}
+                    </span>
+                  </div>
+                )
+              })}
           </div>
         </div>
       )}
@@ -217,6 +266,7 @@ export default function POCCard({
                 pod={pod}
                 onReload={() => onReload?.(launcher.id)}
                 onClick={() => onLauncherClick?.(launcher.id)}
+                readOnly={readOnly}
               />
             )
           })}

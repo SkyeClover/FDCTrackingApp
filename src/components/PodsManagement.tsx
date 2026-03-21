@@ -4,7 +4,16 @@ import { Pod, RoundType } from '../types'
 import { Plus, Search, Trash2 } from 'lucide-react'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
 
-type PodGroup = 'all' | 'ammo-plt' | 'poc' | 'rsv' | 'launcher' | 'unassigned'
+type PodGroup =
+  | 'all'
+  | 'ammo-plt'
+  | 'on-hand-poc'
+  | 'boc'
+  | 'battalion'
+  | 'brigade'
+  | 'rsv'
+  | 'launcher'
+  | 'unassigned'
 
 interface PodsManagementProps {
   onAddPod?: () => void
@@ -12,53 +21,76 @@ interface PodsManagementProps {
 
 const AMMO_PLT_ID = 'ammo-plt-1'
 
+function splitAssignValue(raw: string): [string, string] {
+  const i = raw.indexOf('|')
+  if (i < 0) return [raw, '']
+  return [raw.slice(0, i), raw.slice(i + 1)]
+}
+
 export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
-  const { pods, pocs, rsvs, launchers, assignPodToPOC, assignPodToRSV, assignPodToAmmoPlt, assignPodToLauncher, deletePod, roundTypes } = useAppData()
-  
+  const {
+    pods,
+    pocs,
+    bocs,
+    battalions,
+    brigades,
+    rsvs,
+    launchers,
+    assignPodToPOC,
+    assignPodToRSV,
+    assignPodToAmmoPlt,
+    assignPodToLauncher,
+    assignPodToBOC,
+    assignPodToBattalion,
+    assignPodToBrigade,
+    deletePod,
+    roundTypes,
+  } = useAppData()
+
   const [selectedGroup, setSelectedGroup] = useState<PodGroup>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRoundType, setSelectedRoundType] = useState<RoundType | 'all'>('all')
   const [selectedPodIds, setSelectedPodIds] = useState<Set<string>>(new Set())
   const selectAllCheckboxRef = useRef<HTMLInputElement>(null)
-  
-  // Get enabled round type options
+
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
 
-  // Group pods
+  const podPrimaryGroup = useCallback((pod: Pod): PodGroup => {
+    if (pod.launcherId) return 'launcher'
+    if (pod.rsvId) return 'rsv'
+    if (pod.ammoPltId === AMMO_PLT_ID) return 'ammo-plt'
+    if (pod.pocId) return 'on-hand-poc'
+    if (pod.bocId) return 'boc'
+    if (pod.battalionId) return 'battalion'
+    if (pod.brigadeId) return 'brigade'
+    if (pod.ammoPltId) return 'ammo-plt'
+    return 'unassigned'
+  }, [])
+
   const groupedPods = useMemo(() => {
     const groups: Record<PodGroup, Pod[]> = {
-      'all': [],
+      all: [],
       'ammo-plt': [],
-      'poc': [],
-      'rsv': [],
-      'launcher': [],
-      'unassigned': [],
+      'on-hand-poc': [],
+      boc: [],
+      battalion: [],
+      brigade: [],
+      rsv: [],
+      launcher: [],
+      unassigned: [],
     }
 
     pods.forEach((pod) => {
       groups.all.push(pod)
-      // Only group as ammo-plt if it matches the expected constant
-      if (pod.ammoPltId === AMMO_PLT_ID) {
-        groups['ammo-plt'].push(pod)
-      } else if (pod.launcherId) {
-        groups.launcher.push(pod)
-      } else if (pod.rsvId) {
-        groups.rsv.push(pod)
-      } else if (pod.pocId) {
-        groups.poc.push(pod)
-      } else {
-        groups.unassigned.push(pod)
-      }
+      groups[podPrimaryGroup(pod)].push(pod)
     })
 
     return groups
-  }, [pods])
+  }, [pods, podPrimaryGroup])
 
-  // Filter pods based on selected group, search, and round type
   const filteredPods = useMemo(() => {
     let filtered = groupedPods[selectedGroup]
 
-    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(
@@ -68,7 +100,6 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
       )
     }
 
-    // Filter by round type
     if (selectedRoundType !== 'all') {
       filtered = filtered.filter((pod) => pod.rounds[0]?.type === selectedRoundType)
     }
@@ -76,90 +107,175 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
     return filtered
   }, [groupedPods, selectedGroup, searchQuery, selectedRoundType])
 
-  // Get assignment info for a pod
-  const getPodAssignment = useCallback((pod: Pod) => {
-    // Only treat as ammo platoon if it matches the expected constant
-    if (pod.ammoPltId === AMMO_PLT_ID) {
-      return { type: 'ammo-plt', displayType: 'Ammo PLT', name: 'Ammo PLT', id: pod.ammoPltId }
-    }
-    // If ammoPltId exists but doesn't match, it's corrupted data - check other assignments
-    if (pod.launcherId) {
-      const launcher = launchers.find((l) => l.id === pod.launcherId)
-      return { type: 'launcher', displayType: 'Launcher', name: launcher?.name || 'Unknown', id: pod.launcherId }
-    }
-    if (pod.rsvId) {
-      const rsv = rsvs.find((r) => r.id === pod.rsvId)
-      return { type: 'rsv', displayType: 'RSV', name: rsv?.name || 'Unknown', id: pod.rsvId }
-    }
-    if (pod.pocId) {
-      const poc = pocs.find((p) => p.id === pod.pocId)
-      return { type: 'poc', displayType: 'POC', name: poc?.name || 'Unknown', id: pod.pocId }
-    }
-    // If ammoPltId exists but is invalid, still show it but mark as corrupted
-    if (pod.ammoPltId) {
-      return { type: 'ammo-plt', displayType: 'Ammo PLT (Invalid)', name: 'Ammo PLT (Invalid)', id: pod.ammoPltId }
-    }
-    return { type: 'unassigned', displayType: 'Unassigned', name: 'Unassigned', id: '' }
-  }, [launchers, rsvs, pocs])
+  const getPodAssignment = useCallback(
+    (pod: Pod) => {
+      if (pod.launcherId) {
+        const launcher = launchers.find((l) => l.id === pod.launcherId)
+        return {
+          type: 'launcher' as const,
+          selectValue: `launcher|${pod.launcherId}`,
+          location: 'On launcher',
+          detail: launcher?.name || 'Unknown launcher',
+        }
+      }
+      if (pod.rsvId) {
+        const rsv = rsvs.find((r) => r.id === pod.rsvId)
+        return {
+          type: 'rsv' as const,
+          selectValue: `rsv|${pod.rsvId}`,
+          location: 'On RSV',
+          detail: rsv?.name || 'Unknown RSV',
+        }
+      }
+      if (pod.ammoPltId === AMMO_PLT_ID) {
+        return {
+          type: 'ammo-plt' as const,
+          selectValue: `ammo-plt|${AMMO_PLT_ID}`,
+          location: 'Ammo PLT',
+          detail: 'Ammo platoon stock',
+        }
+      }
+      if (pod.pocId) {
+        const poc = pocs.find((p) => p.id === pod.pocId)
+        return {
+          type: 'poc' as const,
+          selectValue: `poc|${pod.pocId}`,
+          location: 'On hand (PLT)',
+          detail: poc?.name || 'Unknown PLT',
+        }
+      }
+      if (pod.bocId) {
+        const boc = bocs.find((b) => b.id === pod.bocId)
+        return {
+          type: 'boc' as const,
+          selectValue: `boc|${pod.bocId}`,
+          location: 'Battery pool',
+          detail: boc?.name || 'Unknown BOC',
+        }
+      }
+      if (pod.battalionId) {
+        const bn = battalions.find((b) => b.id === pod.battalionId)
+        return {
+          type: 'battalion' as const,
+          selectValue: `battalion|${pod.battalionId}`,
+          location: 'Bn holding',
+          detail: bn?.name || 'Unknown Bn',
+        }
+      }
+      if (pod.brigadeId) {
+        const bde = brigades.find((b) => b.id === pod.brigadeId)
+        return {
+          type: 'brigade' as const,
+          selectValue: `brigade|${pod.brigadeId}`,
+          location: 'Bde holding',
+          detail: bde?.name || 'Unknown Bde',
+        }
+      }
+      if (pod.ammoPltId) {
+        return {
+          type: 'ammo-plt' as const,
+          selectValue: `ammo-plt|${pod.ammoPltId}`,
+          location: 'Ammo PLT',
+          detail: 'Invalid / legacy ammo PLT id',
+        }
+      }
+      return {
+        type: 'unassigned' as const,
+        selectValue: 'unassigned|',
+        location: 'Unassigned',
+        detail: '—',
+      }
+    },
+    [launchers, rsvs, pocs, bocs, battalions, brigades]
+  )
 
-  // Handle pod assignment change
-  const handleAssignmentChange = useCallback((podId: string, assignmentType: string, assignmentId: string) => {
-    // Clear all assignments first
-    assignPodToPOC(podId, '')
-    assignPodToRSV(podId, '')
-    assignPodToAmmoPlt(podId, '')
-    assignPodToLauncher(podId, '')
+  const handleAssignmentChange = useCallback(
+    (podId: string, assignmentType: string, assignmentId: string) => {
+      assignPodToPOC(podId, '')
+      assignPodToRSV(podId, '')
+      assignPodToAmmoPlt(podId, '')
+      assignPodToLauncher(podId, '')
+      assignPodToBOC(podId, '')
+      assignPodToBattalion(podId, '')
+      assignPodToBrigade(podId, '')
 
-    // Apply new assignment
-    switch (assignmentType) {
-      case 'ammo-plt':
-        assignPodToAmmoPlt(podId, AMMO_PLT_ID)
-        break
-      case 'poc':
-        assignPodToPOC(podId, assignmentId)
-        break
-      case 'rsv':
-        assignPodToRSV(podId, assignmentId)
-        break
-      case 'launcher':
-        assignPodToLauncher(podId, assignmentId)
-        break
-      case 'unassigned':
-        // Already cleared above
-        break
-    }
-  }, [assignPodToPOC, assignPodToRSV, assignPodToAmmoPlt, assignPodToLauncher])
+      switch (assignmentType) {
+        case 'ammo-plt':
+          assignPodToAmmoPlt(podId, assignmentId)
+          break
+        case 'poc':
+          assignPodToPOC(podId, assignmentId)
+          break
+        case 'boc':
+          assignPodToBOC(podId, assignmentId)
+          break
+        case 'battalion':
+          assignPodToBattalion(podId, assignmentId)
+          break
+        case 'brigade':
+          assignPodToBrigade(podId, assignmentId)
+          break
+        case 'rsv':
+          assignPodToRSV(podId, assignmentId)
+          break
+        case 'launcher':
+          assignPodToLauncher(podId, assignmentId)
+          break
+        default:
+          break
+      }
+    },
+    [
+      assignPodToPOC,
+      assignPodToRSV,
+      assignPodToAmmoPlt,
+      assignPodToLauncher,
+      assignPodToBOC,
+      assignPodToBattalion,
+      assignPodToBrigade,
+    ]
+  )
 
-  // Get round type for a pod
-  const getPodRoundType = (pod: Pod): RoundType | 'Unknown' => {
-    return pod.rounds[0]?.type || 'Unknown'
+  const getPodRoundType = (pod: Pod): RoundType | 'Unknown' => pod.rounds[0]?.type || 'Unknown'
+
+  const getAvailableRounds = (pod: Pod): number => pod.rounds.filter((r) => r.status === 'available').length
+
+  const groupCounts = useMemo(
+    () => ({
+      all: groupedPods.all.length,
+      'ammo-plt': groupedPods['ammo-plt'].length,
+      'on-hand-poc': groupedPods['on-hand-poc'].length,
+      boc: groupedPods.boc.length,
+      battalion: groupedPods.battalion.length,
+      brigade: groupedPods.brigade.length,
+      rsv: groupedPods.rsv.length,
+      launcher: groupedPods.launcher.length,
+      unassigned: groupedPods.unassigned.length,
+    }),
+    [groupedPods]
+  )
+
+  const groupLabels: Record<PodGroup, string> = {
+    all: 'All',
+    'ammo-plt': 'Ammo PLT',
+    'on-hand-poc': 'On hand (PLT)',
+    boc: 'Battery pool',
+    battalion: 'Bn',
+    brigade: 'Bde',
+    rsv: 'RSV',
+    launcher: 'Launcher',
+    unassigned: 'Unassigned',
   }
 
-  // Get available rounds count
-  const getAvailableRounds = (pod: Pod): number => {
-    return pod.rounds.filter((r) => r.status === 'available').length
-  }
+  const isAllSelected = useMemo(
+    () => filteredPods.length > 0 && filteredPods.every((pod) => selectedPodIds.has(pod.id)),
+    [filteredPods, selectedPodIds]
+  )
+  const isSomeSelected = useMemo(
+    () => filteredPods.some((pod) => selectedPodIds.has(pod.id)),
+    [filteredPods, selectedPodIds]
+  )
 
-  // Group counts
-  const groupCounts = useMemo(() => ({
-    all: groupedPods.all.length,
-    'ammo-plt': groupedPods['ammo-plt'].length,
-    poc: groupedPods.poc.length,
-    rsv: groupedPods.rsv.length,
-    launcher: groupedPods.launcher.length,
-    unassigned: groupedPods.unassigned.length,
-  }), [groupedPods])
-
-  // Selection helpers
-  const isAllSelected = useMemo(() => {
-    return filteredPods.length > 0 && filteredPods.every((pod) => selectedPodIds.has(pod.id))
-  }, [filteredPods, selectedPodIds])
-
-  const isSomeSelected = useMemo(() => {
-    return filteredPods.some((pod) => selectedPodIds.has(pod.id))
-  }, [filteredPods, selectedPodIds])
-
-  // Set indeterminate state on select all checkbox
   useEffect(() => {
     if (selectAllCheckboxRef.current) {
       selectAllCheckboxRef.current.indeterminate = isSomeSelected && !isAllSelected
@@ -168,14 +284,12 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
 
   const handleSelectAll = useCallback(() => {
     if (isAllSelected) {
-      // Deselect all filtered pods
       setSelectedPodIds((prev) => {
         const newSet = new Set(prev)
         filteredPods.forEach((pod) => newSet.delete(pod.id))
         return newSet
       })
     } else {
-      // Select all filtered pods
       setSelectedPodIds((prev) => {
         const newSet = new Set(prev)
         filteredPods.forEach((pod) => newSet.add(pod.id))
@@ -187,34 +301,110 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
   const handleSelectPod = useCallback((podId: string) => {
     setSelectedPodIds((prev) => {
       const newSet = new Set(prev)
-      if (newSet.has(podId)) {
-        newSet.delete(podId)
-      } else {
-        newSet.add(podId)
-      }
+      if (newSet.has(podId)) newSet.delete(podId)
+      else newSet.add(podId)
       return newSet
     })
   }, [])
 
-  // Bulk reassignment
-  const handleBulkReassign = useCallback((assignmentType: string, assignmentId: string) => {
-    selectedPodIds.forEach((podId) => {
-      handleAssignmentChange(podId, assignmentType, assignmentId)
-    })
-    setSelectedPodIds(new Set())
-  }, [selectedPodIds, handleAssignmentChange])
+  const handleBulkReassign = useCallback(
+    (assignmentType: string, assignmentId: string) => {
+      selectedPodIds.forEach((podId) => {
+        handleAssignmentChange(podId, assignmentType, assignmentId)
+      })
+      setSelectedPodIds(new Set())
+    },
+    [selectedPodIds, handleAssignmentChange]
+  )
 
-  // Bulk delete
   const handleBulkDelete = useCallback(() => {
     const selectedPods = pods.filter((p) => selectedPodIds.has(p.id))
     const podNames = selectedPods.map((p) => p.name).join(', ')
-    if (confirm(`Are you sure you want to delete ${selectedPodIds.size} pod(s)?\n\n${podNames}\n\nThis will also delete all rounds in these pods.`)) {
+    if (
+      confirm(
+        `Are you sure you want to delete ${selectedPodIds.size} pod(s)?\n\n${podNames}\n\nThis will also delete all rounds in these pods.`
+      )
+    ) {
       selectedPodIds.forEach((podId) => {
         deletePod(podId)
       })
       setSelectedPodIds(new Set())
     }
   }, [selectedPodIds, pods, deletePod])
+
+  const pocsSorted = useMemo(() => [...pocs].sort((a, b) => a.name.localeCompare(b.name)), [pocs])
+  const bocsSorted = useMemo(() => [...bocs].sort((a, b) => a.name.localeCompare(b.name)), [bocs])
+  const battalionsSorted = useMemo(
+    () => [...battalions].sort((a, b) => a.name.localeCompare(b.name)),
+    [battalions]
+  )
+  const brigadesSorted = useMemo(() => [...brigades].sort((a, b) => a.name.localeCompare(b.name)), [brigades])
+  const rsvsSorted = useMemo(() => [...rsvs].sort((a, b) => a.name.localeCompare(b.name)), [rsvs])
+  const launchersSorted = useMemo(
+    () => [...launchers].sort((a, b) => a.name.localeCompare(b.name)),
+    [launchers]
+  )
+
+  const reassignmentSelectOptions = (
+    <>
+      <option value="unassigned|">Unassigned</option>
+      <option value={`ammo-plt|${AMMO_PLT_ID}`}>Ammo PLT</option>
+      <optgroup label="On hand (PLT FDC)">
+        {pocsSorted.map((poc) => (
+          <option key={poc.id} value={`poc|${poc.id}`}>
+            {poc.name}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label="Battery pool (BOC)">
+        {bocsSorted.map((boc) => (
+          <option key={boc.id} value={`boc|${boc.id}`}>
+            {boc.name}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label="Battalion holding">
+        {battalionsSorted.map((bn) => (
+          <option key={bn.id} value={`battalion|${bn.id}`}>
+            {bn.name}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label="Brigade holding">
+        {brigadesSorted.map((bde) => (
+          <option key={bde.id} value={`brigade|${bde.id}`}>
+            {bde.name}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label="On RSV">
+        {rsvsSorted.map((rsv) => (
+          <option key={rsv.id} value={`rsv|${rsv.id}`}>
+            {rsv.name}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label="On launcher">
+        {launchersSorted.map((launcher) => (
+          <option key={launcher.id} value={`launcher|${launcher.id}`}>
+            {launcher.name}
+          </option>
+        ))}
+      </optgroup>
+    </>
+  )
+
+  const tabOrder: PodGroup[] = [
+    'all',
+    'on-hand-poc',
+    'launcher',
+    'rsv',
+    'ammo-plt',
+    'boc',
+    'battalion',
+    'brigade',
+    'unassigned',
+  ]
 
   return (
     <div
@@ -225,7 +415,6 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
         padding: '1.5rem',
       }}
     >
-      {/* Header */}
       <div
         style={{
           display: 'flex',
@@ -262,7 +451,11 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
         )}
       </div>
 
-      {/* Filters */}
+      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '-0.75rem', marginBottom: '1rem' }}>
+        <strong>On hand (PLT)</strong> is platoon FDC stock (not on a tube or RSV). Launcher and RSV rows show what is fielded;
+        BOC / Bn / Bde are higher holding pools.
+      </p>
+
       <div
         style={{
           display: 'flex',
@@ -271,14 +464,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
           flexWrap: 'wrap',
         }}
       >
-        {/* Search */}
-        <div
-          style={{
-            position: 'relative',
-            flex: '1',
-            minWidth: '200px',
-          }}
-        >
+        <div style={{ position: 'relative', flex: '1', minWidth: '200px' }}>
           <Search
             size={18}
             style={{
@@ -306,7 +492,6 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
           />
         </div>
 
-        {/* Round Type Filter */}
         <select
           value={selectedRoundType}
           onChange={(e) => setSelectedRoundType(e.target.value as RoundType | 'all')}
@@ -329,7 +514,6 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
         </select>
       </div>
 
-      {/* Group Tabs */}
       <div
         style={{
           display: 'flex',
@@ -340,30 +524,26 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
           paddingBottom: '0.5rem',
         }}
       >
-        {(['all', 'ammo-plt', 'poc', 'rsv', 'launcher', 'unassigned'] as PodGroup[]).map((group) => (
+        {tabOrder.map((group) => (
           <button
             key={group}
             onClick={() => setSelectedGroup(group)}
             style={{
-              padding: '0.5rem 1rem',
+              padding: '0.5rem 0.65rem',
               backgroundColor: selectedGroup === group ? 'var(--accent)' : 'transparent',
               color: selectedGroup === group ? 'white' : 'var(--text-primary)',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
-              fontSize: '0.9rem',
+              fontSize: '0.82rem',
               fontWeight: selectedGroup === group ? '600' : '400',
-              textTransform: 'capitalize',
             }}
           >
-            {group === 'ammo-plt' ? 'Ammo PLT' : group === 'all' ? 'All' : group}
-            {' '}
-            ({groupCounts[group]})
+            {groupLabels[group]} ({groupCounts[group]})
           </button>
         ))}
       </div>
 
-      {/* Bulk Reassignment UI */}
       {selectedPodIds.size > 0 && (
         <div
           style={{
@@ -383,9 +563,9 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
           </span>
           <select
             onChange={(e) => {
-              const [type, ...idParts] = e.target.value.split('|')
-              const id = idParts.join('|')
-              if (type && id) {
+              const raw = e.target.value
+              if (raw) {
+                const [type, id] = splitAssignValue(raw)
                 handleBulkReassign(type, id)
               }
               e.target.value = ''
@@ -397,30 +577,14 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
               borderRadius: '4px',
               color: 'var(--text-primary)',
               fontSize: '0.85rem',
-              minWidth: '150px',
+              minWidth: '180px',
             }}
             defaultValue=""
           >
             <option value="" disabled>
-              Bulk Reassign...
+              Bulk reassign…
             </option>
-            <option value={`ammo-plt|${AMMO_PLT_ID}`}>Assign to Ammo PLT</option>
-            <option value="unassigned|">Unassign All</option>
-            {pocs.map((poc) => (
-              <option key={poc.id} value={`poc|${poc.id}`}>
-                Assign to POC: {poc.name}
-              </option>
-            ))}
-            {rsvs.map((rsv) => (
-              <option key={rsv.id} value={`rsv|${rsv.id}`}>
-                Assign to RSV: {rsv.name}
-              </option>
-            ))}
-            {launchers.map((launcher) => (
-              <option key={launcher.id} value={`launcher|${launcher.id}`}>
-                Assign to Launcher: {launcher.name}
-              </option>
-            ))}
+            {reassignmentSelectOptions}
           </select>
           <button
             onClick={handleBulkDelete}
@@ -457,25 +621,13 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
         </div>
       )}
 
-      {/* Pods Table */}
       {filteredPods.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center', padding: '2rem' }}>
           No pods found
         </p>
       ) : (
-        <div
-          style={{
-            overflowX: 'auto',
-            maxHeight: '600px',
-            overflowY: 'auto',
-          }}
-        >
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-            }}
-          >
+        <div style={{ overflowX: 'auto', maxHeight: '600px', overflowY: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr
                 style={{
@@ -486,97 +638,48 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
                   zIndex: 1,
                 }}
               >
-                <th
-                  style={{
-                    padding: '0.75rem',
-                    textAlign: 'left',
-                    color: 'var(--text-primary)',
-                    fontWeight: '600',
-                    fontSize: '0.9rem',
-                    width: '40px',
-                  }}
-                >
+                <th style={{ padding: '0.75rem', textAlign: 'left', width: '40px' }}>
                   <input
                     type="checkbox"
                     ref={selectAllCheckboxRef}
                     checked={isAllSelected}
                     onChange={handleSelectAll}
-                    style={{
-                      cursor: 'pointer',
-                      width: '18px',
-                      height: '18px',
-                    }}
+                    style={{ cursor: 'pointer', width: '18px', height: '18px' }}
                   />
                 </th>
                 <th
                   data-guide="pods-table-column-name"
-                  style={{
-                    padding: '0.75rem',
-                    textAlign: 'left',
-                    color: 'var(--text-primary)',
-                    fontWeight: '600',
-                    fontSize: '0.9rem',
-                  }}
+                  style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-primary)', fontWeight: '600' }}
                 >
                   Name
                 </th>
                 <th
                   data-guide="pods-table-column-round-type"
-                  style={{
-                    padding: '0.75rem',
-                    textAlign: 'left',
-                    color: 'var(--text-primary)',
-                    fontWeight: '600',
-                    fontSize: '0.9rem',
-                  }}
+                  style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-primary)', fontWeight: '600' }}
                 >
-                  Round Type
+                  Round type
                 </th>
                 <th
                   data-guide="pods-table-column-rounds"
-                  style={{
-                    padding: '0.75rem',
-                    textAlign: 'left',
-                    color: 'var(--text-primary)',
-                    fontWeight: '600',
-                    fontSize: '0.9rem',
-                  }}
+                  style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-primary)', fontWeight: '600' }}
                 >
                   Rounds
                 </th>
-                <th
-                  data-guide="pods-table-column-assignment"
-                  style={{
-                    padding: '0.75rem',
-                    textAlign: 'left',
-                    color: 'var(--text-primary)',
-                    fontWeight: '600',
-                    fontSize: '0.9rem',
-                  }}
-                >
-                  Assignment
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-primary)', fontWeight: '600' }}>
+                  Location
+                </th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-primary)', fontWeight: '600' }}>
+                  Assigned to
                 </th>
                 <th
                   data-guide="pods-table-column-reassign"
-                  style={{
-                    padding: '0.75rem',
-                    textAlign: 'left',
-                    color: 'var(--text-primary)',
-                    fontWeight: '600',
-                    fontSize: '0.9rem',
-                  }}
+                  style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-primary)', fontWeight: '600' }}
                 >
                   Reassign
                 </th>
                 <th
                   data-guide="pods-table-column-actions"
-                  style={{
-                    padding: '0.75rem',
-                    textAlign: 'left',
-                    color: 'var(--text-primary)',
-                    fontWeight: '600',
-                    fontSize: '0.9rem',
-                  }}
+                  style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-primary)', fontWeight: '600' }}
                 >
                   Actions
                 </th>
@@ -588,8 +691,8 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
                 const roundType = getPodRoundType(pod)
                 const availableRounds = getAvailableRounds(pod)
                 const totalRounds = pod.rounds.length
-
                 const isSelected = selectedPodIds.has(pod.id)
+
                 return (
                   <tr
                     key={pod.id}
@@ -598,104 +701,57 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
                       backgroundColor: isSelected ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
                     }}
                   >
-                    <td
-                      style={{
-                        padding: '0.75rem',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.9rem',
-                      }}
-                    >
+                    <td style={{ padding: '0.75rem' }}>
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleSelectPod(pod.id)}
-                        style={{
-                          cursor: 'pointer',
-                          width: '18px',
-                          height: '18px',
-                        }}
+                        style={{ cursor: 'pointer', width: '18px', height: '18px' }}
                       />
                     </td>
-                    <td
-                      style={{
-                        padding: '0.75rem',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: '500' }}>{pod.name}</div>
-                        <div
-                          style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--text-secondary)',
-                            fontFamily: 'monospace',
-                            marginTop: '0.25rem',
-                          }}
-                        >
-                          {pod.uuid.slice(0, 8)}...
-                        </div>
+                    <td style={{ padding: '0.75rem', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                      <div style={{ fontWeight: '500' }}>{pod.name}</div>
+                      <div
+                        style={{
+                          fontSize: '0.75rem',
+                          color: 'var(--text-secondary)',
+                          fontFamily: 'monospace',
+                          marginTop: '0.25rem',
+                        }}
+                      >
+                        {pod.uuid.slice(0, 8)}…
                       </div>
                     </td>
-                    <td
-                      style={{
-                        padding: '0.75rem',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      {roundType}
+                    <td style={{ padding: '0.75rem', color: 'var(--text-primary)', fontSize: '0.9rem' }}>{roundType}</td>
+                    <td style={{ padding: '0.75rem', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                      <span style={{ color: 'var(--success)', fontWeight: '500' }}>{availableRounds}</span>
+                      {' / '}
+                      <span>{totalRounds}</span>
                     </td>
-                    <td
-                      style={{
-                        padding: '0.75rem',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      <div>
-                        <span style={{ color: 'var(--success)', fontWeight: '500' }}>
-                          {availableRounds}
-                        </span>
-                        {' / '}
-                        <span>{totalRounds}</span>
-                      </div>
+                    <td style={{ padding: '0.75rem', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: 'var(--bg-tertiary)',
+                          borderRadius: '4px',
+                          fontSize: '0.82rem',
+                          fontWeight: '600',
+                        }}
+                      >
+                        {assignment.location}
+                      </span>
                     </td>
-                    <td
-                      style={{
-                        padding: '0.75rem',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      <div>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '0.25rem 0.5rem',
-                            backgroundColor: 'var(--bg-tertiary)',
-                            borderRadius: '4px',
-                            fontSize: '0.85rem',
-                            fontWeight: '500',
-                          }}
-                        >
-                          {assignment.displayType}: {assignment.name}
-                        </span>
-                      </div>
+                    <td style={{ padding: '0.75rem', color: 'var(--text-primary)', fontSize: '0.88rem' }}>
+                      {assignment.detail}
                     </td>
-                    <td
-                      style={{
-                        padding: '0.75rem',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.9rem',
-                      }}
-                    >
+                    <td style={{ padding: '0.75rem' }}>
                       <select
-                        value={assignment.id ? `${assignment.type}|${assignment.id}` : 'unassigned|'}
+                        value={assignment.selectValue}
                         onChange={(e) => {
-                          const [type, ...idParts] = e.target.value.split('|')
-                          const id = idParts.join('|')
-                          handleAssignmentChange(pod.id, type, id || '')
+                          const raw = e.target.value
+                          const [type, id] = splitAssignValue(raw)
+                          handleAssignmentChange(pod.id, type, id)
                         }}
                         style={{
                           padding: '0.4rem 0.5rem',
@@ -704,38 +760,20 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
                           borderRadius: '4px',
                           color: 'var(--text-primary)',
                           fontSize: '0.85rem',
-                          minWidth: '150px',
+                          minWidth: '160px',
                         }}
                       >
-                        <option value="unassigned|">Unassigned</option>
-                        <option value={`ammo-plt|${AMMO_PLT_ID}`}>Ammo PLT</option>
-                        {pocs.map((poc) => (
-                          <option key={poc.id} value={`poc|${poc.id}`}>
-                            POC: {poc.name}
-                          </option>
-                        ))}
-                        {rsvs.map((rsv) => (
-                          <option key={rsv.id} value={`rsv|${rsv.id}`}>
-                            RSV: {rsv.name}
-                          </option>
-                        ))}
-                        {launchers.map((launcher) => (
-                          <option key={launcher.id} value={`launcher|${launcher.id}`}>
-                            Launcher: {launcher.name}
-                          </option>
-                        ))}
+                        {reassignmentSelectOptions}
                       </select>
                     </td>
-                    <td
-                      style={{
-                        padding: '0.75rem',
-                        color: 'var(--text-primary)',
-                        fontSize: '0.9rem',
-                      }}
-                    >
+                    <td style={{ padding: '0.75rem' }}>
                       <button
                         onClick={() => {
-                          if (confirm(`Are you sure you want to delete pod "${pod.name}"? This will also delete all rounds in this pod.`)) {
+                          if (
+                            confirm(
+                              `Are you sure you want to delete pod "${pod.name}"? This will also delete all rounds in this pod.`
+                            )
+                          ) {
                             deletePod(pod.id)
                           }
                         }}
@@ -750,14 +788,6 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
                           alignItems: 'center',
                           gap: '0.25rem',
                           fontSize: '0.85rem',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = 'var(--bg-primary)'
-                          e.currentTarget.style.borderColor = 'var(--danger)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent'
-                          e.currentTarget.style.borderColor = 'var(--border)'
                         }}
                       >
                         <Trash2 size={14} />
@@ -774,4 +804,3 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
     </div>
   )
 })
-

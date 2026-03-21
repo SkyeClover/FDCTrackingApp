@@ -12,9 +12,11 @@ interface LauncherDetailModalProps {
   pod?: Pod
   isOpen: boolean
   onClose: () => void
+  /** Higher-echelon views: hide task assignment and task controls (observe only). */
+  readOnly?: boolean
 }
 
-export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: LauncherDetailModalProps) {
+export default function LauncherDetailModal({ launcher, pod, isOpen, onClose, readOnly = false }: LauncherDetailModalProps) {
   const { tasks, logs, taskTemplates, clearTask, endTaskEarly, startTaskFromTemplate } = useAppData()
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
@@ -217,7 +219,7 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
               </h2>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Launcher Details & History
+              {readOnly ? 'Launcher status (read-only)' : 'Launcher Details & History'}
             </p>
           </div>
           <button
@@ -334,6 +336,7 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
         </div>
 
         {/* Task Out Section */}
+        {!readOnly && (
         <div
           style={{
             padding: '1rem',
@@ -442,6 +445,7 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
             </div>
           )}
         </div>
+        )}
 
         {/* Current Task */}
         {launcher.currentTask && (
@@ -468,6 +472,7 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
                   Current Task: {launcher.currentTask.name}
                 </h3>
               </div>
+              {!readOnly && (
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 {launcher.currentTask.status === 'in-progress' && (
                   <button
@@ -511,6 +516,7 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose }: 
                   </button>
                 )}
               </div>
+              )}
             </div>
             {launcher.currentTask.description && (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>

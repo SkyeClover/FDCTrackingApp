@@ -10,9 +10,11 @@ interface LauncherCardProps {
   pod?: Pod
   onReload?: () => void
   onClick?: () => void
+  /** Higher-echelon dashboard: hide reload and in-card task controls */
+  readOnly?: boolean
 }
 
-export default function LauncherCard({ launcher, pod, onReload, onClick }: LauncherCardProps) {
+export default function LauncherCard({ launcher, pod, onReload, onClick, readOnly = false }: LauncherCardProps) {
   const { taskProgress } = useProgress()
   const { tasks, clearTask, taskTemplates, endTaskEarly } = useAppData()
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -133,6 +135,7 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
         >
           {launcher.name}
         </span>
+        {!readOnly && (
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -167,6 +170,7 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
           <RotateCcw size={isTablet ? 18 : 14} />
           Reload
         </button>
+        )}
       </div>
 
       {/* Round Type - Prominent Display */}
@@ -351,6 +355,7 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
               {isTaskCompleted ? '✓ ' : ''}Current Task: {launcher.currentTask.name}
               {isTaskCompleted ? ' (Complete)' : ''}
             </div>
+            {!readOnly && (
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {!isTaskCompleted && launcher.currentTask && (
                 <button
@@ -402,6 +407,7 @@ export default function LauncherCard({ launcher, pod, onReload, onClick }: Launc
                 </button>
               )}
             </div>
+            )}
           </div>
           <div
             style={{

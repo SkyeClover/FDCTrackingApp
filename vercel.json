@@ -12,6 +12,18 @@
   },
   "rewrites": [
     {
+      "source": "/fdc/v1/health",
+      "destination": "/api/fdc?route=health"
+    },
+    {
+      "source": "/fdc/v1/push",
+      "destination": "/api/fdc?route=push"
+    },
+    {
+      "source": "/fdc/v1/status",
+      "destination": "/api/fdc?route=status"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

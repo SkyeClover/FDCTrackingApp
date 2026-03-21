@@ -41,3 +41,15 @@ public/api/
 
 # Test files
 test-db.json
+
+# Local peer server last received snapshot (dev)
+.fdc-peer-last.json
+
+# Local-only helper scripts (optional; remove this line to track)
+/tools/
+
+# OS / tooling noise
+Thumbs.db
+*.orig
+.turbo
+.cache/

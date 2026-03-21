@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useIsMobile } from '../hooks/useIsMobile'
+import PageShell from '../components/layout/PageShell'
 import { Cpu, Thermometer, Zap, HardDrive, Clock, Server, Globe, RadioTower } from 'lucide-react'
+import { fetchSystemInfoPayload, shouldAttemptLocalAgentFetch } from '../lib/deviceAgent'
 
 interface SystemInfo {
   cpuTemp: string
@@ -45,7 +47,12 @@ function formatBytes(bytes: string | undefined | null): string {
 export default function SystemInfo() {
   // All hooks must be called unconditionally at the top
   const [info, setInfo] = useState<SystemInfo | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [hostedSkip] = useState(
+    () => typeof window !== 'undefined' && !shouldAttemptLocalAgentFetch()
+  )
+  const [loading, setLoading] = useState(
+    () => (typeof window !== 'undefined' ? shouldAttemptLocalAgentFetch() : true)
+  )
   const [error, setError] = useState<string | null>(null)
   const isMobile = useIsMobile()
   const safeIsMobile = isMobile ?? false
@@ -53,37 +60,7 @@ export default function SystemInfo() {
   const fetchSystemInfo = useCallback(async () => {
     try {
       setError(null)
-      let response: Response | null = null
-      let lastError: Error | null = null
-
-      // Try proxy server first
-      try {
-        response = await fetch('http://localhost:3002/system-info', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'omit',
-        })
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error('Unknown error')
-        // Fallback to direct connection
-        try {
-          response = await fetch('http://localhost:3001/system-info', {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'omit',
-          })
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        } catch (err2) {
-          const error2 = err2 instanceof Error ? err2 : new Error('Unknown error')
-          throw new Error(`Both connections failed. Proxy: ${lastError.message}, Direct: ${error2.message}`)
-        }
-      }
-
-      if (!response) throw new Error('No response received')
-
-      const data = await response.json()
-      if (!data || typeof data !== 'object') throw new Error('Invalid response format')
+      const data = await fetchSystemInfoPayload()
 
       const validatedData: SystemInfo = {
         cpuTemp: String(data.cpuTemp ?? 'N/A'),
@@ -97,45 +74,48 @@ export default function SystemInfo() {
         diskFree: String(data.diskFree ?? '0'),
         uptime: String(data.uptime ?? 'N/A'),
         hostname: String(data.hostname ?? 'N/A'),
-        osVersion: String(data.osVersion ?? 'N/A'),
+        osVersion: String(
+          (data.osVersion as string | undefined) ??
+            ([data.platform, (data as { osRelease?: string }).osRelease].filter(Boolean).join(' ') || 'N/A')
+        ),
         cpuModel: String(data.cpuModel ?? 'N/A'),
       }
 
       setInfo(validatedData)
       setLoading(false)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      setError(`System info API not available: ${errorMessage}`)
-      console.error('Error fetching system info:', err)
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      if (msg === 'HOSTED_NO_LOCAL_AGENT') {
+        setError(null)
+        setInfo(null)
+      } else {
+        setError(
+          `No endpoint (${msg}). Optional: \`npm run dev:full\` or \`npm run device-agent\` (3940), Pi :3001, or pi-proxy with VITE_USE_PI_PROXY_SYSTEM_INFO.`
+        )
+      }
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    let mounted = true
+    if (hostedSkip) return
     const timer = setTimeout(() => {
-      if (mounted) {
-        fetchSystemInfo().catch(() => {
-          if (mounted) {
-            setError('Failed to load system information')
-            setLoading(false)
-          }
-        })
-      }
+      void fetchSystemInfo()
     }, 200)
 
-    const interval = setInterval(() => {
-      if (mounted) {
-        fetchSystemInfo().catch(() => {})
-      }
-    }, 5000)
-
     return () => {
-      mounted = false
       clearTimeout(timer)
-      clearInterval(interval)
     }
-  }, [fetchSystemInfo])
+  }, [fetchSystemInfo, hostedSkip])
+
+  useEffect(() => {
+    if (hostedSkip) return
+    const pollMs = error ? 45_000 : 12_000
+    const id = window.setInterval(() => {
+      void fetchSystemInfo()
+    }, pollMs)
+    return () => clearInterval(id)
+  }, [fetchSystemInfo, error, hostedSkip])
 
   // Safe string helper
   const safeString = useCallback((val: string | undefined | null): string => {
@@ -182,8 +162,7 @@ export default function SystemInfo() {
       items.push({ icon: React.createElement(Cpu, iconProps), label: 'CPU Model', value: safeString(info.cpuModel) })
 
       return items.filter(item => item && item.label && item.value)
-    } catch (err) {
-      console.error('Error creating info items:', err)
+    } catch {
       return []
     }
   }, [info, safeString, formatBytesSafe])
@@ -191,65 +170,78 @@ export default function SystemInfo() {
   // Early returns - all hooks must be called before any returns
   if (loading) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-        Loading system information...
-      </div>
+      <PageShell title="System information" isMobile={safeIsMobile}>
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', margin: 0 }}>Loading system information…</p>
+      </PageShell>
+    )
+  }
+
+  if (hostedSkip) {
+    return (
+      <PageShell title="System information" isMobile={safeIsMobile}>
+        <div style={{ maxWidth: '520px', margin: '0 auto' }}>
+          <p style={{ color: 'var(--text-secondary)', lineHeight: 1.45, fontSize: '0.9rem', margin: 0 }}>
+            <strong style={{ color: 'var(--text-primary)' }}>Hosted deployment</strong> — Detailed CPU, memory, and disk
+            stats come from a small service on your machine (device agent) or Pi. Browsers cannot start that for you, and a
+            public site like Vercel cannot reach <code>localhost</code> on your PC. Use the app on{' '}
+            <code>localhost</code> with <code>npm run dev:full</code> when you need this page.
+          </p>
+        </div>
+      </PageShell>
     )
   }
 
   if (error) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', maxWidth: '480px', margin: '0 auto' }}>
-        <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>
-          Raspberry Pi System Information
-        </h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
-          System information is available when the Pi proxy is running. Start it with <code style={{ backgroundColor: 'var(--bg-secondary)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>npm run pi-proxy</code> (see pi-proxy-setup.md). The app works normally without it.
+      <PageShell title="System information" isMobile={safeIsMobile}>
+        <div style={{ textAlign: 'left', maxWidth: '520px', margin: '0 auto' }}>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem', lineHeight: 1.45, fontSize: '0.9rem' }}>
+          {error} The rest of the app works without this.
         </p>
         <button
+          type="button"
           onClick={() => {
             setLoading(true)
             setError(null)
-            fetchSystemInfo()
+            void fetchSystemInfo()
           }}
           style={{
-            marginTop: '1rem',
-            padding: '0.5rem 1rem',
-            backgroundColor: 'var(--accent-color, #007bff)',
+            padding: '0.4rem 0.85rem',
+            backgroundColor: 'var(--accent)',
             color: 'white',
             border: 'none',
             borderRadius: '5px',
             cursor: 'pointer',
+            fontSize: '0.85rem',
           }}
         >
           Retry
         </button>
-      </div>
+        </div>
+      </PageShell>
     )
   }
 
   if (!info) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-        No system information available.
-      </div>
+      <PageShell title="System information" isMobile={safeIsMobile}>
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', margin: 0 }}>No system information available.</p>
+      </PageShell>
     )
   }
 
   if (infoItems.length === 0) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-        System information loaded but could not be displayed.
-      </div>
+      <PageShell title="System information" isMobile={safeIsMobile}>
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', margin: 0 }}>
+          System information loaded but could not be displayed.
+        </p>
+      </PageShell>
     )
   }
 
   return (
-    <div style={{ padding: safeIsMobile ? '1rem' : '2rem' }}>
-      <h2 style={{ fontSize: safeIsMobile ? '1.5rem' : '2rem', marginBottom: '1.5rem', color: 'var(--text-primary)' }}>
-        Raspberry Pi System Information
-      </h2>
-      
+    <PageShell title="System information" isMobile={safeIsMobile}>
       {/* System Information Grid */}
       <div
         style={{
@@ -321,6 +313,6 @@ export default function SystemInfo() {
           </div>
         </div>
       </div>
-    </div>
+    </PageShell>
   )
 }

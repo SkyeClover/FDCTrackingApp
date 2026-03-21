@@ -17,9 +17,16 @@ export interface Pod {
   name: string
   rounds: Round[]
   launcherId?: string
-  pocId?: string // POC that owns this pod (for "POCs On Ground" tracking)
-  rsvId?: string // RSV (Reload Supply Vehicle) that carries this pod
-  ammoPltId?: string // Assigned to Ammo PLT
+  /** PLT FDC holding area (on hand for the platoon, not on a launcher or RSV). */
+  pocId?: string
+  rsvId?: string
+  ammoPltId?: string
+  /** Battery-level pool (not yet issued to a PLT). */
+  bocId?: string
+  /** Battalion ammunition holding. */
+  battalionId?: string
+  /** Brigade ammunition holding. */
+  brigadeId?: string
 }
 
 export interface RSV {
@@ -79,6 +86,17 @@ export interface TaskTemplate {
   type: 'reload' | 'fire' | 'maintenance' | 'jumping' | 'custom'
 }
 
+export interface Brigade {
+  id: string
+  name: string
+}
+
+export interface Battalion {
+  id: string
+  name: string
+  brigadeId?: string
+}
+
 export interface POC {
   id: string
   name: string
@@ -90,6 +108,8 @@ export interface BOC {
   id: string
   name: string
   pocs: POC[]
+  /** Optional higher-echelon link (battalion the battery belongs to). */
+  battalionId?: string
 }
 
 export interface LogEntry {
@@ -99,13 +119,16 @@ export interface LogEntry {
   message: string
 }
 
+/** View / acting-as role. Echelon: Brigade → Battalion → BOC → POC (highest → lowest). */
 export interface CurrentUserRole {
-  type: 'boc' | 'poc'
+  type: 'brigade' | 'battalion' | 'boc' | 'poc'
   id: string
   name: string
 }
 
 export interface AppState {
+  brigades: Brigade[]
+  battalions: Battalion[]
   bocs: BOC[]
   pocs: POC[]
   launchers: Launcher[]
@@ -119,6 +142,5 @@ export interface AppState {
   version: string
   lastSaved?: Date
   currentUserRole?: CurrentUserRole
-  hasSeenFirstTimeGuide?: boolean // Track if user has seen the first-time guide
   ammoPltBocId?: string // BOC that the Ammo PLT is assigned to
 }

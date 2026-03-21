@@ -15,8 +15,8 @@ const PORT = 3002; // Different port to avoid conflicts
 // PI5 SSH Configuration
 // These can be overridden via environment variables
 const PI5_CONFIG = {
-  host: process.env.PI5_HOST || 'fdc-tracker.local', // or use IP like '192.168.1.100'
-  user: process.env.PI5_USER || 'WalkerRanger',
+  host: process.env.PI5_HOST || '192.168.1.10', // or fdc-tracker.local / your Pi IP
+  user: process.env.PI5_USER || 'walker-ranger',
   port: process.env.PI5_SSH_PORT || '22',
   // For password auth, you'll need to use sshpass or set up SSH keys
   // For key-based auth, ensure your SSH key is in ~/.ssh/id_rsa or specify with PI5_SSH_KEY

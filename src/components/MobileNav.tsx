@@ -1,24 +1,13 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, Package, Settings, FileText, HelpCircle, Menu, X, Rocket, Cpu, Network } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 import { useSwipe } from '../hooks/useSwipe'
-
-type Page = 'dashboard' | 'inventory' | 'management' | 'logs' | 'settings' | 'fire-missions' | 'system-info' | 'network'
+import { NAV_ITEMS, type Page } from '../navigation/routes'
+import { APP_VERSION } from '../utils/saveLoad'
 
 interface MobileNavProps {
   currentPage: Page
   onPageChange: (page: Page) => void
 }
-
-const menuItems = [
-  { id: 'dashboard' as Page, label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'inventory' as Page, label: 'Inventory', icon: Package },
-  { id: 'management' as Page, label: 'Management', icon: Settings },
-  { id: 'fire-missions' as Page, label: 'Fire Missions', icon: Rocket },
-  { id: 'logs' as Page, label: 'Logs', icon: FileText },
-  { id: 'system-info' as Page, label: 'System Info', icon: Cpu },
-  { id: 'network' as Page, label: 'Network', icon: Network },
-  { id: 'settings' as Page, label: 'Settings', icon: HelpCircle },
-]
 
 export default function MobileNav({ currentPage, onPageChange }: MobileNavProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -96,7 +85,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
                 margin: 0,
               }}
             >
-              FDC Tracker
+              Walker Track
             </h1>
             <p
               style={{
@@ -105,7 +94,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
                 margin: 0,
               }}
             >
-              {menuItems.find((m) => m.id === currentPage)?.label}
+              {NAV_ITEMS.find((m) => m.id === currentPage)?.labelMobile}
             </p>
           </div>
         </div>
@@ -167,7 +156,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
                     marginBottom: '0.25rem',
                   }}
                 >
-                  FDC Tracker
+                  Walker Track
                 </h2>
                 <p
                   style={{
@@ -176,7 +165,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
                     margin: 0,
                   }}
                 >
-                  Version 1.0.2
+                  Version {APP_VERSION}
                 </p>
               </div>
               <button
@@ -199,7 +188,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
 
             {/* Menu Items */}
             <nav style={{ flex: 1, padding: '0.5rem 0', overflowY: 'auto' }}>
-              {menuItems.map((item) => {
+              {NAV_ITEMS.map((item) => {
                 const Icon = item.icon
                 const isActive = currentPage === item.id
                 return (
@@ -223,7 +212,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
                     }}
                   >
                     <Icon size={22} />
-                    <span>{item.label}</span>
+                    <span>{item.labelMobile}</span>
                   </button>
                 )
               })}

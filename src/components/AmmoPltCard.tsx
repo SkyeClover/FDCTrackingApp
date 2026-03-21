@@ -69,6 +69,7 @@ export default function AmmoPltCard({
         transition: 'all 0.2s',
         position: 'relative',
         opacity: 0.85,
+        boxSizing: 'border-box',
       }}
       onClick={onClick}
       onMouseEnter={(e) => {

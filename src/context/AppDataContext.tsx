@@ -1,12 +1,25 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react'
-import { BOC, POC, Launcher, Pod, RSV, Round, Task, TaskTemplate, LogEntry, AppState, CurrentUserRole, RoundTypeConfig } from '../types'
+import { BOC, POC, Launcher, Pod, RSV, Round, Task, TaskTemplate, LogEntry, AppState, CurrentUserRole, RoundTypeConfig, Brigade, Battalion } from '../types'
 import {
-  saveToLocalStorage,
-  loadFromLocalStorage,
   exportToFile,
   importFromFile,
   getDefaultState,
 } from '../utils/saveLoad'
+import { normalizeLoadedAppState } from '../utils/normalizeAppState'
+import {
+  applySnapshotJson,
+  saveAppStateToDb,
+  writeInitialSetupCompleteToDb,
+  clearInitialSetupFlagInDb,
+  clearAllPersistence,
+} from '../persistence/sqlite'
+import FirstRunSetup from '../components/setup/FirstRunSetup'
+import {
+  orgSliceFromState,
+  isLauncherInRoleScope,
+  isPocInRoleScope,
+  isTaskInRoleScope,
+} from '../utils/roleScope'
 
 // Funny completion messages based on "Funny Stuff.md"
 const FUNNY_COMPLETION_MESSAGES = [
@@ -29,6 +42,8 @@ const getRandomCompletionMessage = (baseMessage: string): string => {
 }
 
 interface AppDataContextType {
+  brigades: Brigade[]
+  battalions: Battalion[]
   bocs: BOC[]
   pocs: POC[]
   launchers: Launcher[]
@@ -39,11 +54,16 @@ interface AppDataContextType {
   taskTemplates: TaskTemplate[]
   logs: LogEntry[]
   roundTypes: Record<string, RoundTypeConfig>
+  addBrigade: (brigade: Brigade) => void
+  addBattalion: (battalion: Battalion) => void
+  updateBattalion: (id: string, updates: Partial<Battalion>) => void
   addBOC: (boc: BOC) => void
   addPOC: (poc: POC) => void
   addLauncher: (launcher: Launcher) => void
   addPod: (pod: Pod) => void
   addRSV: (rsv: RSV, assignToAmmoPlt?: boolean) => void
+  deleteBrigade: (brigadeId: string) => void
+  deleteBattalion: (battalionId: string) => void
   deleteBOC: (bocId: string) => void
   deletePOC: (pocId: string) => void
   deleteLauncher: (launcherId: string) => void
@@ -67,6 +87,9 @@ interface AppDataContextType {
   assignPodToRSV: (podId: string, rsvId: string) => void
   assignPodToLauncher: (podId: string, launcherId: string) => void
   assignPodToAmmoPlt: (podId: string, ammoPltId: string) => void
+  assignPodToBOC: (podId: string, bocId: string) => void
+  assignPodToBattalion: (podId: string, battalionId: string) => void
+  assignPodToBrigade: (podId: string, brigadeId: string) => void
   assignLauncherToPOC: (launcherId: string, pocId: string) => void
   assignPOCToBOC: (pocId: string, bocId: string) => void
   assignRSVToPOC: (rsvId: string, pocId: string) => void
@@ -88,18 +111,24 @@ interface AppDataContextType {
   completeFireMission: (taskId: string) => void
   reloadLauncher: (launcherId: string, newPodId?: string) => void
   saveToFile: () => void
-  loadFromFile: (file: File) => Promise<void>
+  loadFromFile: (file: File) => Promise<boolean>
   clearAllData: () => void
+  /** Mark first-run setup finished (SQLite + UI). */
+  completeInitialSetup: () => void
   addLog: (entry: Omit<LogEntry, 'id' | 'timestamp'>) => void
+  /** Clear in-app activity log (saved with app state). */
+  clearLogs: () => void
   currentUserRole?: CurrentUserRole
-  setCurrentUserRole: (role: CurrentUserRole) => void
+  setCurrentUserRole: (role: CurrentUserRole | undefined) => void
   addRoundType: (name: string) => void
   updateRoundType: (name: string, enabled: boolean) => void
   deleteRoundType: (name: string) => void
-  markFirstTimeGuideAsSeen: () => void
-  hasSeenFirstTimeGuide: boolean
   ammoPltBocId?: string
   assignAmmoPltToBOC: (bocId: string) => void
+  /** Full app state for sync / export (uses latest ref). */
+  getStateSnapshot: () => AppState
+  /** Replace local DB + React state from snapshot JSON (e.g. ingest pull). */
+  applySnapshotFromJson: (json: string) => boolean
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined)
@@ -108,40 +137,28 @@ interface AppDataProviderProps {
   children: ReactNode
   updateProgress?: (taskId: string, progress: number) => void
   removeProgress?: (taskId: string) => void
+  /** From SQLite bootstrap (required). */
+  initialAppState: AppState
+  initialSetupComplete: boolean
 }
 
-export function AppDataProvider({ children, updateProgress, removeProgress }: AppDataProviderProps) {
-  const [state, setState] = useState<AppState>(() => {
-    const loaded = loadFromLocalStorage()
-    const defaultState = getDefaultState()
-    // Ensure rsvs array exists for backwards compatibility
-    if (loaded && !loaded.rsvs) {
-      loaded.rsvs = []
-    }
-    const initialState = loaded || defaultState
-    
-    // Clean up invalid launcher states on load
-    const cleanedLaunchers = initialState.launchers.map((l) => {
-      if (l.currentTask) {
-        const task = initialState.tasks.find((t) => t.id === l.currentTask?.id)
-        // If launcher has currentTask but task doesn't exist or is completed, clean it up
-        if (!task || task.status === 'completed') {
-          return {
-            ...l,
-            status: 'idle' as const,
-            currentTask: undefined,
-            lastIdleTime: l.lastIdleTime || new Date(),
-          }
-        }
-      }
-      return l
+export function AppDataProvider({
+  children,
+  updateProgress,
+  removeProgress,
+  initialAppState,
+  initialSetupComplete: initialSetupCompleteProp,
+}: AppDataProviderProps) {
+  const [initialSetupComplete, setInitialSetupComplete] = useState(() => initialSetupCompleteProp)
+
+  const [state, setState] = useState<AppState>(() =>
+    normalizeLoadedAppState({
+      ...initialAppState,
+      rsvs: initialAppState.rsvs ?? [],
+      brigades: initialAppState.brigades ?? [],
+      battalions: initialAppState.battalions ?? [],
     })
-    
-    return {
-      ...initialState,
-      launchers: cleanedLaunchers,
-    }
-  })
+  )
   
   // Store intervals to cleanup
   const intervalsRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
@@ -290,15 +307,15 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Only run on mount - we intentionally don't include dependencies to run once
 
-  // Auto-save to localStorage whenever state changes
+  // Auto-save to SQLite whenever state changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       try {
-        saveToLocalStorage(state)
+        saveAppStateToDb(state)
       } catch (error) {
         console.error('Auto-save failed:', error)
       }
-    }, 500) // Debounce saves by 500ms
+    }, 500)
 
     return () => clearTimeout(timeoutId)
   }, [state])
@@ -323,26 +340,48 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     }))
   }, [])
 
-  // Validate currentUserRole - clear it if the referenced BOC/POC no longer exists
+  const clearLogs = useCallback(() => {
+    setState((prev) => ({ ...prev, logs: [] }))
+  }, [])
+
+  const completeInitialSetup = useCallback(() => {
+    writeInitialSetupCompleteToDb()
+    setInitialSetupComplete(true)
+  }, [])
+
+  // Validate currentUserRole - clear if referenced unit no longer exists
   useEffect(() => {
     if (!state.currentUserRole) return
-    
+
     const { type, id } = state.currentUserRole
-    const exists = type === 'boc' 
-      ? state.bocs.some((b) => b.id === id)
-      : state.pocs.some((p) => p.id === id)
-    
+    const exists =
+      type === 'brigade'
+        ? state.brigades.some((b) => b.id === id)
+        : type === 'battalion'
+          ? state.battalions.some((b) => b.id === id)
+          : type === 'boc'
+            ? state.bocs.some((b) => b.id === id)
+            : state.pocs.some((p) => p.id === id)
+
     if (!exists) {
       setState((prev) => ({
         ...prev,
         currentUserRole: undefined,
       }))
-      addLog({ 
-        type: 'warning', 
-        message: 'Your assigned role was cleared because the referenced unit no longer exists' 
+      addLog({
+        type: 'warning',
+        message: 'Your assigned role was cleared because the referenced unit no longer exists',
       })
     }
-  }, [state.bocs.length, state.pocs.length, state.currentUserRole?.id, addLog])
+  }, [
+    state.brigades.length,
+    state.battalions.length,
+    state.bocs.length,
+    state.pocs.length,
+    state.currentUserRole?.id,
+    state.currentUserRole?.type,
+    addLog,
+  ])
 
   const addBOC = useCallback((boc: BOC) => {
     setState((prev) => {
@@ -362,6 +401,96 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   const addPOC = useCallback((poc: POC) => {
     setState((prev) => ({ ...prev, pocs: [...prev.pocs, poc] }))
     addLog({ type: 'info', message: `POC "${poc.name}" created` })
+  }, [addLog])
+
+  const addBrigade = useCallback((brigade: Brigade) => {
+    setState((prev) => ({ ...prev, brigades: [...prev.brigades, brigade] }))
+    addLog({ type: 'info', message: `Brigade "${brigade.name}" created` })
+  }, [addLog])
+
+  const addBattalion = useCallback((battalion: Battalion) => {
+    setState((prev) => ({ ...prev, battalions: [...prev.battalions, battalion] }))
+    addLog({ type: 'info', message: `Battalion "${battalion.name}" created` })
+  }, [addLog])
+
+  const updateBattalion = useCallback((id: string, updates: Partial<Battalion>) => {
+    setState((prev) => {
+      const bn = prev.battalions.find((b) => b.id === id)
+      if (!bn) return prev
+      if (updates.name && updates.name !== bn.name) {
+        addLog({ type: 'info', message: `Battalion "${bn.name}" renamed to "${updates.name}"` })
+      }
+      if (updates.brigadeId !== undefined && updates.brigadeId !== bn.brigadeId) {
+        const nextBde = updates.brigadeId
+          ? prev.brigades.find((b) => b.id === updates.brigadeId)
+          : undefined
+        addLog({
+          type: 'info',
+          message: nextBde
+            ? `Battalion "${bn.name}" linked to Brigade "${nextBde.name}"`
+            : `Battalion "${bn.name}" unlinked from brigade`,
+        })
+      }
+      return {
+        ...prev,
+        battalions: prev.battalions.map((b) => (b.id === id ? { ...b, ...updates } : b)),
+      }
+    })
+  }, [addLog])
+
+  const deleteBrigade = useCallback((brigadeId: string) => {
+    setState((prev) => {
+      const brigade = prev.brigades.find((b) => b.id === brigadeId)
+      if (!brigade) return prev
+      const battalions = prev.battalions.map((bn) =>
+        bn.brigadeId === brigadeId ? { ...bn, brigadeId: undefined } : bn
+      )
+      const updatedPods = prev.pods.map((pod) =>
+        pod.brigadeId === brigadeId ? { ...pod, brigadeId: undefined } : pod
+      )
+
+      const updatedUserRole =
+        prev.currentUserRole?.type === 'brigade' && prev.currentUserRole?.id === brigadeId
+          ? undefined
+          : prev.currentUserRole
+
+      addLog({ type: 'info', message: `Brigade "${brigade.name}" deleted` })
+      if (updatedUserRole !== prev.currentUserRole) {
+        addLog({ type: 'warning', message: 'Your view role was cleared because the brigade was deleted' })
+      }
+      return {
+        ...prev,
+        brigades: prev.brigades.filter((b) => b.id !== brigadeId),
+        battalions,
+        pods: updatedPods,
+        currentUserRole: updatedUserRole,
+      }
+    })
+  }, [addLog])
+
+  const deleteBattalion = useCallback((battalionId: string) => {
+    setState((prev) => {
+      const battalion = prev.battalions.find((b) => b.id === battalionId)
+      if (!battalion) return prev
+      const bocs = prev.bocs.map((boc) =>
+        boc.battalionId === battalionId ? { ...boc, battalionId: undefined } : boc
+      )
+      const updatedUserRole =
+        prev.currentUserRole?.type === 'battalion' && prev.currentUserRole?.id === battalionId
+          ? undefined
+          : prev.currentUserRole
+
+      addLog({ type: 'info', message: `Battalion "${battalion.name}" deleted` })
+      if (updatedUserRole !== prev.currentUserRole) {
+        addLog({ type: 'warning', message: 'Your view role was cleared because the battalion was deleted' })
+      }
+      return {
+        ...prev,
+        battalions: prev.battalions.filter((b) => b.id !== battalionId),
+        bocs,
+        currentUserRole: updatedUserRole,
+      }
+    })
   }, [addLog])
 
   const addLauncher = useCallback((launcher: Launcher) => {
@@ -442,10 +571,15 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         addLog({ type: 'warning', message: 'Your assigned role was cleared because the BOC was deleted' })
       }
 
+      const updatedPods = prev.pods.map((pod) =>
+        pod.bocId === bocId ? { ...pod, bocId: undefined } : pod
+      )
+
       return {
         ...prev,
         bocs: prev.bocs.filter((b) => b.id !== bocId),
         pocs: updatedPOCs,
+        pods: updatedPods,
         currentUserRole: updatedUserRole,
       }
     })
@@ -621,6 +755,15 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         const template = prev.taskTemplates.find((t) => t.id === templateId)
         if (!template) return prev
 
+        const org = orgSliceFromState(prev)
+        if (!isLauncherInRoleScope(org, prev.currentUserRole, launcherId)) {
+          addLog({
+            type: 'error',
+            message: `Task not started: launcher is outside your view role${prev.currentUserRole ? ` (“${prev.currentUserRole.name}”)` : ''}.`,
+          })
+          return prev
+        }
+
         const newTask: Task = {
           id: Date.now().toString(),
           name: template.name,
@@ -743,6 +886,15 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
 
         const poc = prev.pocs.find((p) => p.id === pocId)
         if (!poc) return prev
+
+        const org = orgSliceFromState(prev)
+        if (!isPocInRoleScope(org, prev.currentUserRole, pocId)) {
+          addLog({
+            type: 'error',
+            message: `Task not started: PLT (POC) is outside your view role${prev.currentUserRole ? ` (“${prev.currentUserRole.name}”)` : ''}.`,
+          })
+          return prev
+        }
 
         // Get all launchers in this POC
         const pocLaunchers = prev.launchers.filter((l) => l.pocId === pocId)
@@ -868,6 +1020,19 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   )
 
   const cancelTask = useCallback((taskId: string) => {
+    const snap = stateRef.current
+    const task = snap.tasks.find((t) => t.id === taskId)
+    if (task) {
+      const org = orgSliceFromState(snap)
+      if (!isTaskInRoleScope(org, snap.currentUserRole, task)) {
+        addLog({
+          type: 'error',
+          message: `Cannot cancel task: it is outside your view role${snap.currentUserRole ? ` (“${snap.currentUserRole.name}”)` : ''}.`,
+        })
+        return
+      }
+    }
+
     // Clear the interval for this task
     const intervalToClear = intervalsRef.current.get(taskId)
     if (intervalToClear) {
@@ -882,12 +1047,12 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     
     // Update state to cancel the task
     setState((prev) => {
-      const task = prev.tasks.find((t) => t.id === taskId)
       const updatedLaunchers = prev.launchers.map((l) => {
         if (l.currentTask?.id === taskId) {
+          const t = prev.tasks.find((x) => x.id === taskId)
           addLog({
             type: 'info',
-            message: `Task "${task?.name || 'Unknown'}" cancelled on launcher "${l.name}"`,
+            message: `Task "${t?.name || 'Unknown'}" cancelled on launcher "${l.name}"`,
           })
           return {
             ...l,
@@ -913,6 +1078,15 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     setState((prev) => {
       const launcher = prev.launchers.find((l) => l.id === launcherId)
       if (!launcher || !launcher.currentTask) return prev
+
+      const org = orgSliceFromState(prev)
+      if (!isLauncherInRoleScope(org, prev.currentUserRole, launcherId)) {
+        addLog({
+          type: 'error',
+          message: `Cannot clear task: launcher is outside your view role${prev.currentUserRole ? ` (“${prev.currentUserRole.name}”)` : ''}.`,
+        })
+        return prev
+      }
       
       const task = launcher.currentTask
       addLog({
@@ -941,6 +1115,21 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
       const boc = prev.bocs.find((b) => b.id === id)
       if (boc && updates.name) {
         addLog({ type: 'info', message: `BOC "${boc.name}" renamed to "${updates.name}"` })
+      }
+      if (
+        boc &&
+        updates.battalionId !== undefined &&
+        updates.battalionId !== boc.battalionId
+      ) {
+        const bn = updates.battalionId
+          ? prev.battalions.find((b) => b.id === updates.battalionId)
+          : undefined
+        addLog({
+          type: 'info',
+          message: bn
+            ? `BOC "${boc.name}" linked to Battalion "${bn.name}"`
+            : `BOC "${boc.name}" unlinked from battalion`,
+        })
       }
       return {
         ...prev,
@@ -1004,11 +1193,17 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   const assignPodToPOC = useCallback((podId: string, pocId: string) => {
     setState((prev) => {
       const pod = prev.pods.find((p) => p.id === podId)
-      
+      let launchers = prev.launchers
+      if (pod?.launcherId) {
+        launchers = launchers.map((l) =>
+          l.id === pod.launcherId ? { ...l, podId: undefined } : l
+        )
+      }
+
       if (!pocId) {
-        // Unassign pod from POC
         return {
           ...prev,
+          launchers,
           pods: prev.pods.map((p) => (p.id === podId ? { ...p, pocId: undefined } : p)),
         }
       }
@@ -1018,13 +1213,27 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
       if (pod && poc) {
         addLog({
           type: 'success',
-          message: `Pod "${pod.name}" assigned to POC "${poc.name}"`,
+          message: `Pod "${pod.name}" assigned to POC "${poc.name}" (on hand)`,
         })
       }
 
       return {
         ...prev,
-        pods: prev.pods.map((p) => (p.id === podId ? { ...p, pocId, ammoPltId: undefined } : p)),
+        launchers,
+        pods: prev.pods.map((p) =>
+          p.id === podId
+            ? {
+                ...p,
+                pocId,
+                launcherId: undefined,
+                rsvId: undefined,
+                ammoPltId: undefined,
+                bocId: undefined,
+                battalionId: undefined,
+                brigadeId: undefined,
+              }
+            : p
+        ),
       }
     })
   }, [addLog])
@@ -1075,12 +1284,22 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
             })
           }
         } else if (rsv.bocId) {
-          // RSV is attached to a BOC, but pods don't directly belong to BOCs
-          // So we'll just unassign it (no parent unit to restore to)
-          if (podToUnassign) {
+          updatedPod = {
+            ...updatedPod,
+            bocId: rsv.bocId,
+            pocId: undefined,
+            ammoPltId: undefined,
+          }
+          const boc = prev.bocs.find((b) => b.id === rsv.bocId)
+          if (podToUnassign && boc) {
             addLog({
               type: 'info',
-              message: `Pod "${podToUnassign.name}" removed from RSV`,
+              message: `Pod "${podToUnassign.name}" removed from RSV and returned to BOC "${boc.name}" pool`,
+            })
+          } else if (podToUnassign) {
+            addLog({
+              type: 'info',
+              message: `Pod "${podToUnassign.name}" removed from RSV and returned to battery pool`,
             })
           }
         } else {
@@ -1108,9 +1327,30 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         })
       }
 
+      let launchers = prev.launchers
+      if (pod?.launcherId) {
+        launchers = launchers.map((l) =>
+          l.id === pod.launcherId ? { ...l, podId: undefined } : l
+        )
+      }
+
       return {
         ...prev,
-        pods: prev.pods.map((p) => (p.id === podId ? { ...p, rsvId, pocId: undefined, ammoPltId: undefined } : p)),
+        launchers,
+        pods: prev.pods.map((p) =>
+          p.id === podId
+            ? {
+                ...p,
+                rsvId,
+                launcherId: undefined,
+                pocId: undefined,
+                ammoPltId: undefined,
+                bocId: undefined,
+                battalionId: undefined,
+                brigadeId: undefined,
+              }
+            : p
+        ),
       }
     })
   }, [addLog])
@@ -1118,11 +1358,17 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   const assignPodToAmmoPlt = useCallback((podId: string, ammoPltId: string) => {
     setState((prev) => {
       const pod = prev.pods.find((p) => p.id === podId)
-      
+      let launchers = prev.launchers
+      if (pod?.launcherId) {
+        launchers = launchers.map((l) =>
+          l.id === pod.launcherId ? { ...l, podId: undefined } : l
+        )
+      }
+
       if (!ammoPltId) {
-        // Unassign pod from Ammo PLT
         return {
           ...prev,
+          launchers,
           pods: prev.pods.map((p) => (p.id === podId ? { ...p, ammoPltId: undefined } : p)),
         }
       }
@@ -1136,7 +1382,21 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
 
       return {
         ...prev,
-        pods: prev.pods.map((p) => (p.id === podId ? { ...p, ammoPltId, pocId: undefined, rsvId: undefined } : p)),
+        launchers,
+        pods: prev.pods.map((p) =>
+          p.id === podId
+            ? {
+                ...p,
+                ammoPltId,
+                pocId: undefined,
+                rsvId: undefined,
+                launcherId: undefined,
+                bocId: undefined,
+                battalionId: undefined,
+                brigadeId: undefined,
+              }
+            : p
+        ),
       }
     })
   }, [addLog])
@@ -1167,15 +1427,18 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         })
       }
 
-      // Common sense: Auto-assign pod to launcher's POC if launcher has a POC
       const updatedPods = prev.pods.map((p) => {
         if (p.id === podId) {
-          const updatedPod = { ...p, launcherId }
-          // If launcher has a POC and pod doesn't, assign pod to that POC
-          if (launcher?.pocId && !p.pocId) {
-            updatedPod.pocId = launcher.pocId
+          return {
+            ...p,
+            launcherId,
+            rsvId: undefined,
+            ammoPltId: undefined,
+            bocId: undefined,
+            battalionId: undefined,
+            brigadeId: undefined,
+            pocId: launcher?.pocId ?? p.pocId,
           }
-          return updatedPod
         }
         return p
       })
@@ -1192,6 +1455,147 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
           }
           return l
         }),
+      }
+    })
+  }, [addLog])
+
+  const assignPodToBOC = useCallback((podId: string, bocId: string) => {
+    setState((prev) => {
+      const pod = prev.pods.find((p) => p.id === podId)
+      let launchers = prev.launchers
+      if (pod?.launcherId) {
+        launchers = launchers.map((l) =>
+          l.id === pod.launcherId ? { ...l, podId: undefined } : l
+        )
+      }
+
+      if (!bocId) {
+        return {
+          ...prev,
+          launchers,
+          pods: prev.pods.map((p) => (p.id === podId ? { ...p, bocId: undefined } : p)),
+        }
+      }
+
+      const boc = prev.bocs.find((b) => b.id === bocId)
+      if (pod && boc) {
+        addLog({
+          type: 'success',
+          message: `Pod "${pod.name}" assigned to BOC "${boc.name}" pool`,
+        })
+      }
+
+      return {
+        ...prev,
+        launchers,
+        pods: prev.pods.map((p) =>
+          p.id === podId
+            ? {
+                ...p,
+                bocId,
+                pocId: undefined,
+                rsvId: undefined,
+                ammoPltId: undefined,
+                launcherId: undefined,
+                battalionId: undefined,
+                brigadeId: undefined,
+              }
+            : p
+        ),
+      }
+    })
+  }, [addLog])
+
+  const assignPodToBattalion = useCallback((podId: string, battalionId: string) => {
+    setState((prev) => {
+      const pod = prev.pods.find((p) => p.id === podId)
+      let launchers = prev.launchers
+      if (pod?.launcherId) {
+        launchers = launchers.map((l) =>
+          l.id === pod.launcherId ? { ...l, podId: undefined } : l
+        )
+      }
+
+      if (!battalionId) {
+        return {
+          ...prev,
+          launchers,
+          pods: prev.pods.map((p) => (p.id === podId ? { ...p, battalionId: undefined } : p)),
+        }
+      }
+
+      const bn = prev.battalions.find((b) => b.id === battalionId)
+      if (pod && bn) {
+        addLog({
+          type: 'success',
+          message: `Pod "${pod.name}" assigned to Battalion "${bn.name}" holding`,
+        })
+      }
+
+      return {
+        ...prev,
+        launchers,
+        pods: prev.pods.map((p) =>
+          p.id === podId
+            ? {
+                ...p,
+                battalionId,
+                pocId: undefined,
+                rsvId: undefined,
+                ammoPltId: undefined,
+                launcherId: undefined,
+                bocId: undefined,
+                brigadeId: undefined,
+              }
+            : p
+        ),
+      }
+    })
+  }, [addLog])
+
+  const assignPodToBrigade = useCallback((podId: string, brigadeId: string) => {
+    setState((prev) => {
+      const pod = prev.pods.find((p) => p.id === podId)
+      let launchers = prev.launchers
+      if (pod?.launcherId) {
+        launchers = launchers.map((l) =>
+          l.id === pod.launcherId ? { ...l, podId: undefined } : l
+        )
+      }
+
+      if (!brigadeId) {
+        return {
+          ...prev,
+          launchers,
+          pods: prev.pods.map((p) => (p.id === podId ? { ...p, brigadeId: undefined } : p)),
+        }
+      }
+
+      const bde = prev.brigades.find((b) => b.id === brigadeId)
+      if (pod && bde) {
+        addLog({
+          type: 'success',
+          message: `Pod "${pod.name}" assigned to Brigade "${bde.name}" holding`,
+        })
+      }
+
+      return {
+        ...prev,
+        launchers,
+        pods: prev.pods.map((p) =>
+          p.id === podId
+            ? {
+                ...p,
+                brigadeId,
+                pocId: undefined,
+                rsvId: undefined,
+                ammoPltId: undefined,
+                launcherId: undefined,
+                bocId: undefined,
+                battalionId: undefined,
+              }
+            : p
+        ),
       }
     })
   }, [addLog])
@@ -1342,6 +1746,15 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     setState((prev) => {
       const task = prev.tasks.find((t) => t.id === taskId)
       const launcher = prev.launchers.find((l) => l.id === launcherId)
+
+      const org = orgSliceFromState(prev)
+      if (task && launcher && !isLauncherInRoleScope(org, prev.currentUserRole, launcherId)) {
+        addLog({
+          type: 'error',
+          message: `Cannot assign task: launcher is outside your view role${prev.currentUserRole ? ` (“${prev.currentUserRole.name}”)` : ''}.`,
+        })
+        return prev
+      }
 
       if (task && launcher) {
         addLog({
@@ -1545,6 +1958,18 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   }, [addLog])
 
   const endTaskEarly = useCallback((taskId: string) => {
+    const snap = stateRef.current
+    const task = snap.tasks.find((t) => t.id === taskId)
+    if (!task) return
+    const org = orgSliceFromState(snap)
+    if (!isTaskInRoleScope(org, snap.currentUserRole, task)) {
+      addLog({
+        type: 'error',
+        message: `Cannot end task: it is outside your view role${snap.currentUserRole ? ` (“${snap.currentUserRole.name}”)` : ''}.`,
+      })
+      return
+    }
+
     // Clear the interval for this task
     const intervalToClear = intervalsRef.current.get(taskId)
     if (intervalToClear) {
@@ -1559,25 +1984,25 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
     
     // Update state to complete the task early
     setState((prev) => {
-      const task = prev.tasks.find((t) => t.id === taskId)
-      if (!task) return prev
+      const taskInner = prev.tasks.find((t) => t.id === taskId)
+      if (!taskInner) return prev
       
       // Calculate actual time taken
       const completedTime = new Date()
-      const actualDuration = task.startTime
-        ? (completedTime.getTime() - task.startTime.getTime()) / 1000 // seconds
-        : task.duration || 0
-      const actualProgress = task.duration
-        ? (actualDuration / task.duration) * 100
+      const actualDuration = taskInner.startTime
+        ? (completedTime.getTime() - taskInner.startTime.getTime()) / 1000 // seconds
+        : taskInner.duration || 0
+      const actualProgress = taskInner.duration
+        ? (actualDuration / taskInner.duration) * 100
         : 100
       
       const updatedLaunchers = prev.launchers.map((l) => {
         if (l.currentTask?.id === taskId) {
-          const template = prev.taskTemplates.find((t) => t.id === task.templateId)
+          const template = prev.taskTemplates.find((t) => t.id === taskInner.templateId)
           const isReloadTask = template?.type === 'reload'
           // For reload tasks, extract pod names from task description
           if (isReloadTask) {
-            const podMatch = task.description?.match(/pod "([^"]+)"/)
+            const podMatch = taskInner.description?.match(/pod "([^"]+)"/)
             const podName = podMatch ? podMatch[1] : 'Unknown'
             addLog({
               type: 'success',
@@ -1586,7 +2011,7 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
           } else {
             addLog({
               type: 'info',
-              message: `Task "${task?.name || 'Unknown'}" ended early on launcher "${l.name}"`,
+              message: `Task "${taskInner.name || 'Unknown'}" ended early on launcher "${l.name}"`,
             })
           }
           return {
@@ -1628,6 +2053,32 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
 
   const completeFireMission = useCallback((taskId: string) => {
     setState((prev) => {
+      const org = orgSliceFromState(prev)
+      const task = prev.tasks.find((t) => t.id === taskId)
+      if (task) {
+        if (!isTaskInRoleScope(org, prev.currentUserRole, task)) {
+          addLog({
+            type: 'error',
+            message: `Cannot complete fire mission: task is outside your view role${prev.currentUserRole ? ` (“${prev.currentUserRole.name}”)` : ''}.`,
+          })
+          return prev
+        }
+      } else {
+        const withMission = prev.launchers.filter((l) => l.currentTask?.id === taskId)
+        if (withMission.length === 0) return prev
+        if (prev.currentUserRole) {
+          for (const l of withMission) {
+            if (!isLauncherInRoleScope(org, prev.currentUserRole, l.id)) {
+              addLog({
+                type: 'error',
+                message: `Cannot complete fire mission: launcher is outside your view role${prev.currentUserRole ? ` (“${prev.currentUserRole.name}”)` : ''}.`,
+              })
+              return prev
+            }
+          }
+        }
+      }
+
       const updatedLaunchers = prev.launchers.map((l) => {
         if (l.currentTask?.id === taskId) {
           addLog({
@@ -1884,14 +2335,37 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   }, [state, addLog])
 
   const loadFromFileHandler = useCallback(
-    async (file: File) => {
+    async (file: File): Promise<boolean> => {
       try {
         const loadedState = await importFromFile(file)
-        setState(loadedState)
-        saveToLocalStorage(loadedState)
+        const normalized = normalizeLoadedAppState(loadedState)
+        setState(normalized)
+        saveAppStateToDb(normalized)
+        writeInitialSetupCompleteToDb()
+        setInitialSetupComplete(true)
         addLog({ type: 'success', message: 'Data imported from file successfully' })
-      } catch (error) {
+        return true
+      } catch {
         addLog({ type: 'error', message: 'Failed to import data from file' })
+        return false
+      }
+    },
+    [addLog]
+  )
+
+  const applySnapshotFromJson = useCallback(
+    (json: string): boolean => {
+      try {
+        const s = applySnapshotJson(json)
+        const normalized = normalizeLoadedAppState(s)
+        setState(normalized)
+        writeInitialSetupCompleteToDb()
+        setInitialSetupComplete(true)
+        addLog({ type: 'success', message: 'Snapshot applied (ingest / sync)' })
+        return true
+      } catch {
+        addLog({ type: 'error', message: 'Failed to apply snapshot JSON' })
+        return false
       }
     },
     [addLog]
@@ -1900,26 +2374,27 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   const clearAllData = useCallback(() => {
     if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
       const defaultState = getDefaultState()
-      setState(defaultState)
-      saveToLocalStorage(defaultState)
+      const normalized = normalizeLoadedAppState(defaultState)
+      clearAllPersistence()
+      setState(normalized)
+      saveAppStateToDb(normalized)
+      clearInitialSetupFlagInDb()
+      setInitialSetupComplete(false)
       addLog({ type: 'info', message: 'All data cleared' })
     }
   }, [addLog])
 
-  const setCurrentUserRole = useCallback((role: CurrentUserRole) => {
+  const setCurrentUserRole = useCallback((role: CurrentUserRole | undefined) => {
     setState((prev) => ({
       ...prev,
       currentUserRole: role,
     }))
-    addLog({ type: 'info', message: `User assigned to ${role.type.toUpperCase()} "${role.name}"` })
+    if (role) {
+      addLog({ type: 'info', message: `View role: ${role.type} "${role.name}"` })
+    } else {
+      addLog({ type: 'info', message: 'View role cleared' })
+    }
   }, [addLog])
-
-  const markFirstTimeGuideAsSeen = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      hasSeenFirstTimeGuide: true,
-    }))
-  }, [])
 
   const addRoundType = useCallback((name: string) => {
     const trimmedName = name.trim().toUpperCase()
@@ -2020,6 +2495,8 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
   return (
     <AppDataContext.Provider
       value={{
+        brigades: state.brigades,
+        battalions: state.battalions,
         bocs: state.bocs,
         pocs: state.pocs,
         launchers: state.launchers,
@@ -2030,11 +2507,16 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         taskTemplates: state.taskTemplates,
         logs: state.logs,
         roundTypes: state.roundTypes,
+        addBrigade,
+        addBattalion,
+        updateBattalion,
         addBOC,
         addPOC,
         addLauncher,
         addPod,
         addRSV,
+        deleteBrigade,
+        deleteBattalion,
         deleteBOC,
         deletePOC,
         deleteLauncher,
@@ -2058,6 +2540,9 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         assignPodToRSV,
         assignPodToAmmoPlt,
         assignPodToLauncher,
+        assignPodToBOC,
+        assignPodToBattalion,
+        assignPodToBrigade,
         assignLauncherToPOC,
         assignPOCToBOC,
         assignRSVToPOC,
@@ -2074,19 +2559,22 @@ export function AppDataProvider({ children, updateProgress, removeProgress }: Ap
         saveToFile,
         loadFromFile: loadFromFileHandler,
         clearAllData,
+        completeInitialSetup,
         addLog,
+        clearLogs,
         currentUserRole: state.currentUserRole,
         setCurrentUserRole,
         addRoundType,
         updateRoundType,
         deleteRoundType,
-        markFirstTimeGuideAsSeen,
-        hasSeenFirstTimeGuide: state.hasSeenFirstTimeGuide ?? false,
         ammoPltBocId: state.ammoPltBocId,
         assignAmmoPltToBOC,
+        getStateSnapshot: () => stateRef.current,
+        applySnapshotFromJson,
       }}
     >
       {children}
+      {!initialSetupComplete && <FirstRunSetup />}
     </AppDataContext.Provider>
   )
 }

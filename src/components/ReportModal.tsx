@@ -263,7 +263,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
     }
     sections.push(`
       <div class="report-header">
-        <h1>FDC Tracker &ndash; Ammunition Status Report</h1>
+        <h1>Walker Track &ndash; Ammunition Status Report</h1>
         <div class="report-meta">${metaHtml}</div>
       </div>
     `)
@@ -364,7 +364,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>FDC Tracker – Ammunition Status Report</title>
+  <title>Walker Track – Ammunition Status Report</title>
   <style>
     @page { size: letter; margin: 0.5in; }
     body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0; color: #111; background: #fff; font-size: 11pt; line-height: 1.4; }
@@ -624,7 +624,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
         <div className="print-area">
           {/* Print Header - Only visible when printing */}
           <div className="print-report-header" style={{ display: 'none' }}>
-            <h2>FDC Tracker – Ammunition Status Report</h2>
+            <h2>Walker Track – Ammunition Status Report</h2>
             <p>Generated: {new Date().toLocaleString()}</p>
             {printTime && (
               <p>Printed: {printTime}</p>

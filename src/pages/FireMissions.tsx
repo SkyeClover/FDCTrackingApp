@@ -1,18 +1,35 @@
 import { useState, useMemo, useRef } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { Rocket, Edit2, BarChart3, Clock, Target, XCircle, CheckCircle, StopCircle, Printer } from 'lucide-react'
+import { useScopedForce } from '../hooks/useScopedForce'
+import PageShell from '../components/layout/PageShell'
+import { Rocket, BarChart3, Clock, Printer, ChevronDown, ChevronRight } from 'lucide-react'
 import FireMissionEditModal from '../components/FireMissionEditModal'
+import FireMissionListRow from '../components/FireMissionListRow'
 import { Task } from '../types'
 
 export default function FireMissions() {
-  const { tasks, launchers, taskTemplates, updateTask, endTaskEarly, currentUserRole } = useAppData()
+  const { tasks, launchers, taskTemplates, updateTask, endTaskEarly, currentUserRole, bocs, pocs } = useAppData()
+  const force = useScopedForce()
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const isMobile = useIsMobile()
   const printRef = useRef<HTMLDivElement>(null)
 
+  const roleType = currentUserRole?.type
+  const compactUi =
+    force.viewDensity === 'compact' ||
+    roleType === 'brigade' ||
+    roleType === 'battalion' ||
+    roleType === 'boc'
+
+  const scopedLauncherIds = useMemo(
+    () => new Set(force.scopedLaunchers.map((l) => l.id)),
+    [force.scopedLaunchers]
+  )
+
   // Get all fire missions (tasks with fire type or fire-related description)
-  const fireMissions = useMemo(() => {
+  const fireMissionsAll = useMemo(() => {
     return tasks
       .filter((task) => {
         const template = taskTemplates.find((t) => t.id === task.templateId)
@@ -28,6 +45,41 @@ export default function FireMissions() {
         return bTime - aTime // Most recent first
       })
   }, [tasks, taskTemplates])
+
+  const fireMissions = useMemo(() => {
+    if (!currentUserRole) return fireMissionsAll
+    if (roleType === 'brigade' || roleType === 'battalion') return fireMissionsAll
+    return fireMissionsAll.filter((task) => {
+      if (!task.launcherIds?.length) return false
+      return task.launcherIds.some((id) => scopedLauncherIds.has(id))
+    })
+  }, [fireMissionsAll, currentUserRole, roleType, scopedLauncherIds])
+
+  const missionGroups = useMemo(() => {
+    const hierarchical = roleType === 'brigade' || roleType === 'battalion' || roleType === 'boc'
+    if (!hierarchical) return null
+    const map = new Map<string, { label: string; missions: Task[] }>()
+    for (const task of fireMissions) {
+      const lid = task.launcherIds?.[0]
+      const launcher = lid ? launchers.find((l) => l.id === lid) : undefined
+      const poc = launcher?.pocId ? pocs.find((p) => p.id === launcher.pocId) : undefined
+      const boc = poc?.bocId ? bocs.find((b) => b.id === poc.bocId) : undefined
+      const key = `${boc?.id ?? 'noboc'}|${poc?.id ?? 'nopoc'}`
+      const label =
+        boc && poc
+          ? `${boc.name} → ${poc.name}`
+          : poc
+            ? poc.name
+            : boc
+              ? `${boc.name} (PLT unknown)`
+              : 'Unknown unit'
+      if (!map.has(key)) map.set(key, { label, missions: [] })
+      map.get(key)!.missions.push(task)
+    }
+    return Array.from(map.entries())
+      .map(([key, v]) => ({ key, ...v }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [fireMissions, launchers, pocs, bocs, roleType])
 
 
   // Calculate stats
@@ -138,30 +190,56 @@ export default function FireMissions() {
     return date.toLocaleString('en-US', options)
   }
 
+  const toggleGroup = (key: string) => {
+    setOpenGroups((o) => ({ ...o, [key]: !o[key] }))
+  }
+  const isGroupOpen = (key: string) => openGroups[key] ?? false
+
   return (
-    <div>
-      <h1
-        style={{
-          fontSize: isMobile ? '1.5rem' : '2rem',
-          fontWeight: 'bold',
-          marginBottom: '1.5rem',
-          color: 'var(--text-primary)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-        }}
-      >
-        <Rocket size={isMobile ? 24 : 32} color="var(--danger)" />
-        Fire Missions Log (DA Form 7232)
-      </h1>
+    <PageShell
+      title="Fire missions"
+      isMobile={isMobile}
+      actions={
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            color: 'var(--text-secondary)',
+            fontSize: isMobile ? '0.8rem' : '0.95rem',
+            fontWeight: 500,
+          }}
+        >
+          <Rocket size={isMobile ? 22 : 26} color="var(--danger)" aria-hidden />
+          DA Form 7232
+        </span>
+      }
+    >
+      {compactUi && currentUserRole && (
+        <p
+          style={{
+            fontSize: '0.82rem',
+            color: 'var(--text-secondary)',
+            marginTop: '-0.5rem',
+            marginBottom: '1rem',
+          }}
+        >
+          Showing missions for your view: <strong style={{ color: 'var(--text-primary)' }}>{currentUserRole.name}</strong>
+          {roleType === 'brigade' || roleType === 'battalion' ? ' (full organization)' : ''}
+        </p>
+      )}
 
       {/* Stats Panel */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '1rem',
-          marginBottom: '2rem',
+          gridTemplateColumns: isMobile
+            ? '1fr'
+            : compactUi
+              ? 'repeat(auto-fit, minmax(120px, 1fr))'
+              : 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: compactUi ? '0.65rem' : '1rem',
+          marginBottom: compactUi ? '1.25rem' : '2rem',
         }}
       >
         <div
@@ -169,13 +247,25 @@ export default function FireMissions() {
             backgroundColor: 'var(--bg-secondary)',
             border: '1px solid var(--border)',
             borderRadius: '8px',
-            padding: '1rem',
+            padding: compactUi ? '0.65rem 0.75rem' : '1rem',
           }}
         >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+          <div
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: compactUi ? '0.72rem' : '0.875rem',
+              marginBottom: '0.25rem',
+            }}
+          >
             Total Missions
           </div>
-          <div style={{ color: 'var(--text-primary)', fontSize: '1.5rem', fontWeight: 'bold' }}>
+          <div
+            style={{
+              color: 'var(--text-primary)',
+              fontSize: compactUi ? '1.2rem' : '1.5rem',
+              fontWeight: 'bold',
+            }}
+          >
             {stats.total}
           </div>
         </div>
@@ -185,13 +275,25 @@ export default function FireMissions() {
             backgroundColor: 'var(--bg-secondary)',
             border: '1px solid var(--border)',
             borderRadius: '8px',
-            padding: '1rem',
+            padding: compactUi ? '0.65rem 0.75rem' : '1rem',
           }}
         >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+          <div
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: compactUi ? '0.72rem' : '0.875rem',
+              marginBottom: '0.25rem',
+            }}
+          >
             Completed
           </div>
-          <div style={{ color: 'var(--success)', fontSize: '1.5rem', fontWeight: 'bold' }}>
+          <div
+            style={{
+              color: 'var(--success)',
+              fontSize: compactUi ? '1.2rem' : '1.5rem',
+              fontWeight: 'bold',
+            }}
+          >
             {stats.completed}
           </div>
         </div>
@@ -201,13 +303,25 @@ export default function FireMissions() {
             backgroundColor: 'var(--bg-secondary)',
             border: '1px solid var(--border)',
             borderRadius: '8px',
-            padding: '1rem',
+            padding: compactUi ? '0.65rem 0.75rem' : '1rem',
           }}
         >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+          <div
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: compactUi ? '0.72rem' : '0.875rem',
+              marginBottom: '0.25rem',
+            }}
+          >
             Canceled
           </div>
-          <div style={{ color: 'var(--warning)', fontSize: '1.5rem', fontWeight: 'bold' }}>
+          <div
+            style={{
+              color: 'var(--warning)',
+              fontSize: compactUi ? '1.2rem' : '1.5rem',
+              fontWeight: 'bold',
+            }}
+          >
             {stats.canceled}
           </div>
         </div>
@@ -217,23 +331,29 @@ export default function FireMissions() {
             backgroundColor: 'var(--bg-secondary)',
             border: '1px solid var(--border)',
             borderRadius: '8px',
-            padding: '1rem',
+            padding: compactUi ? '0.65rem 0.75rem' : '1rem',
           }}
         >
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+          <div
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: compactUi ? '0.72rem' : '0.875rem',
+              marginBottom: '0.25rem',
+            }}
+          >
             Time Since Last
           </div>
           <div
             style={{
               color: 'var(--text-primary)',
-              fontSize: '1.5rem',
+              fontSize: compactUi ? '1.2rem' : '1.5rem',
               fontWeight: 'bold',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
             }}
           >
-            <Clock size={18} />
+            <Clock size={compactUi ? 15 : 18} />
             {stats.timeSinceLastMission || 'N/A'}
           </div>
         </div>
@@ -242,8 +362,8 @@ export default function FireMissions() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
-          gap: '1.5rem',
+          gridTemplateColumns: isMobile || compactUi ? '1fr' : '2fr 1fr',
+          gap: compactUi ? '1rem' : '1.5rem',
           alignItems: 'flex-start',
         }}
       >
@@ -484,191 +604,70 @@ export default function FireMissions() {
               </div>
             ) : (
               <div style={{ maxHeight: isMobile ? 'none' : 'calc(100vh - 400px)', overflowY: 'auto' }}>
-                {fireMissions.map((mission, index) => (
-                  <div
-                    key={mission.id}
-                    data-guide={index === 0 ? 'fire-mission-card' : undefined}
-                    style={{
-                      padding: '1rem',
-                      borderBottom: '1px solid var(--border)',
-                      display: 'flex',
-                      flexDirection: isMobile ? 'column' : 'row',
-                      gap: '1rem',
-                      alignItems: isMobile ? 'flex-start' : 'center',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.2s',
-                    }}
-                    onClick={() => setSelectedTask(mission)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent'
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          marginBottom: '0.5rem',
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <span
-                          style={{
-                            color: 'var(--text-primary)',
-                            fontWeight: 'bold',
-                            fontSize: '1rem',
-                          }}
-                        >
-                          {mission.targetNumber || mission.name}
-                        </span>
-                        {mission.canceled ? (
-                          <span
-                            style={{
-                              backgroundColor: 'var(--warning)',
-                              color: 'white',
-                              padding: '0.25rem 0.5rem',
-                              borderRadius: '4px',
-                              fontSize: '0.75rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                            }}
-                          >
-                            <XCircle size={12} />
-                            Canceled
-                          </span>
-                        ) : mission.status === 'completed' ? (
-                          <span
-                            style={{
-                              backgroundColor: 'var(--success)',
-                              color: 'white',
-                              padding: '0.25rem 0.5rem',
-                              borderRadius: '4px',
-                              fontSize: '0.75rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                            }}
-                          >
-                            <CheckCircle size={12} />
-                            Completed
-                          </span>
-                        ) : (
-                          <span
-                            style={{
-                              backgroundColor: 'var(--accent)',
-                              color: 'white',
-                              padding: '0.25rem 0.5rem',
-                              borderRadius: '4px',
-                              fontSize: '0.75rem',
-                            }}
-                          >
-                            In Progress
-                          </span>
-                        )}
-                        {mission.targetNumber && (
-                          <span
-                            style={{
-                              backgroundColor: 'var(--bg-tertiary)',
-                              color: 'var(--text-primary)',
-                              padding: '0.25rem 0.5rem',
-                              borderRadius: '4px',
-                              fontSize: '0.75rem',
-                              border: '1px solid var(--border)',
-                            }}
-                          >
-                            TGT #{mission.targetNumber}
-                          </span>
-                        )}
-                      </div>
-
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
-                          gap: '0.5rem',
-                          fontSize: '0.875rem',
-                          color: 'var(--text-secondary)',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <Target size={14} />
-                          <span>
-                            <strong>Target:</strong> {mission.target || 'Not specified'}
-                            {mission.targetNumber && ` (TGT #${mission.targetNumber})`}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <Rocket size={14} />
-                          <span>
-                            <strong>Launchers:</strong> {getLauncherNames(mission)}
-                          </span>
-                        </div>
-                        <div>
-                          <strong>Start:</strong> {formatDateTime(mission.startTime)}
-                        </div>
-                        {mission.completedTime && (
-                          <div>
-                            <strong>Completed:</strong> {formatDateTime(mission.completedTime)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '0.5rem', flexDirection: isMobile ? 'column' : 'row' }}>
-                      {mission.status === 'in-progress' && (
+                {missionGroups
+                  ? missionGroups.map((g) => (
+                      <div key={g.key} style={{ borderBottom: '1px solid var(--border)' }}>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (confirm('End this task early?')) {
-                              endTaskEarly(mission.id)
-                            }
-                          }}
+                          type="button"
+                          onClick={() => toggleGroup(g.key)}
                           style={{
-                            padding: '0.5rem',
-                            backgroundColor: 'var(--warning)',
-                            border: 'none',
-                            borderRadius: '4px',
-                            color: 'white',
-                            cursor: 'pointer',
+                            width: '100%',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.5rem',
-                            fontSize: '0.875rem',
+                            padding: compactUi ? '0.55rem 0.75rem' : '0.65rem 1rem',
+                            backgroundColor: 'var(--bg-tertiary)',
+                            border: 'none',
+                            borderBottom: '1px solid var(--border)',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontSize: compactUi ? '0.8rem' : '0.9rem',
+                            color: 'var(--text-primary)',
+                            textAlign: 'left',
                           }}
                         >
-                          <StopCircle size={16} />
-                          {isMobile ? 'End' : 'End Early'}
+                          {isGroupOpen(g.key) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                          {g.label}
+                          <span
+                            style={{
+                              color: 'var(--text-secondary)',
+                              fontWeight: 500,
+                              marginLeft: '0.35rem',
+                              fontSize: '0.78rem',
+                            }}
+                          >
+                            ({g.missions.length})
+                          </span>
                         </button>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedTask(mission)
-                        }}
-                        style={{
-                          padding: '0.5rem',
-                          backgroundColor: 'var(--bg-primary)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '4px',
-                          color: 'var(--text-primary)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          fontSize: '0.875rem',
-                        }}
-                      >
-                        <Edit2 size={16} />
-                        {isMobile ? 'Edit' : 'Edit'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                        {isGroupOpen(g.key) &&
+                          g.missions.map((mission, index) => (
+                            <FireMissionListRow
+                              key={mission.id}
+                              mission={mission}
+                              index={index}
+                              isMobile={isMobile}
+                              compactUi={compactUi}
+                              getLauncherNames={getLauncherNames}
+                              formatDateTime={formatDateTime}
+                              endTaskEarly={endTaskEarly}
+                              setSelectedTask={setSelectedTask}
+                            />
+                          ))}
+                      </div>
+                    ))
+                  : fireMissions.map((mission, index) => (
+                      <FireMissionListRow
+                        key={mission.id}
+                        mission={mission}
+                        index={index}
+                        isMobile={isMobile}
+                        compactUi={compactUi}
+                        getLauncherNames={getLauncherNames}
+                        formatDateTime={formatDateTime}
+                        endTaskEarly={endTaskEarly}
+                        setSelectedTask={setSelectedTask}
+                      />
+                    ))}
               </div>
             )}
           </div>
@@ -773,7 +772,7 @@ export default function FireMissions() {
           }}
         />
       )}
-    </div>
+    </PageShell>
   )
 }
 

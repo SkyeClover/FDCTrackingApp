@@ -5,6 +5,7 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { useIsTablet } from '../hooks/useIsTablet'
 import { useModal } from '../hooks/useModal'
 import { useSwipe } from '../hooks/useSwipe'
+import SegmentedIntPicker from './ui/SegmentedIntPicker'
 
 interface FireMissionModalProps {
   isOpen: boolean
@@ -403,45 +404,14 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
           >
             Number of Rounds to Fire <span style={{ color: 'var(--danger)' }}>*</span>
           </label>
-          <input
-            type="number"
+          <SegmentedIntPicker
+            data-guide="fire-mission-rounds-picker"
+            min={1}
+            max={6}
             value={roundsPerLauncher}
-            onChange={(e) => {
-              const value = e.target.value
-              if (value === '') {
-                setRoundsPerLauncher('')
-              } else {
-                const num = parseInt(value)
-                if (!isNaN(num)) {
-                  setRoundsPerLauncher(Math.max(1, Math.min(6, num)))
-                }
-              }
-            }}
-            onBlur={(e) => {
-              const value = e.target.value
-              if (value === '') {
-                // Allow empty value - user can clear it
-                return
-              }
-              const num = parseInt(value)
-              if (isNaN(num) || num < 1) {
-                setRoundsPerLauncher(1)
-              }
-            }}
-            onFocus={(e) => e.target.select()}
-            min="1"
-            max="6"
-            required
-            style={{
-              width: '100%',
-              padding: isTablet ? '1rem' : '0.75rem',
-              backgroundColor: 'var(--bg-primary)',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              color: 'var(--text-primary)',
-              fontSize: isTablet ? '1.125rem' : '1rem',
-              minHeight: isTablet ? '48px' : 'auto',
-            }}
+            onChange={setRoundsPerLauncher}
+            allowEmpty
+            compact={isMobile}
           />
           <div
             style={{

@@ -31,7 +31,7 @@ export default function MaintenanceBanner() {
           color: '#ccc',
           lineHeight: '1.6'
         }}>
-          The FDC Tracker is currently being updated and is temporarily unavailable.
+          Walker Track is currently being updated and is temporarily unavailable.
         </div>
         <div style={{
           padding: '1.5rem',

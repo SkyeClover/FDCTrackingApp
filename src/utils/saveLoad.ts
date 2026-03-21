@@ -1,11 +1,70 @@
 import { AppState } from '../types'
 import { DEFAULT_ROUND_TYPES } from '../constants/roundTypes'
 
-const STORAGE_KEY = 'fdc-tracker-state'
-const APP_VERSION = '1.0.2'
+export const STORAGE_KEY = 'fdc-tracker-state'
+/** Persisted when the user finishes first-run setup or when existing data is detected (migration). */
+export const INITIAL_SETUP_KEY = 'fdc-initial-setup-done'
+export const APP_VERSION = '1.1.12'
+
+/** True if this browser has completed onboarding or already had unit data saved. */
+export function readInitialSetupCompleteFromStorage(): boolean {
+  if (typeof localStorage === 'undefined') return true
+  if (localStorage.getItem(INITIAL_SETUP_KEY) === 'true') return true
+  const raw = localStorage.getItem(STORAGE_KEY)
+  if (!raw) return false
+  try {
+    const p = JSON.parse(raw) as Record<string, unknown>
+    const n =
+      ((p.brigades as unknown[] | undefined)?.length ?? 0) +
+      ((p.battalions as unknown[] | undefined)?.length ?? 0) +
+      ((p.bocs as unknown[] | undefined)?.length ?? 0) +
+      ((p.pocs as unknown[] | undefined)?.length ?? 0) +
+      ((p.launchers as unknown[] | undefined)?.length ?? 0)
+    if (n > 0) {
+      localStorage.setItem(INITIAL_SETUP_KEY, 'true')
+      return true
+    }
+  } catch {
+    /* ignore */
+  }
+  return false
+}
+
+export function writeInitialSetupComplete(): void {
+  try {
+    localStorage.setItem(INITIAL_SETUP_KEY, 'true')
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearInitialSetupFlag(): void {
+  try {
+    localStorage.removeItem(INITIAL_SETUP_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function stateHasOrgEntities(state: {
+  brigades: unknown[]
+  battalions: unknown[]
+  bocs: unknown[]
+  pocs: unknown[]
+  launchers: unknown[]
+}): boolean {
+  return (
+    state.brigades.length +
+      state.battalions.length +
+      state.bocs.length +
+      state.pocs.length +
+      state.launchers.length >
+    0
+  )
+}
 
 // Convert Date objects to ISO strings for JSON serialization
-function serializeState(state: AppState): string {
+export function serializeState(state: AppState): string {
   const serialized = {
     ...state,
     launchers: state.launchers.map((launcher) => ({
@@ -34,7 +93,7 @@ function serializeState(state: AppState): string {
 }
 
 // Convert ISO strings back to Date objects
-function deserializeState(json: string): AppState {
+export function deserializeState(json: string): AppState {
   const parsed = JSON.parse(json)
   // Migrate pods to include UUID if missing
   const migratedPods = parsed.pods?.map((pod: any) => {
@@ -59,6 +118,8 @@ function deserializeState(json: string): AppState {
   
   return {
     ...parsed,
+    brigades: parsed.brigades || [],
+    battalions: parsed.battalions || [],
     pods: migratedPods,
     rsvs: parsed.rsvs || [], // Ensure rsvs array exists
     roundTypes: mergedRoundTypes, // Ensure roundTypes exist
@@ -144,6 +205,8 @@ export function importFromFile(file: File): Promise<AppState> {
 
 export function getDefaultState(): AppState {
   return {
+    brigades: [],
+    battalions: [],
     bocs: [],
     pocs: [],
     launchers: [],
@@ -185,7 +248,6 @@ export function getDefaultState(): AppState {
     roundTypes: { ...DEFAULT_ROUND_TYPES },
     version: APP_VERSION,
     currentUserRole: undefined,
-    hasSeenFirstTimeGuide: false,
   }
 }
 
