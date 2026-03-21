@@ -88,9 +88,13 @@ export function SyncInboxBanner() {
         normalizePeerUnitId(r.peerUnitId) === normalizePeerUnitId(fromUid)
     )
 
-    const showAlerts = match ? match.syncAlertsEnabled : meta.incomingAlertsEnabled
+    /** Only roster rows with matching Peer unit ID get ingest UI (no unknown-peer banners). */
+    if (!match) {
+      setBanner((b) => (b?.kind === 'pending' ? null : b))
+      return
+    }
 
-    if (match?.autoAcceptSync) {
+    if (match.autoAcceptSync) {
       busyRef.current = true
       try {
         const r = await fetchIngestStatus(meta, origin)
@@ -113,9 +117,9 @@ export function SyncInboxBanner() {
       return
     }
 
-    if (!showAlerts) return
+    if (!match.syncAlertsEnabled) return
 
-    const label = match?.displayName ?? (fromUid ? `Unit ${fromUid}` : 'Unknown unit')
+    const label = match.displayName || (fromUid ? `Unit ${fromUid}` : 'Peer')
     setBanner({
       kind: 'pending',
       message: `Incoming sync (v${ingestSv}) from ${label}.`,

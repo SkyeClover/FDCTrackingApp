@@ -6,7 +6,6 @@ export function SyncAlertSettings() {
   const initial = useMemo(() => getSyncMeta(), [])
   const parsed = useMemo(() => parseSyncAlertStyle(initial.syncAlertStyleJson), [initial.syncAlertStyleJson])
 
-  const [incomingAlerts, setIncomingAlerts] = useState(initial.incomingAlertsEnabled)
   const [durationMs, setDurationMs] = useState(parsed.durationMs)
   const [background, setBackground] = useState(parsed.background)
   const [border, setBorder] = useState(parsed.border)
@@ -14,7 +13,6 @@ export function SyncAlertSettings() {
 
   const persist = useCallback(() => {
     updateSyncMeta({
-      incomingAlertsEnabled: incomingAlerts,
       syncAlertStyleJson: JSON.stringify({
         durationMs,
         background,
@@ -22,7 +20,7 @@ export function SyncAlertSettings() {
         color,
       }),
     })
-  }, [incomingAlerts, durationMs, background, border, color])
+  }, [durationMs, background, border, color])
 
   const previewStyle = useMemo(
     () => ({
@@ -58,28 +56,9 @@ export function SyncAlertSettings() {
         Sync notifications
       </h2>
       <p style={{ margin: '0 0 1rem', color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.45 }}>
-        Look of the top-right banner when an ingest snapshot is waiting (or was auto-accepted). Per-unit alerts and
-        auto-accept are on the Network roster (Peer unit ID must match the sender’s Local unit ID).
+        Banners only appear when the sender’s Local unit ID matches a Network roster row’s <strong>Peer unit ID</strong> and
+        that row has <strong>Alerts</strong> on. Auto-accept is per row on Network. Below adjusts banner appearance only.
       </p>
-
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          marginBottom: '1rem',
-          fontSize: '0.9rem',
-          color: 'var(--text-primary)',
-          cursor: 'pointer',
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={incomingAlerts}
-          onChange={(e) => setIncomingAlerts(e.target.checked)}
-        />
-        Show banners for unknown peers (no roster match)
-      </label>
 
       <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem' }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.85rem' }}>

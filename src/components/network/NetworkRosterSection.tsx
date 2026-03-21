@@ -19,6 +19,7 @@ import {
   type EchelonSelectGroup,
   type OrgUnitsSlice,
 } from './echelonRoleUi'
+import { ensureBocPocRosterFromOrg } from './rosterFromOrg'
 
 function statusColor(status: string): string {
   if (status === 'green') return 'var(--success, #2a8)'
@@ -74,6 +75,8 @@ function NetworkRosterSectionInner({
   }, [editingId, onEditingChange])
 
   const applyParentIdsFromTree = useCallback(() => {
+    const rollup = getSyncMeta().autoRollupFromOrg
+    const ensured = ensureBocPocRosterFromOrg(org, rollup)
     const list = listNetworkRoster()
     let updated = 0
     let skippedLegacy = 0
@@ -89,7 +92,7 @@ function NetworkRosterSectionInner({
     appendAuditLog(
       'network',
       'Parent IDs applied from Management org tree',
-      `applied=${updated}, skippedLegacy=${skippedLegacy}`
+      `addedFromOrg=${ensured.added}, applied=${updated}, skippedLegacy=${skippedLegacy}`
     )
     reload()
     onChanged?.()
@@ -187,6 +190,18 @@ function NetworkRosterSectionInner({
                 const v = e.target.checked
                 setAutoRollup(v)
                 updateSyncMeta({ autoRollupFromOrg: v })
+                if (v) {
+                  const r = ensureBocPocRosterFromOrg(org, true)
+                  if (r.added > 0) {
+                    appendAuditLog(
+                      'network',
+                      'Auto roll-up: roster rows from Management',
+                      `added ${r.added} BOC/PLT FDC row(s)`
+                    )
+                  }
+                  reload()
+                  onChanged?.()
+                }
               }}
             />
             Auto roll-up parent IDs
@@ -194,7 +209,7 @@ function NetworkRosterSectionInner({
           <button
             type="button"
             onClick={() => applyParentIdsFromTree()}
-            title="Set parent ID from Management hierarchy (Bn → Bde, BOC → Bn, PLT FDC → BOC)"
+            title="Add missing BOC / PLT FDC rows from Management, then set parent IDs from hierarchy"
             style={{
               padding: '0.25rem 0.5rem',
               borderRadius: '4px',
@@ -225,11 +240,12 @@ function NetworkRosterSectionInner({
         </div>
       </div>
       <p style={{ margin: '0 0 0.4rem', color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.35 }}>
-        <strong>Role</strong> = any echelon from <strong>Inventory / Management</strong> (Bde → Bn → BOC → PLT FDC). When{' '}
-        <strong>Auto roll-up</strong> is on, saving a row fills <strong>Parent ID</strong> from that tree.{' '}
-        <strong>Apply parents from tree</strong> updates all rows now (rows need a valid echelon role; legacy text roles are
-        skipped). <strong>Peer unit ID</strong> = sender’s Local unit ID for ingest alerts / auto-accept. IP/host and bearer as
-        before; save on <strong>Save row</strong>.
+        <strong>Role</strong> = echelon from <strong>Management</strong> (Bde → Bn → BOC → PLT FDC). When{' '}
+        <strong>Auto roll-up</strong> is on, turning it on adds a roster row for each <strong>Battery (BOC)</strong> and{' '}
+        <strong>PLT FDC (POC)</strong> you created, and saving a row fills <strong>Parent ID</strong> from that tree.{' '}
+        <strong>Apply parents from tree</strong> adds any missing BOC/POC rows, then updates all parents (legacy text roles
+        skipped). Edit <strong>Host</strong>/<strong>Port</strong> per node (e.g. Pi at <code style={{ fontSize: '0.7rem' }}>192.168.1.10:8787</code> for sync).{' '}
+        <strong>Peer unit ID</strong> = sender’s Local unit ID for ingest alerts / auto-accept.
       </p>
 
       <div style={{ overflowX: 'auto' }}>

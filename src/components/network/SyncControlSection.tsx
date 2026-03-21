@@ -233,9 +233,8 @@ export function SyncControlSection({
             </button>
           </div>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400, lineHeight: 1.35 }}>
-            You choose a passphrase; the app uses it to sign requests (HMAC). It is not downloaded — match it on each node
-            and set <code style={{ fontSize: '0.7em' }}>FDC_SYNC_SECRET</code> on machines running{' '}
-            <code style={{ fontSize: '0.7em' }}>fdc-peer-server.mjs</code>.
+            Same value on every device and ingest (Pi, Vercel, etc.): the app signs with HMAC; servers use{' '}
+            <code style={{ fontSize: '0.7em' }}>FDC_SYNC_SECRET</code> for <code style={{ fontSize: '0.7em' }}>fdc-peer-server.mjs</code> or Vercel.
           </span>
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem' }}>
