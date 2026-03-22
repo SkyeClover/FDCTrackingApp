@@ -18,6 +18,10 @@
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
+  --motion-fast: 140ms;
+  --motion-med: 220ms;
+  --motion-slow: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
 /* Form controls: match dark theme (unstyled inputs/passwords default to white in many browsers) */
@@ -46,6 +50,15 @@ textarea:focus {
   box-shadow: 0 0 0 1px var(--accent);
 }
 
+input,
+select,
+textarea {
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
+}
+
 input[type='password'],
 input[type='text'],
 input[type='number'],
@@ -63,6 +76,11 @@ button {
   border-radius: 4px;
   padding: 0.35rem 0.65rem;
   cursor: pointer;
+  transition:
+    transform var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-med) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
 }
 
 button:hover:not(:disabled) {
@@ -470,4 +488,298 @@ input[type='number'].input-no-spinner::-webkit-outer-spin-button,
 input[type='number'].input-no-spinner::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/* Lightweight UX feedback for sync/network controls */
+@keyframes ui-fade-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ui-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.14);
+  }
+}
+
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sync-feedback-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  margin: 0.25rem 0 0.6rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  animation: ui-fade-slide-in 180ms ease-out;
+}
+
+.sync-feedback-info {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-secondary));
+}
+
+.sync-feedback-success {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 14%, var(--bg-secondary));
+}
+
+.sync-feedback-warn,
+.sync-feedback-error {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 14%, var(--bg-secondary));
+}
+
+.sync-feedback-error {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, var(--bg-secondary));
+}
+
+.sync-action-btn {
+  transition: transform 120ms ease, box-shadow 140ms ease;
+}
+
+.sync-action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.22);
+}
+
+.sync-action-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sync-action-btn-primary {
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.25);
+}
+
+.sync-action-btn svg.spin-inline {
+  animation: ui-spin 0.8s linear infinite;
+}
+
+.sync-action-btn:disabled svg.spin-inline {
+  animation-play-state: paused;
+}
+
+.sync-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sync-version-indicator.is-busy {
+  animation: ui-pulse 1.1s ease-in-out infinite;
+  border-radius: 6px;
+  padding: 0.2rem 0.35rem;
+}
+
+.network-status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  padding: 0.1rem 0.45rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.network-status-green {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+}
+
+.network-status-yellow {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+}
+
+.network-status-red {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  animation: ui-pulse 1.8s ease-in-out infinite;
+}
+
+.network-status-unknown {
+  background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
+}
+
+.network-roster-card,
+.network-roster-row,
+.network-roster-editor {
+  transition: background-color 180ms ease, border-color 180ms ease, transform 140ms ease;
+}
+
+.network-roster-card:hover,
+.network-roster-row:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.network-roster-editor {
+  animation: ui-fade-slide-in 180ms ease-out;
+}
+
+.app-page-transition {
+  animation: page-enter var(--motion-med) var(--ease-standard);
+  transform-origin: center top;
+}
+
+.app-main-scroll {
+  scroll-behavior: smooth;
+}
+
+.page-shell {
+  animation: ui-fade-slide-in var(--motion-med) var(--ease-standard);
+}
+
+.page-shell-header {
+  position: static;
+  z-index: auto;
+  backdrop-filter: none;
+  background: transparent;
+  padding-block: 0;
+}
+
+.page-shell-title {
+  letter-spacing: 0.01em;
+}
+
+.collapsible-card {
+  transition:
+    transform var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-med) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+
+.collapsible-card:hover {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
+}
+
+.collapsible-card-toggle {
+  transition: color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+}
+
+.collapsible-card-toggle:hover {
+  color: var(--accent);
+}
+
+.collapsible-card-body {
+  animation: ui-fade-slide-in var(--motion-fast) var(--ease-standard);
+}
+
+.app-sidebar {
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.app-nav-item {
+  position: relative;
+}
+
+.app-nav-item:hover:not(.is-active) {
+  transform: translateX(2px);
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.app-nav-item.is-active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.mobile-nav-header {
+  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--bg-secondary) 86%, transparent);
+}
+
+.mobile-nav-backdrop {
+  animation: ui-fade-slide-in var(--motion-fast) var(--ease-standard);
+}
+
+.mobile-nav-drawer {
+  box-shadow: 18px 0 40px rgba(0, 0, 0, 0.38);
+}
+
+.mobile-nav-icon-btn:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent) !important;
+}
+
+.mobile-nav-item {
+  transition:
+    transform var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.mobile-nav-item:hover:not(.is-active) {
+  transform: translateX(2px);
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}
+
+.mobile-nav-item.is-active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.network-layout {
+  container-type: inline-size;
+}
+
+.network-main-col,
+.network-side-col {
+  min-height: 0;
+}
+
+@container (max-width: 980px) {
+  .network-layout {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-feedback-banner,
+  .sync-version-indicator.is-busy,
+  .network-status-red,
+  .network-roster-editor,
+  .app-page-transition,
+  .page-shell,
+  .collapsible-card-body,
+  .mobile-nav-backdrop {
+    animation: none !important;
+  }
+
+  .sync-action-btn,
+  .network-roster-card,
+  .network-roster-row,
+  .network-roster-editor,
+  button,
+  input,
+  select,
+  textarea,
+  .collapsible-card,
+  .mobile-nav-item,
+  .app-nav-item {
+    transition: none !important;
+  }
 }

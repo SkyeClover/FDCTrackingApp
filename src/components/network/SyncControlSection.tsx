@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Eye, EyeOff, Info, Loader2 } from 'lucide-react'
 import { useAppData } from '../../context/AppDataContext'
 import {
   appendAuditLog,
-  clearAuditLog,
   getStateVersion,
   getSyncMeta,
-  listAuditLog,
   listNetworkRoster,
   updateSyncMeta,
   upsertNetworkRosterRow,
@@ -30,12 +28,18 @@ import {
 import { CollapsibleCard } from './CollapsibleCard'
 
 export function SyncControlSection({
-  isMobile: _isMobile,
+  isMobile,
   onSyncDone,
+  onSyncOutputChange,
+  onLogsChanged,
 }: {
   isMobile: boolean
   /** Called after roster-affecting sync actions so the table refreshes. */
   onSyncDone?: () => void
+  /** Called whenever sync output text is updated. */
+  onSyncOutputChange?: (payload: { path: string; loggedAt: string }) => void
+  /** Called whenever SQLite sync/network logs are updated. */
+  onLogsChanged?: () => void
 }) {
   const { getStateSnapshot, applySnapshotFromJson } = useAppData()
   const [meta, setMeta] = useState(getSyncMeta)
@@ -44,18 +48,17 @@ export function SyncControlSection({
   const [pullBusy, setPullBusy] = useState(false)
   const [pingBusy, setPingBusy] = useState(false)
   const [cleanDisconnectBusy, setCleanDisconnectBusy] = useState(false)
-  const [lastPath, setLastPath] = useState<string>('')
-  const [lastLog, setLastLog] = useState<string>('')
   const [showSkipConfirm, setShowSkipConfirm] = useState(false)
   const [showSharedSecret, setShowSharedSecret] = useState(false)
-  const [syncOutputOpen, setSyncOutputOpen] = useState(true)
-  const [auditLogOpen, setAuditLogOpen] = useState(true)
   const [auditTick, setAuditTick] = useState(0)
+  const [actionFeedback, setActionFeedback] = useState<{
+    tone: 'info' | 'success' | 'warn' | 'error'
+    text: string
+  } | null>(null)
   /** Snapshot version currently stored at this origin’s ingest (GET /fdc/v1/health). */
   const [ingestSvOnThisSite, setIngestSvOnThisSite] = useState<number | null>(null)
   const autoBusyRef = useRef(false)
-
-  const auditEntries = useMemo(() => listAuditLog(200), [auditTick])
+  const anyBusy = busy || pullBusy || pingBusy || cleanDisconnectBusy
 
   const ipRosterPeers = useMemo(
     () => listNetworkRoster().filter((r) => r.host && r.port != null && r.bearer === 'ip'),
@@ -72,9 +75,32 @@ export function SyncControlSection({
     setSv(getStateVersion())
   }, [])
 
+  const setFeedback = useCallback((tone: 'info' | 'success' | 'warn' | 'error', text: string) => {
+    setActionFeedback({ tone, text })
+  }, [])
+
+  const publishSyncOutput = useCallback(
+    (path: string) => {
+      const loggedAt = new Date().toLocaleTimeString()
+      onSyncOutputChange?.({ path, loggedAt })
+    },
+    [onSyncOutputChange]
+  )
+
+  const markLogsChanged = useCallback(() => {
+    setAuditTick((t) => t + 1)
+    onLogsChanged?.()
+  }, [onLogsChanged])
+
   useEffect(() => {
     refreshMeta()
   }, [refreshMeta])
+
+  useEffect(() => {
+    if (!actionFeedback) return
+    const id = window.setTimeout(() => setActionFeedback(null), 4200)
+    return () => clearTimeout(id)
+  }, [actionFeedback])
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -117,37 +143,33 @@ export function SyncControlSection({
       void runSnapshotPush(getStateSnapshot(), 'auto')
         .then((summary) => {
           const paths = summary.targets.map((x) => `${x.row.displayName}: ${x.result}`).join(' · ')
-          setLastPath('auto → ' + paths)
-          setLastLog(new Date().toLocaleTimeString())
-          setSyncOutputOpen(true)
+          publishSyncOutput('auto → ' + paths)
           onSyncDone?.()
         })
         .catch(console.error)
         .finally(() => {
           autoBusyRef.current = false
           refreshMeta()
-          setAuditTick((t) => t + 1)
+          markLogsChanged()
         })
     }, intervalMs)
     return () => clearInterval(t)
-  }, [getStateSnapshot, onSyncDone, refreshMeta, meta.autoPushEnabled])
+  }, [getStateSnapshot, onSyncDone, refreshMeta, meta.autoPushEnabled, publishSyncOutput, markLogsChanged])
 
   const doPingPeers = useCallback(async () => {
     if (!isSyncSharedSecretConfigured(getSyncMeta())) {
-      setLastPath('Set your shared passphrase before I can send a test message.')
-      setLastLog(new Date().toLocaleTimeString())
-      setSyncOutputOpen(true)
+      publishSyncOutput('Set your shared passphrase before I can send a test message.')
+      setFeedback('warn', 'Shared passphrase required before test messages.')
       return
     }
     setPingBusy(true)
-    setLastPath('')
+    setFeedback('info', 'Sending signed test messages to roster peers...')
     try {
       const m = getSyncMeta()
       const peers = listNetworkRoster().filter((r) => r.host && r.port != null && r.bearer === 'ip')
       if (peers.length === 0) {
-        setLastPath('No roster rows with host, port, and IP/LAN bearer to ping.')
-        setLastLog(new Date().toLocaleTimeString())
-        setSyncOutputOpen(true)
+        publishSyncOutput('No roster rows with host, port, and IP/LAN bearer to ping.')
+        setFeedback('warn', 'No IP/LAN peers are configured for test messages.')
         return
       }
       const lines: string[] = []
@@ -229,78 +251,78 @@ export function SyncControlSection({
           lastError: displayErr,
         })
       }
-      setLastPath(
+      publishSyncOutput(
         [
           'Test message: signed ping + (when supported) Walker Track tab presence on their ingest:',
           ...lines,
         ].join('\n')
       )
-      setLastLog(new Date().toLocaleTimeString())
-      setSyncOutputOpen(true)
       appendAuditLog(
         'sync',
         'Ping test',
         lines.slice(0, 8).join(' · ') + (lines.length > 8 ? ` … +${lines.length - 8}` : '')
       )
-      setAuditTick((t) => t + 1)
+      markLogsChanged()
       onSyncDone?.()
+      setFeedback('success', `Peer test completed for ${peers.length} row${peers.length === 1 ? '' : 's'}.`)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      publishSyncOutput(msg)
+      setFeedback('error', 'Peer test failed. Check output for details.')
     } finally {
       setPingBusy(false)
     }
-  }, [onSyncDone])
+  }, [onSyncDone, setFeedback, publishSyncOutput, markLogsChanged])
 
   const doForce = useCallback(async () => {
     if (!isSyncSharedSecretConfigured(getSyncMeta())) {
-      setLastPath('Set your shared passphrase before pushing — it has to match what you typed on the other machines.')
-      setLastLog(new Date().toLocaleTimeString())
-      setSyncOutputOpen(true)
+      publishSyncOutput('Set your shared passphrase before pushing — it has to match what you typed on the other machines.')
+      setFeedback('warn', 'Shared passphrase required before force push.')
       return
     }
     setBusy(true)
-    setLastPath('')
+    setFeedback('info', 'Pushing snapshot to configured peers...')
     try {
       const summary = await runSnapshotPush(getStateSnapshot(), 'force')
       const paths = summary.targets.map((t) => `${t.row.displayName} → ${t.path} (${t.result})`).join('\n')
-      setLastPath(paths || '(no roster rows with host/port)')
-      setLastLog(new Date().toLocaleTimeString())
-      setSyncOutputOpen(true)
+      publishSyncOutput(paths || '(no roster rows with host/port)')
       appendAuditLog('sync', 'Force push completed', paths)
       onSyncDone?.()
+      setFeedback('success', `Snapshot push completed for ${summary.targets.length} target${summary.targets.length === 1 ? '' : 's'}.`)
     } catch (e) {
-      setLastPath(e instanceof Error ? e.message : String(e))
-      setLastLog(new Date().toLocaleTimeString())
-      setSyncOutputOpen(true)
+      publishSyncOutput(e instanceof Error ? e.message : String(e))
+      setFeedback('error', 'Snapshot push failed. Check output for details.')
     } finally {
       setBusy(false)
       refreshMeta()
-      setAuditTick((t) => t + 1)
+      markLogsChanged()
     }
-  }, [getStateSnapshot, onSyncDone, refreshMeta])
+  }, [getStateSnapshot, onSyncDone, refreshMeta, setFeedback, publishSyncOutput, markLogsChanged])
 
   const pullFromThisSiteIngest = useCallback(async () => {
     if (!isSyncSharedSecretConfigured(getSyncMeta())) {
-      setLastPath('Set your shared passphrase before pulling — same one you use on the copy you’re pulling from.')
-      setLastLog(new Date().toLocaleTimeString())
-      setSyncOutputOpen(true)
+      publishSyncOutput('Set your shared passphrase before pulling — same one you use on the copy you’re pulling from.')
+      setFeedback('warn', 'Shared passphrase required before pull.')
       return
     }
     if (
       !confirm(
-        'Apply the ingest snapshot on this device? If Network → roster has “Merge BOC” or “Merge PLT” set for the sender’s Peer unit ID, only that subtree is merged and other batteries stay as-is. Otherwise the whole app state is replaced. You can’t undo that.'
+        'Apply the ingest snapshot on this device? Scope is automatic from the matched roster Role (BOC row = battery subtree, PLT row = PLT subtree). If no scoped role matches the sender, the whole app state is replaced. You can’t undo that.'
       )
     ) {
       return
     }
     setPullBusy(true)
+    setFeedback('info', 'Pulling latest snapshot from this site ingest...')
     try {
       const meta = getSyncMeta()
       const r = await fetchIngestStatus(meta, window.location.origin)
       if (!r.ok || !r.snapshotJson) {
         const msg = r.detail ?? 'Unknown error'
-        setLastPath(`Pull ingest failed: ${msg}`)
-        setLastLog(new Date().toLocaleTimeString())
-        setSyncOutputOpen(true)
+        publishSyncOutput(`Pull ingest failed: ${msg}`)
         appendAuditLog('sync', 'Pull ingest failed', msg)
+        setFeedback('error', 'Pull failed. Check output for details.')
+        markLogsChanged()
         return
       }
       const pulledSv = r.stateVersion != null ? Number(r.stateVersion) : undefined
@@ -311,23 +333,27 @@ export function SyncControlSection({
           setIngestSvOnThisSite(pulledSv)
         }
         appendAuditLog('sync', 'Pulled snapshot from ingest', window.location.origin)
+        publishSyncOutput('Pulled snapshot from this site ingest and applied it to local DB.')
         refreshMeta()
-        setAuditTick((t) => t + 1)
+        markLogsChanged()
         onSyncDone?.()
+        setFeedback('success', 'Snapshot pulled and applied from ingest.')
       }
+    } catch {
+      setFeedback('error', 'Pull failed. Check output for details.')
     } finally {
       setPullBusy(false)
     }
-  }, [applySnapshotFromJson, onSyncDone, refreshMeta])
+  }, [applySnapshotFromJson, onSyncDone, refreshMeta, setFeedback, publishSyncOutput, markLogsChanged])
 
   const saveMeta = useCallback(
     (next: Parameters<typeof updateSyncMeta>[0]) => {
       updateSyncMeta(next)
       refreshMeta()
       appendAuditLog('network', 'Sync settings updated', JSON.stringify(next))
-      setAuditTick((t) => t + 1)
+      markLogsChanged()
     },
-    [refreshMeta]
+    [refreshMeta, markLogsChanged]
   )
 
   const confirmSkipOnce = useCallback(() => {
@@ -337,9 +363,8 @@ export function SyncControlSection({
 
   const doCleanDisconnect = useCallback(async () => {
     if (!isSyncSharedSecretConfigured(getSyncMeta())) {
-      setLastPath('Set your shared passphrase before a clean disconnect.')
-      setLastLog(new Date().toLocaleTimeString())
-      setSyncOutputOpen(true)
+      publishSyncOutput('Set your shared passphrase before a clean disconnect.')
+      setFeedback('warn', 'Shared passphrase required for clean disconnect.')
       return
     }
     if (
@@ -350,6 +375,7 @@ export function SyncControlSection({
       return
     }
     setCleanDisconnectBusy(true)
+    setFeedback('info', 'Sending clean sign-off notifications...')
     try {
       const m = getSyncMeta()
       await reportBrowserOfflineLocalIngest(window.location.origin, m.peerListenPort, m, { clean: true })
@@ -358,16 +384,17 @@ export function SyncControlSection({
         'Local ingest: marked browser session offline (clean).',
         up.ok ? `Upstream (${up.detail}): notified of clean sign-off.` : `Upstream: ${up.detail}`,
       ]
-      setLastPath(lines.join('\n'))
-      setLastLog(new Date().toLocaleTimeString())
-      setSyncOutputOpen(true)
+      publishSyncOutput(lines.join('\n'))
       appendAuditLog('network', 'Clean disconnect', lines.join(' · '))
-      setAuditTick((t) => t + 1)
+      markLogsChanged()
       onSyncDone?.()
+      setFeedback('success', 'Clean disconnect notifications sent.')
+    } catch {
+      setFeedback('error', 'Clean disconnect failed. Check output for details.')
     } finally {
       setCleanDisconnectBusy(false)
     }
-  }, [onSyncDone])
+  }, [onSyncDone, setFeedback, publishSyncOutput, markLogsChanged])
 
   return (
     <CollapsibleCard
@@ -375,15 +402,15 @@ export function SyncControlSection({
       defaultOpen
       description={
         <p style={{ margin: 0 }}>
-          I keep a log below after each run so you can see what happened. Peers run in roster order; skip-echelon only when
-          you’ve turned it on and confirmed here.
+          Peers run in roster order; skip-echelon only when you’ve turned it on and confirmed here. Detailed sync and DB
+          logs are in the right column.
         </p>
       }
     >
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',
+          gridTemplateColumns: isMobile ? '1fr' : 'minmax(220px, 0.8fr) minmax(360px, 1.2fr)',
           gap: '0.55rem 0.85rem',
           marginBottom: '0.5rem',
           alignItems: 'start',
@@ -396,7 +423,7 @@ export function SyncControlSection({
             onChange={(e) => saveMeta({ localUnitId: e.target.value.slice(0, 16) })}
           />
         </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem', gridColumn: '1 / -1' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem' }}>
           <span>Shared secret (for sync HMAC)</span>
           <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.35rem' }}>
             <input
@@ -449,7 +476,7 @@ export function SyncControlSection({
             port (e.g. Pi on :3000), I still use this for pull / ingest health on the same machine.
           </span>
         </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem', gridColumn: '1 / -1' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem' }}>
           <span>Upstream for sign-off &amp; tab-close notify</span>
           <select
             value={meta.upstreamNotifyRosterId || ''}
@@ -524,6 +551,7 @@ export function SyncControlSection({
           onClick={() => setShowSkipConfirm(true)}
           style={{
             alignSelf: 'flex-start',
+            display: 'block',
             marginBottom: '0.3rem',
             fontSize: '0.78rem',
             padding: '0.28rem 0.55rem',
@@ -546,9 +574,22 @@ export function SyncControlSection({
           it, and it has to match what you set on the other side.
         </p>
       ) : null}
+      {actionFeedback ? (
+        <div className={`sync-feedback-banner sync-feedback-${actionFeedback.tone}`} role="status" aria-live="polite">
+          {actionFeedback.tone === 'success' ? (
+            <CheckCircle2 size={15} aria-hidden />
+          ) : actionFeedback.tone === 'warn' || actionFeedback.tone === 'error' ? (
+            <AlertTriangle size={15} aria-hidden />
+          ) : (
+            <Info size={15} aria-hidden />
+          )}
+          <span>{actionFeedback.text}</span>
+        </div>
+      ) : null}
 
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.5rem' }}>
         <button
+          className="sync-action-btn sync-action-btn-primary"
           type="button"
           disabled={busy || pullBusy || pingBusy || cleanDisconnectBusy || !secretOk}
           onClick={() => void doForce()}
@@ -562,9 +603,10 @@ export function SyncControlSection({
             opacity: !secretOk ? 0.55 : 1,
           }}
         >
-          {busy ? 'Syncing…' : 'Force push snapshot'}
+          {busy ? <><Loader2 size={14} className="spin-inline" aria-hidden />Syncing...</> : 'Force push snapshot'}
         </button>
         <button
+          className="sync-action-btn"
           type="button"
           disabled={busy || pullBusy || pingBusy || !secretOk}
           onClick={() => void pullFromThisSiteIngest()}
@@ -579,9 +621,10 @@ export function SyncControlSection({
             opacity: !secretOk ? 0.55 : 1,
           }}
         >
-          {pullBusy ? 'Pulling…' : 'Pull snapshot (this site ingest)'}
+          {pullBusy ? <><Loader2 size={14} className="spin-inline" aria-hidden />Pulling...</> : 'Pull snapshot (this site ingest)'}
         </button>
         <button
+          className="sync-action-btn"
           type="button"
           disabled={busy || pullBusy || pingBusy || cleanDisconnectBusy || !secretOk}
           onClick={() => void doPingPeers()}
@@ -596,9 +639,10 @@ export function SyncControlSection({
             opacity: !secretOk ? 0.55 : 1,
           }}
         >
-          {pingBusy ? 'Pinging…' : 'Send test message'}
+          {pingBusy ? <><Loader2 size={14} className="spin-inline" aria-hidden />Pinging...</> : 'Send test message'}
         </button>
         <button
+          className="sync-action-btn"
           type="button"
           disabled={busy || pullBusy || pingBusy || cleanDisconnectBusy || !secretOk}
           onClick={() => void doCleanDisconnect()}
@@ -613,9 +657,10 @@ export function SyncControlSection({
             opacity: !secretOk ? 0.55 : 1,
           }}
         >
-          {cleanDisconnectBusy ? 'Signing off…' : 'Clean disconnect (notify upstream)'}
+          {cleanDisconnectBusy ? <><Loader2 size={14} className="spin-inline" aria-hidden />Signing off...</> : 'Clean disconnect (notify upstream)'}
         </button>
         <span
+          className={anyBusy ? 'sync-version-indicator is-busy' : 'sync-version-indicator'}
           style={{
             alignSelf: 'center',
             color: 'var(--text-secondary)',
@@ -647,180 +692,6 @@ export function SyncControlSection({
         reports <em>unclean</em> (stale) after a couple of minutes. Snapshot push still works if their Node ingest is reachable —
         roster <strong>red</strong> includes “station closed” (no Walker Track tab); <strong>yellow</strong> is for other warnings (e.g. peer unit ID / snapshot mismatch).
       </p>
-
-      {(lastPath || lastLog) && (
-        <div
-          style={{
-            marginTop: '0.45rem',
-            border: '1px solid var(--border)',
-            borderRadius: '6px',
-            overflow: 'hidden',
-            background: 'var(--bg-primary)',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.35rem',
-              padding: '0.4rem 0.55rem',
-              borderBottom: syncOutputOpen ? '1px solid var(--border)' : 'none',
-              background: 'var(--bg-tertiary)',
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setSyncOutputOpen((o: boolean) => !o)}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '0.35rem',
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-              }}
-            >
-              <span>Last sync output</span>
-              {syncOutputOpen ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
-            </button>
-            <button
-              type="button"
-              title="Clear this log"
-              onClick={() => {
-                setLastPath('')
-                setLastLog('')
-              }}
-              style={{
-                flexShrink: 0,
-                fontSize: '0.72rem',
-                padding: '0.2rem 0.45rem',
-                borderRadius: '4px',
-                border: '1px solid var(--border)',
-                background: 'var(--bg-primary)',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              Clear
-            </button>
-          </div>
-          {syncOutputOpen && (
-            <pre
-              style={{
-                margin: 0,
-                padding: '0.65rem 0.75rem',
-                fontSize: '0.78rem',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                maxHeight: 'min(40vh, 280px)',
-                overflow: 'auto',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              {lastLog ? `[${lastLog}] ` : ''}
-              Paths / results:{'\n'}
-              {lastPath}
-            </pre>
-          )}
-        </div>
-      )}
-
-      <div
-        style={{
-          marginTop: '0.45rem',
-          border: '1px solid var(--border)',
-          borderRadius: '6px',
-          overflow: 'hidden',
-          background: 'var(--bg-primary)',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.35rem',
-            padding: '0.4rem 0.55rem',
-            borderBottom: auditLogOpen ? '1px solid var(--border)' : 'none',
-            background: 'var(--bg-tertiary)',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setAuditLogOpen((o: boolean) => !o)}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.35rem',
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-            }}
-          >
-            <span>Sync &amp; network log (SQLite)</span>
-            {auditLogOpen ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
-          </button>
-          <button
-            type="button"
-            title="Clear my sync & network log"
-            onClick={() => {
-              clearAuditLog()
-              setAuditTick((t) => t + 1)
-            }}
-            style={{
-              flexShrink: 0,
-              fontSize: '0.72rem',
-              padding: '0.2rem 0.45rem',
-              borderRadius: '4px',
-              border: '1px solid var(--border)',
-              background: 'var(--bg-primary)',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-            }}
-          >
-            Clear
-          </button>
-        </div>
-        {auditLogOpen && (
-          <pre
-            style={{
-              margin: 0,
-              padding: '0.65rem 0.75rem',
-              fontSize: '0.78rem',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              maxHeight: 'min(40vh, 280px)',
-              overflow: 'auto',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            {auditEntries.length === 0
-              ? 'No sync/network log entries yet.'
-              : auditEntries
-                  .map((entry: ReturnType<typeof listAuditLog>[number]) => {
-                    const t = new Date(entry.ts).toLocaleString()
-                    const head = `${t}  [${entry.category}] ${entry.message}`
-                    return entry.detail ? `${head}\n  ${entry.detail}` : head
-                  })
-                  .join('\n\n')}
-          </pre>
-        )}
-      </div>
 
       {showSkipConfirm && (
         <div

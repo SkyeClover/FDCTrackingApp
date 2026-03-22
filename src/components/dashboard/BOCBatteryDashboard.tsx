@@ -79,6 +79,11 @@ function sectionHeaderButtonStyle(open: boolean): CSSProperties {
   }
 }
 
+function formatAvailPair(available: number, total: number, emptyText: string): string {
+  if (total <= 0) return emptyText
+  return `${available}/${total} avail`
+}
+
 function CompactPocPltBlock({
   poc,
   launchers,
@@ -272,21 +277,111 @@ export default function BOCBatteryDashboard({
   const { roundTypes } = useAppData()
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
   const sortedPocs = useMemo(() => [...pocs].sort((a, b) => a.name.localeCompare(b.name)), [pocs])
+  const launchersByPoc = useMemo(() => {
+    const byPoc = new Map<string, Launcher[]>()
+    for (const launcher of launchers) {
+      if (!launcher.pocId) continue
+      if (!byPoc.has(launcher.pocId)) byPoc.set(launcher.pocId, [])
+      byPoc.get(launcher.pocId)!.push(launcher)
+    }
+    return byPoc
+  }, [launchers])
+  const podByLauncher = useMemo(() => {
+    const byLauncher = new Map<string, Pod>()
+    for (const pod of pods) {
+      if (pod.launcherId) byLauncher.set(pod.launcherId, pod)
+    }
+    return byLauncher
+  }, [pods])
+
+  const summarizeRounds = (launcherList: Launcher[]) => {
+    let availableRounds = 0
+    let totalRounds = 0
+    let loadedLaunchers = 0
+    for (const launcher of launcherList) {
+      const pod = podByLauncher.get(launcher.id)
+      if (!pod) continue
+      loadedLaunchers += 1
+      totalRounds += pod.rounds.length
+      availableRounds += pod.rounds.filter((r) => r.status === 'available').length
+    }
+    return { availableRounds, totalRounds, loadedLaunchers }
+  }
+
+  const summarizeReserveRounds = (targetPoc: POC) => {
+    const reservePods = pods.filter((p) => {
+      if (p.launcherId) return false
+      if (p.pocId === targetPoc.id) return true
+      if (!p.rsvId) return false
+      const rsv = rsvs.find((r) => r.id === p.rsvId)
+      if (!rsv) return false
+      if (rsv.pocId === targetPoc.id) return true
+      if (rsv.bocId === targetPoc.bocId) return true
+      return false
+    })
+    return reservePods.reduce(
+      (acc, pod) => {
+        acc.totalRounds += pod.rounds.length
+        acc.availableRounds += pod.rounds.filter((r) => r.status === 'available').length
+        return acc
+      },
+      { availableRounds: 0, totalRounds: 0 }
+    )
+  }
+
+  const batterySummary = useMemo(() => {
+    const allLaunchers = sortedPocs.flatMap((poc) => launchersByPoc.get(poc.id) || [])
+    const loaded = summarizeRounds(allLaunchers)
+    const reserve = sortedPocs.reduce(
+      (acc, poc) => {
+        const pocReserve = summarizeReserveRounds(poc)
+        acc.availableRounds += pocReserve.availableRounds
+        acc.totalRounds += pocReserve.totalRounds
+        return acc
+      },
+      { availableRounds: 0, totalRounds: 0 }
+    )
+    return { ...loaded, reserveAvailableRounds: reserve.availableRounds, reserveTotalRounds: reserve.totalRounds }
+  }, [sortedPocs, launchersByPoc, podByLauncher, pods, rsvs])
+
+  const pocSummaryById = useMemo(() => {
+    const summary = new Map<
+      string,
+      {
+        launcherCount: number
+        loadedAvailableRounds: number
+        loadedTotalRounds: number
+        reserveAvailableRounds: number
+        reserveTotalRounds: number
+      }
+    >()
+    for (const poc of sortedPocs) {
+      const pocLaunchers = launchersByPoc.get(poc.id) || []
+      const pocRounds = summarizeRounds(pocLaunchers)
+      const reserveRounds = summarizeReserveRounds(poc)
+      summary.set(poc.id, {
+        launcherCount: pocLaunchers.length,
+        loadedAvailableRounds: pocRounds.availableRounds,
+        loadedTotalRounds: pocRounds.totalRounds,
+        reserveAvailableRounds: reserveRounds.availableRounds,
+        reserveTotalRounds: reserveRounds.totalRounds,
+      })
+    }
+    return summary
+  }, [sortedPocs, launchersByPoc, podByLauncher, pods, rsvs])
 
   const [openPoc, setOpenPoc] = useState<Record<string, boolean>>({})
-  const [openAmmo, setOpenAmmo] = useState(true)
+  const [openAmmo, setOpenAmmo] = useState(false)
 
   useEffect(() => {
     setOpenPoc((prev) => {
       const next: Record<string, boolean> = {}
-      sortedPocs.forEach((p, i) => {
-        next[p.id] = prev[p.id] ?? i < 2
+      sortedPocs.forEach((p) => {
+        next[p.id] = prev[p.id] ?? false
       })
       return next
     })
   }, [boc.id, sortedPocs])
-
-  const launcherCountForPoc = (pocId: string) => launchers.filter((l) => l.pocId === pocId).length
 
   return (
     <div
@@ -311,6 +406,27 @@ export default function BOCBatteryDashboard({
         }}
       >
         <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent)' }}>{boc.name}</h2>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.35rem',
+            marginTop: '0.45rem',
+          }}
+        >
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.12rem 0.42rem' }}>
+            HIMARS: {launchers.length}
+          </span>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.12rem 0.42rem' }}>
+            Loaded Launchers: {batterySummary.loadedLaunchers}/{launchers.length}
+          </span>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.12rem 0.42rem' }}>
+            Loaded rounds: {formatAvailPair(batterySummary.availableRounds, batterySummary.totalRounds, 'No loaded rounds')}
+          </span>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.12rem 0.42rem' }}>
+            Reload reserve: {formatAvailPair(batterySummary.reserveAvailableRounds, batterySummary.reserveTotalRounds, 'No reserve rounds')}
+          </span>
+        </div>
         <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
           Expand each PLT or logistics section. Compact launcher rows: green / red / dark dots = available / used /
           reserved.
@@ -318,8 +434,14 @@ export default function BOCBatteryDashboard({
       </div>
 
       {sortedPocs.map((poc) => {
-        const open = openPoc[poc.id] ?? true
-        const n = launcherCountForPoc(poc.id)
+        const open = openPoc[poc.id] ?? false
+        const pocSummary = pocSummaryById.get(poc.id) ?? {
+          launcherCount: 0,
+          loadedAvailableRounds: 0,
+          loadedTotalRounds: 0,
+          reserveAvailableRounds: 0,
+          reserveTotalRounds: 0,
+        }
         return (
           <div
             key={poc.id}
@@ -340,7 +462,7 @@ export default function BOCBatteryDashboard({
               {open ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
               <span>{poc.name}</span>
               <span style={{ marginLeft: 'auto', fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                {n} launcher{n !== 1 ? 's' : ''}
+                {pocSummary.launcherCount} launcher{pocSummary.launcherCount !== 1 ? 's' : ''} · Loaded Launchers {formatAvailPair(pocSummary.loadedAvailableRounds, pocSummary.loadedTotalRounds, 'none')} · reserve {formatAvailPair(pocSummary.reserveAvailableRounds, pocSummary.reserveTotalRounds, 'none')}
               </span>
             </button>
             {open && (

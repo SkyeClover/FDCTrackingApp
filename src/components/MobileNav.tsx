@@ -44,6 +44,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
     <>
       {/* Mobile Header with Hamburger */}
       <header
+        className="mobile-nav-header"
         style={{
           position: 'fixed',
           top: 0,
@@ -61,6 +62,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button
+            className="mobile-nav-icon-btn"
             onClick={() => setIsMenuOpen(true)}
             style={{
               backgroundColor: 'transparent',
@@ -105,6 +107,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
         <>
           {/* Backdrop */}
           <div
+            className="mobile-nav-backdrop"
             onClick={() => setIsMenuOpen(false)}
             style={{
               position: 'fixed',
@@ -119,6 +122,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
           
           {/* Menu Drawer */}
           <aside
+            className="mobile-nav-drawer"
             ref={drawerRef}
             style={{
               position: 'fixed',
@@ -169,6 +173,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
                 </p>
               </div>
               <button
+                className="mobile-nav-icon-btn"
                 onClick={() => setIsMenuOpen(false)}
                 style={{
                   backgroundColor: 'transparent',
@@ -193,6 +198,7 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
                 const isActive = currentPage === item.id
                 return (
                   <button
+                    className={isActive ? 'mobile-nav-item is-active' : 'mobile-nav-item'}
                     key={item.id}
                     onClick={() => handlePageChange(item.id)}
                     style={{

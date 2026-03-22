@@ -105,12 +105,6 @@ function runMigrations(database: Database): void {
   if (!hasTableColumn(database, 'network_roster', 'station_offline_since_ms')) {
     database.run('ALTER TABLE network_roster ADD COLUMN station_offline_since_ms INTEGER')
   }
-  if (!hasTableColumn(database, 'network_roster', 'ingest_merge_boc_id')) {
-    database.run('ALTER TABLE network_roster ADD COLUMN ingest_merge_boc_id TEXT')
-  }
-  if (!hasTableColumn(database, 'network_roster', 'ingest_merge_poc_id')) {
-    database.run('ALTER TABLE network_roster ADD COLUMN ingest_merge_poc_id TEXT')
-  }
 
   const v2 = database.exec('SELECT version FROM schema_migrations WHERE version = 2')
   if (!v2.length || !v2[0].values.length) {
@@ -386,21 +380,13 @@ export interface NetworkRosterRow {
   autoAcceptSync: boolean
   /** When “tab offline” yellow started; after ~3 min we show red (see `rosterPresenceEscalation`). */
   stationOfflineSinceMs: number | null
-  /**
-   * When applying ingest from this peer (`Peer unit ID` = their `fromUnitId`), merge only this battery’s subtree
-   * into local state instead of replacing the whole org. Takes precedence over `ingestMergePocId` when both set.
-   */
-  ingestMergeBocId: string | null
-  /** Optional finer scope: merge only this PLT FDC’s launchers/pods/POC-tagged RSVs. */
-  ingestMergePocId: string | null
 }
 
 export function listNetworkRoster(): NetworkRosterRow[] {
   const r = ensureDb().exec(
     `SELECT id, display_name, echelon_role, parent_unit_id, host, port, use_tls, bearer,
             status, last_seen_ms, last_error, sort_order,
-            peer_unit_id, sync_alerts_enabled, auto_accept_sync, station_offline_since_ms,
-            ingest_merge_boc_id, ingest_merge_poc_id
+            peer_unit_id, sync_alerts_enabled, auto_accept_sync, station_offline_since_ms
      FROM network_roster ORDER BY sort_order ASC, display_name ASC`
   )
   if (!r.length) return []
@@ -421,8 +407,6 @@ export function listNetworkRoster(): NetworkRosterRow[] {
     syncAlertsEnabled: row[13] != null ? Number(row[13]) === 1 : true,
     autoAcceptSync: row[14] != null ? Number(row[14]) === 1 : false,
     stationOfflineSinceMs: row[15] != null ? Number(row[15]) : null,
-    ingestMergeBocId: row[16] != null ? String(row[16]) : null,
-    ingestMergePocId: row[17] != null ? String(row[17]) : null,
   }))
 }
 
@@ -430,9 +414,8 @@ export function upsertNetworkRosterRow(row: NetworkRosterRow): void {
   ensureDb().run(
     `INSERT OR REPLACE INTO network_roster
      (id, display_name, echelon_role, parent_unit_id, host, port, use_tls, bearer, status, last_seen_ms, last_error, sort_order,
-      peer_unit_id, sync_alerts_enabled, auto_accept_sync, station_offline_since_ms,
-      ingest_merge_boc_id, ingest_merge_poc_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      peer_unit_id, sync_alerts_enabled, auto_accept_sync, station_offline_since_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       row.id,
       row.displayName,
@@ -450,8 +433,6 @@ export function upsertNetworkRosterRow(row: NetworkRosterRow): void {
       row.syncAlertsEnabled ? 1 : 0,
       row.autoAcceptSync ? 1 : 0,
       row.stationOfflineSinceMs,
-      row.ingestMergeBocId,
-      row.ingestMergePocId,
     ]
   )
   scheduleFlush()

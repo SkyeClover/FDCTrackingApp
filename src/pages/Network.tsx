@@ -5,6 +5,7 @@ import { Network as NetworkIcon, Wifi, Server, Globe, Activity, RadioTower } fro
 import { fetchLocalSystemInfo, shouldAttemptLocalAgentFetch } from '../lib/deviceAgent'
 import { NetworkRosterSection } from '../components/network/NetworkRosterSection'
 import { SyncControlSection } from '../components/network/SyncControlSection'
+import { NetworkLogsSection } from '../components/network/NetworkLogsSection'
 import { CollapsibleCard } from '../components/network/CollapsibleCard'
 
 interface NetworkInfo {
@@ -19,6 +20,9 @@ interface NetworkInfo {
 export default function Network() {
   const [rosterTick, setRosterTick] = useState(0)
   const bumpRoster = useCallback(() => setRosterTick((x) => x + 1), [])
+  const [networkLogTick, setNetworkLogTick] = useState(0)
+  const bumpNetworkLogs = useCallback(() => setNetworkLogTick((x) => x + 1), [])
+  const [syncOutput, setSyncOutput] = useState<{ path: string; loggedAt: string }>({ path: '', loggedAt: '' })
 
   const [info, setInfo] = useState<NetworkInfo | null>(null)
   const [hostedSkip] = useState(
@@ -28,14 +32,10 @@ export default function Network() {
     () => (typeof window !== 'undefined' ? shouldAttemptLocalAgentFetch() : true)
   )
   const [error, setError] = useState<string | null>(null)
-  const [rosterEditing, setRosterEditing] = useState(false)
   const lastInfoJsonRef = useRef<string | null>(null)
   const isMobile = useIsMobile()
   const safeIsMobile = isMobile ?? false
-
-  const onRosterEditingChange = useCallback((editing: boolean) => {
-    setRosterEditing(editing)
-  }, [])
+  const desktopMode = !safeIsMobile
 
   const fetchNetworkInfo = useCallback(async () => {
     try {
@@ -83,16 +83,6 @@ export default function Network() {
     }
   }, [fetchNetworkInfo, hostedSkip])
 
-  /** Slower polling when the agent is offline; paused while editing roster so rows don’t fight focus. */
-  useEffect(() => {
-    if (hostedSkip || rosterEditing) return
-    const pollMs = error ? 45_000 : 12_000
-    const id = window.setInterval(() => {
-      void fetchNetworkInfo()
-    }, pollMs)
-    return () => clearInterval(id)
-  }, [fetchNetworkInfo, error, hostedSkip, rosterEditing])
-
   const safeString = useCallback((val: string | undefined | null): string => {
     if (val === null || val === undefined) return 'N/A'
     try {
@@ -125,25 +115,54 @@ export default function Network() {
   return (
     <PageShell title="Network" isMobile={safeIsMobile} contentMaxWidth="min(100%, 1680px)">
       <div
+        className="network-layout"
         style={{
           display: 'grid',
-          gridTemplateColumns: safeIsMobile ? '1fr' : 'minmax(0, 1fr) minmax(280px, 420px)',
+          gridTemplateColumns: safeIsMobile ? '1fr' : 'minmax(0, 1fr) minmax(420px, 560px)',
           gap: '0.85rem',
           alignItems: 'start',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: 0 }}>
-          <SyncControlSection isMobile={safeIsMobile} onSyncDone={bumpRoster} />
+        <div className="network-main-col" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: 0 }}>
           <NetworkRosterSection
             isMobile={safeIsMobile}
             refreshKey={rosterTick}
             onChanged={bumpRoster}
-            onEditingChange={onRosterEditingChange}
+          />
+          <SyncControlSection
+            isMobile={safeIsMobile}
+            onSyncDone={bumpRoster}
+            onLogsChanged={bumpNetworkLogs}
+            onSyncOutputChange={setSyncOutput}
           />
         </div>
 
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: 0 }}>
-          <CollapsibleCard title="This device" defaultOpen>
+        <aside
+          className="network-side-col"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.85rem',
+            minWidth: desktopMode ? '420px' : 0,
+            ...(desktopMode
+              ? {
+                  position: 'sticky',
+                  top: '0.35rem',
+                  alignSelf: 'start',
+                  maxHeight: 'calc(100vh - 6.25rem)',
+                  overflowY: 'auto',
+                  paddingRight: '0.15rem',
+                }
+              : {}),
+          }}
+        >
+          <NetworkLogsSection
+            refreshKey={networkLogTick}
+            syncOutputPath={syncOutput.path}
+            syncOutputLoggedAt={syncOutput.loggedAt}
+            onClearSyncOutput={() => setSyncOutput({ path: '', loggedAt: '' })}
+          />
+          <CollapsibleCard title="This device" defaultOpen={desktopMode}>
             {hostedSkip && (
               <p
                 style={{
@@ -261,7 +280,7 @@ export default function Network() {
             )}
           </CollapsibleCard>
 
-          <CollapsibleCard title="SINCGARS / 1523 Radio" defaultOpen>
+          <CollapsibleCard title="SINCGARS / 1523 Radio" defaultOpen={safeIsMobile}>
             <div
               style={{
                 border: '1px dashed var(--border)',

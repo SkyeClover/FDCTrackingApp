@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, Check, X as XIcon } from 'lucide-react'
+import { Plus, Trash2, X as XIcon } from 'lucide-react'
 import { useAppData } from '../../context/AppDataContext'
 import { getAllRoundTypeOptions } from '../../constants/roundTypes'
 
@@ -16,11 +16,19 @@ type Props = {
 export default function RoundTypesSection({ embedded = false, compact = false }: Props) {
   const { roundTypes, addRoundType, updateRoundType, deleteRoundType } = useAppData()
   const [newRoundTypeName, setNewRoundTypeName] = useState('')
-  const [showAddRoundType, setShowAddRoundType] = useState(false)
 
   const p = compact ? '0.45rem' : '0.75rem'
   const fs = compact ? '0.8rem' : '0.9rem'
   const btnPad = compact ? '0.35rem 0.65rem' : '0.5rem 1rem'
+  const allTypes = getAllRoundTypeOptions(roundTypes)
+  const enabledCount = allTypes.filter((o) => roundTypes[o.value]?.enabled).length
+
+  const handleAddRoundType = () => {
+    const next = newRoundTypeName.trim().toUpperCase()
+    if (!next) return
+    addRoundType(next)
+    setNewRoundTypeName('')
+  }
 
   const inner = (
     <div
@@ -43,11 +51,42 @@ export default function RoundTypesSection({ embedded = false, compact = false }:
         </p>
       )}
 
-      <div style={{ borderTop: embedded ? 'none' : '1px solid var(--border)', paddingTop: embedded ? 0 : '1rem' }}>
-        {!showAddRoundType ? (
+      <div
+        style={{
+          borderTop: embedded ? 'none' : '1px solid var(--border)',
+          paddingTop: embedded ? 0 : '1rem',
+          display: 'grid',
+          gridTemplateColumns: compact ? '1fr' : '1fr auto',
+          gap: '0.4rem 0.55rem',
+          alignItems: 'center',
+        }}
+      >
+        <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+          Enabled {enabledCount} of {allTypes.length} types
+        </div>
+        <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+          <input
+            type="text"
+            value={newRoundTypeName}
+            onChange={(e) => setNewRoundTypeName(e.target.value.toUpperCase())}
+            placeholder="Add type (e.g. M57)"
+            style={{
+              minWidth: compact ? '11rem' : '14rem',
+              padding: '0.45rem 0.5rem',
+              backgroundColor: 'var(--bg-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              color: 'var(--text-primary)',
+              fontSize: fs,
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAddRoundType()
+              if (e.key === 'Escape') setNewRoundTypeName('')
+            }}
+          />
           <button
             type="button"
-            onClick={() => setShowAddRoundType(true)}
+            onClick={handleAddRoundType}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -61,67 +100,15 @@ export default function RoundTypesSection({ embedded = false, compact = false }:
               fontSize: compact ? '0.8rem' : '0.9rem',
               fontWeight: '500',
             }}
+            disabled={!newRoundTypeName.trim()}
           >
             <Plus size={compact ? 14 : 16} />
-            Add round type
+            Add
           </button>
-        ) : (
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <input
-              type="text"
-              value={newRoundTypeName}
-              onChange={(e) => setNewRoundTypeName(e.target.value.toUpperCase())}
-              placeholder="e.g. M57"
-              autoFocus
-              style={{
-                flex: 1,
-                padding: '0.45rem 0.5rem',
-                backgroundColor: 'var(--bg-primary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '6px',
-                color: 'var(--text-primary)',
-                fontSize: fs,
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && newRoundTypeName.trim()) {
-                  addRoundType(newRoundTypeName.trim())
-                  setNewRoundTypeName('')
-                  setShowAddRoundType(false)
-                } else if (e.key === 'Escape') {
-                  setNewRoundTypeName('')
-                  setShowAddRoundType(false)
-                }
-              }}
-            />
+          {newRoundTypeName ? (
             <button
               type="button"
-              onClick={() => {
-                if (newRoundTypeName.trim()) {
-                  addRoundType(newRoundTypeName.trim())
-                  setNewRoundTypeName('')
-                  setShowAddRoundType(false)
-                }
-              }}
-              style={{
-                padding: '0.45rem',
-                backgroundColor: 'var(--success)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-              }}
-              disabled={!newRoundTypeName.trim()}
-            >
-              <Check size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setNewRoundTypeName('')
-                setShowAddRoundType(false)
-              }}
+              onClick={() => setNewRoundTypeName('')}
               style={{
                 padding: '0.45rem',
                 backgroundColor: 'var(--bg-primary)',
@@ -132,11 +119,12 @@ export default function RoundTypesSection({ embedded = false, compact = false }:
                 display: 'flex',
                 alignItems: 'center',
               }}
+              title="Clear"
             >
               <XIcon size={16} />
             </button>
-          </div>
-        )}
+          ) : null}
+        </div>
       </div>
 
       <div
@@ -146,16 +134,14 @@ export default function RoundTypesSection({ embedded = false, compact = false }:
           display: 'flex',
           flexDirection: 'column',
           gap: compact ? '0.35rem' : '0.5rem',
-          maxHeight: compact ? 'min(220px, 40vh)' : undefined,
-          overflowY: compact ? 'auto' : undefined,
         }}
       >
-        {getAllRoundTypeOptions(roundTypes).length === 0 ? (
+        {allTypes.length === 0 ? (
           <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: fs, margin: 0 }}>
             No round types configured
           </p>
         ) : (
-          getAllRoundTypeOptions(roundTypes).map((option) => {
+          allTypes.map((option) => {
             const config = roundTypes[option.value]
             const isDefault = ['M28A1', 'M26', 'M31', 'M30', 'M57', 'M39'].includes(option.value)
 
@@ -208,8 +194,8 @@ export default function RoundTypesSection({ embedded = false, compact = false }:
                     onClick={() => updateRoundType(option.value, !config.enabled)}
                     style={{
                       padding: compact ? '0.3rem 0.5rem' : '0.5rem 1rem',
-                      backgroundColor: config.enabled ? 'var(--bg-tertiary)' : 'var(--success)',
-                      color: config.enabled ? 'var(--text-primary)' : 'white',
+                      backgroundColor: config.enabled ? 'color-mix(in srgb, var(--success) 22%, var(--bg-tertiary))' : 'var(--bg-tertiary)',
+                      color: config.enabled ? 'var(--success)' : 'var(--text-secondary)',
                       border: '1px solid var(--border)',
                       borderRadius: '6px',
                       cursor: 'pointer',
@@ -217,7 +203,7 @@ export default function RoundTypesSection({ embedded = false, compact = false }:
                       fontWeight: 500,
                     }}
                   >
-                    {config.enabled ? 'Off' : 'On'}
+                    {config.enabled ? 'Disable' : 'Enable'}
                   </button>
                   {!isDefault && (
                     <button

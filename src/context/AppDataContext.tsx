@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react'
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   BOC,
   POC,
@@ -39,6 +39,7 @@ import {
 import FirstRunSetup from '../components/setup/FirstRunSetup'
 import {
   orgSliceFromState,
+  getScopedForce,
   isLauncherInRoleScope,
   isPocInRoleScope,
   isTaskInRoleScope,
@@ -2669,18 +2670,69 @@ export function AppDataProvider({
     })
   }, [addLog])
 
+  const scopedData = useMemo(() => {
+    const org = orgSliceFromState({ ...state, ammoPlatoons: state.ammoPlatoons ?? [] })
+    const scoped = getScopedForce(org, state.currentUserRole)
+
+    if (!state.currentUserRole) {
+      return {
+        brigades: state.brigades,
+        battalions: state.battalions,
+        bocs: scoped.scopedBOCs,
+        pocs: scoped.scopedPOCs,
+        launchers: scoped.scopedLaunchers,
+        pods: scoped.scopedPods,
+        rsvs: scoped.scopedRSVs,
+        ammoPlatoons: state.ammoPlatoons ?? [],
+        tasks: state.tasks,
+      }
+    }
+
+    const scopedBocIds = new Set(scoped.scopedBOCs.map((b) => b.id))
+    const scopedPocIds = new Set(scoped.scopedPOCs.map((p) => p.id))
+
+    const battalions = state.battalions.filter((bn) =>
+      scoped.scopedBOCs.some((b) => b.battalionId === bn.id) || state.currentUserRole?.id === bn.id
+    )
+    const battalionIds = new Set(battalions.map((bn) => bn.id))
+
+    const brigades = state.brigades.filter((bde) =>
+      battalions.some((bn) => bn.brigadeId === bde.id) || state.currentUserRole?.id === bde.id
+    )
+
+    const ammoPlatoons = (state.ammoPlatoons ?? []).filter(
+      (ap) => (ap.bocId && scopedBocIds.has(ap.bocId)) || scoped.scopedRSVs.some((r) => r.ammoPltId === ap.id)
+    )
+
+    const tasks = state.tasks.filter((t) => isTaskInRoleScope(org, state.currentUserRole, t))
+
+    return {
+      brigades,
+      battalions: state.currentUserRole.type === 'battalion'
+        ? battalions.filter((bn) => bn.id === state.currentUserRole?.id || battalionIds.has(bn.id))
+        : battalions,
+      bocs: scoped.scopedBOCs,
+      pocs: scoped.scopedPOCs.filter((p) => scopedPocIds.has(p.id)),
+      launchers: scoped.scopedLaunchers,
+      pods: scoped.scopedPods,
+      rsvs: scoped.scopedRSVs,
+      ammoPlatoons,
+      tasks,
+    }
+  }, [state])
+
   return (
     <AppDataContext.Provider
       value={{
-        brigades: state.brigades,
-        battalions: state.battalions,
-        bocs: state.bocs,
-        pocs: state.pocs,
-        launchers: state.launchers,
-        pods: state.pods,
-        rsvs: state.rsvs,
+        brigades: scopedData.brigades,
+        battalions: scopedData.battalions,
+        bocs: scopedData.bocs,
+        pocs: scopedData.pocs,
+        launchers: scopedData.launchers,
+        pods: scopedData.pods,
+        rsvs: scopedData.rsvs,
         rounds: state.rounds,
-        tasks: state.tasks,
+        tasks: scopedData.tasks,
         taskTemplates: state.taskTemplates,
         logs: state.logs,
         roundTypes: state.roundTypes,
@@ -2748,7 +2800,7 @@ export function AppDataProvider({
         addRoundType,
         updateRoundType,
         deleteRoundType,
-        ammoPlatoons: state.ammoPlatoons ?? [],
+        ammoPlatoons: scopedData.ammoPlatoons,
         ammoPltBocId: state.ammoPltBocId,
         getStateSnapshot: () => stateRef.current,
         applySnapshotFromJson,

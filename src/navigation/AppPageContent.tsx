@@ -13,24 +13,40 @@ export interface AppPageContentProps {
 }
 
 export default function AppPageContent({ currentPage }: AppPageContentProps) {
+  let pageNode: JSX.Element | null = null
   switch (currentPage) {
     case 'dashboard':
-      return <Dashboard />
+      pageNode = <Dashboard />
+      break
     case 'inventory':
-      return <Inventory />
+      pageNode = <Inventory />
+      break
     case 'management':
-      return <Management />
+      pageNode = <Management />
+      break
     case 'fire-missions':
-      return <FireMissions />
+      pageNode = <FireMissions />
+      break
     case 'logs':
-      return <Logs />
+      pageNode = <Logs />
+      break
     case 'settings':
-      return <Settings />
+      pageNode = <Settings />
+      break
     case 'system-info':
-      return <SystemInfo />
+      pageNode = <SystemInfo />
+      break
     case 'network':
-      return <Network />
+      pageNode = <Network />
+      break
     default:
-      return null
+      pageNode = null
+      break
   }
+
+  return (
+    <div key={currentPage} className="app-page-transition">
+      {pageNode}
+    </div>
+  )
 }

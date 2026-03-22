@@ -2,7 +2,6 @@ import { useState, useMemo, useCallback } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { Plus } from 'lucide-react'
 import PodsManagement from '../components/PodsManagement'
-import PodsToRSVAssignment from '../components/PodsToRSVAssignment'
 import RoundTypesSection from '../components/inventory/RoundTypesSection'
 import PodCreateModal from '../components/inventory/PodCreateModal'
 import CollapsibleSection from '../components/ui/CollapsibleSection'
@@ -22,6 +21,7 @@ export default function Inventory() {
     <PageShell
       title="Inventory"
       isMobile={isMobile}
+      contentMaxWidth="min(100%, 1680px)"
       actions={
         <button
           type="button"
@@ -47,29 +47,53 @@ export default function Inventory() {
     >
       <PodCreateModal isOpen={podModalOpen} onClose={closePodModal} />
 
-      <CollapsibleSection
-        title="Round types"
-        subtitle="Ammo labels and what is enabled for new pods"
-        badge={roundTypeBadge}
-        compact
-        data-guide="round-types-section"
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) minmax(340px, 460px)',
+          gap: '0.85rem',
+          alignItems: 'start',
+        }}
       >
-        <RoundTypesSection embedded compact />
-      </CollapsibleSection>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: 0 }}>
+          <CollapsibleSection
+            title="Pods"
+            subtitle="On hand, launchers, RSVs, and higher holding"
+            defaultCollapsed
+            compact
+            data-guide="pods-management-section"
+          >
+            <PodsManagement onAddPod={openPodModal} />
+          </CollapsibleSection>
+        </div>
 
-      <CollapsibleSection
-        title="Pods"
-        subtitle="On hand, launchers, RSVs, and higher holding"
-        defaultCollapsed={false}
-        compact
-        data-guide="pods-management-section"
-      >
-        <PodsManagement onAddPod={openPodModal} />
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Assign pods to RSVs" subtitle="Load plans" compact>
-        <PodsToRSVAssignment />
-      </CollapsibleSection>
+        <aside
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.85rem',
+            minWidth: 0,
+            ...(isMobile
+              ? {}
+              : {
+                  position: 'sticky',
+                  top: '0.35rem',
+                  alignSelf: 'start',
+                }),
+          }}
+        >
+          <CollapsibleSection
+            title="Round types"
+            subtitle="Ammo labels and what is enabled for new pods"
+            badge={roundTypeBadge}
+            defaultCollapsed
+            compact
+            data-guide="round-types-section"
+          >
+            <RoundTypesSection embedded compact />
+          </CollapsibleSection>
+        </aside>
+      </div>
     </PageShell>
   )
 }

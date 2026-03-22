@@ -77,9 +77,9 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
   } = useAppData()
 
   const [open, setOpen] = useState<Record<string, boolean>>({})
-  const branchExpanded = (key: string) => open[key] ?? true
+  const branchExpanded = (key: string) => open[key] ?? false
   const toggleBranch = (key: string) =>
-    setOpen((prev) => ({ ...prev, [key]: !(prev[key] ?? true) }))
+    setOpen((prev) => ({ ...prev, [key]: !(prev[key] ?? false) }))
 
   const brigadesSorted = useMemo(() => sortByName(brigades), [brigades])
   const battalionsSorted = useMemo(() => sortByName(battalions), [battalions])

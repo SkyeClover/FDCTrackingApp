@@ -449,7 +449,7 @@ export default function Dashboard() {
             width: '100%',
             maxWidth: '100%',
             minWidth: 0,
-            overflowX: 'auto',
+            overflowX: 'hidden',
           }}
         >
           <DashboardHierarchyTree
@@ -476,6 +476,9 @@ export default function Dashboard() {
             }
             pods={
               currentUserRole?.type === 'brigade' || currentUserRole?.type === 'battalion' ? pods : displayPods
+            }
+            rsvs={
+              currentUserRole?.type === 'brigade' || currentUserRole?.type === 'battalion' ? rsvs : displayRSVs
             }
             tasks={tasks}
             onLauncherClick={setSelectedLauncherId}

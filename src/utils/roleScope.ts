@@ -73,6 +73,9 @@ export function getScopedForce(org: OrgForScope, role: CurrentUserRole | undefin
   }
 
   if (role.type === 'brigade') {
+    const bnIds = new Set(
+      org.battalions.filter((b) => b.brigadeId === role.id).map((b) => b.id)
+    )
     const bocIds = bocIdsUnderBrigade(org, role.id)
     const pocIds = pocIdsUnderBocIds(org, bocIds)
     const ammoPltIds = ammoPltIdsUnderBocIds(org, bocIds)
@@ -90,7 +93,10 @@ export function getScopedForce(org: OrgForScope, role: CurrentUserRole | undefin
         (p.pocId && pocIds.has(p.pocId)) ||
         (p.launcherId && launcherIds.has(p.launcherId)) ||
         (p.rsvId && rsvIds.has(p.rsvId)) ||
-        (!!p.ammoPltId && ammoPltIds.has(p.ammoPltId))
+        (!!p.ammoPltId && ammoPltIds.has(p.ammoPltId)) ||
+        (!!p.bocId && bocIds.has(p.bocId)) ||
+        (!!p.battalionId && bnIds.has(p.battalionId)) ||
+        (!!p.brigadeId && p.brigadeId === role.id)
     )
     return {
       viewDensity: 'compact',
@@ -121,7 +127,9 @@ export function getScopedForce(org: OrgForScope, role: CurrentUserRole | undefin
         (p.pocId && pocIds.has(p.pocId)) ||
         (p.launcherId && launcherIds.has(p.launcherId)) ||
         (p.rsvId && rsvIds.has(p.rsvId)) ||
-        (!!p.ammoPltId && ammoPltIds.has(p.ammoPltId))
+        (!!p.ammoPltId && ammoPltIds.has(p.ammoPltId)) ||
+        (!!p.bocId && bocIds.has(p.bocId)) ||
+        p.battalionId === role.id
     )
     return {
       viewDensity: 'compact',
@@ -191,7 +199,8 @@ export function getScopedForce(org: OrgForScope, role: CurrentUserRole | undefin
       (p.pocId && bpocIds.has(p.pocId)) ||
       (p.launcherId && blauncherIds.has(p.launcherId)) ||
       (p.rsvId && brsvIds.has(p.rsvId)) ||
-      (!!p.ammoPltId && bAmmoPltIds.has(p.ammoPltId))
+      (!!p.ammoPltId && bAmmoPltIds.has(p.ammoPltId)) ||
+      p.bocId === bid
   )
 
   return {

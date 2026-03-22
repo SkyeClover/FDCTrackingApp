@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from 'react'
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { useAppData } from '../../context/AppDataContext'
 import {
   listNetworkRoster,
@@ -27,6 +27,22 @@ function statusColor(status: string): string {
   if (status === 'yellow') return 'var(--warning, #c90)'
   if (status === 'red') return 'var(--danger, #c44)'
   return 'var(--text-secondary)'
+}
+
+function statusTooltipText(row: NetworkRosterRow, org: OrgUnitsSlice): string {
+  const role = formatEchelonRoleForDisplay(row.echelonRole, org)
+  const when = row.lastSeenMs ? new Date(row.lastSeenMs).toLocaleString() : 'never'
+  if (row.status === 'green') {
+    return `${row.displayName}: online and reachable (${role}). Last seen ${when}.`
+  }
+  if (row.status === 'yellow') {
+    return `${row.displayName}: degraded / warning (${role}). ${row.lastError ?? 'Check peer config or station state.'}`
+  }
+  if (row.status === 'red') {
+    const reason = row.lastError ?? 'Station offline or ingest unreachable.'
+    return `${row.displayName}: offline (${role}). ${reason} Last seen ${when}.`
+  }
+  return `${row.displayName}: status unknown (${role}). Run "Send test message" to update reachability.`
 }
 
 function NetworkRosterSectionInner({
@@ -118,8 +134,6 @@ function NetworkRosterSectionInner({
       syncAlertsEnabled: true,
       autoAcceptSync: false,
       stationOfflineSinceMs: null,
-      ingestMergeBocId: null,
-      ingestMergePocId: null,
     }
     upsertNetworkRosterRow(row)
     appendAuditLog('network', 'Roster row added', id)
@@ -128,20 +142,38 @@ function NetworkRosterSectionInner({
     setEditingId(id)
   }, [rows.length, reload, onChanged, org])
 
-  const saveRow = useCallback(
-    (r: NetworkRosterRow) => {
+  const normalizeRowForSave = useCallback(
+    (r: NetworkRosterRow): NetworkRosterRow => {
       let next = { ...r }
       if (getSyncMeta().autoRollupFromOrg) {
         const pid = getParentUnitIdForEchelonRole(next.echelonRole, org)
         next = { ...next, parentUnitId: pid }
       }
+      return next
+    },
+    [org]
+  )
+
+  const saveRow = useCallback(
+    (r: NetworkRosterRow) => {
+      const next = normalizeRowForSave(r)
       upsertNetworkRosterRow(next)
       appendAuditLog('network', 'Roster row saved', r.id)
       onChanged?.()
       reload()
       setEditingId(null)
     },
-    [reload, onChanged, org]
+    [reload, onChanged, normalizeRowForSave]
+  )
+
+  const autosaveRow = useCallback(
+    (r: NetworkRosterRow) => {
+      const next = normalizeRowForSave(r)
+      upsertNetworkRosterRow(next)
+      setRows((prev) => prev.map((x) => (x.id === next.id ? next : x)))
+      onChanged?.()
+    },
+    [normalizeRowForSave, onChanged]
   )
 
   const removeRow = useCallback(
@@ -245,49 +277,20 @@ function NetworkRosterSectionInner({
           <strong>PLT FDC (POC)</strong> you created, and saving a row fills <strong>Parent ID</strong> from that tree.{' '}
           <strong>Apply parents from tree</strong> adds any missing BOC/POC rows, then updates all parents (legacy text roles
           skipped). Edit <strong>Host</strong>/<strong>Port</strong> per node (e.g. Pi at <code style={{ fontSize: '0.7rem' }}>fdc-tracker.local:8787</code> for sync).{' '}
-          <strong>Peer unit ID</strong> = sender’s Local unit ID for ingest alerts / auto-accept.{' '}
-          <strong>Ingest merge BOC / PLT</strong> (optional): when this row’s Peer unit ID matches an incoming snapshot’s
-          sender, apply only that battery or PLT into your data so other batteries (e.g. A20) are not wiped. Leave both
-          empty for a full replace. Pick at most one — BOC merge includes every PLT under that battery.
+          <strong>Peer unit ID</strong> = sender’s Local unit ID for ingest alerts / auto-accept. Apply scope is automatic
+          from this row’s Role: <strong>BOC</strong> rows apply battery subtree only, <strong>PLT</strong> rows apply that
+          PLT subtree only.
         </p>
       }
     >
-      <div style={{ overflowX: 'auto' }}>
-        <table style={tableStyle}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
-              <th style={{ padding: '0.35rem' }}>Name</th>
-              <th style={{ padding: '0.35rem' }}>Role</th>
-              <th style={{ padding: '0.35rem' }}>Parent ID</th>
-              <th style={{ padding: '0.35rem' }}>Host</th>
-              <th style={{ padding: '0.35rem' }}>Port</th>
-              <th style={{ padding: '0.35rem' }}>TLS</th>
-              <th style={{ padding: '0.35rem' }}>Bearer</th>
-              <th style={{ padding: '0.35rem' }} title="Their Local unit ID — I use this to match incoming sync">
-                Peer unit ID
-              </th>
-              <th style={{ padding: '0.35rem' }} title="Merge only this battery when they push">
-                Merge BOC
-              </th>
-              <th style={{ padding: '0.35rem' }} title="Merge only this PLT FDC (finer than BOC)">
-                Merge PLT
-              </th>
-              <th style={{ padding: '0.35rem' }}>Alerts</th>
-              <th style={{ padding: '0.35rem' }}>Auto-accept</th>
-              <th style={{ padding: '0.35rem' }}>Status</th>
-              <th style={{ padding: '0.35rem' }}>Last seen</th>
-              <th style={{ padding: '0.35rem' }} />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={15} style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>
-                  No units yet. Add BOC / BN / BDE endpoints your node syncs with.
-                </td>
-              </tr>
-            )}
-            {rows.map((r) => (
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+          {rows.length === 0 ? (
+            <div style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>
+              No units yet. Add BOC / BN / BDE endpoints your node syncs with.
+            </div>
+          ) : (
+            rows.map((r) => (
               <RosterRowEditor
                 key={r.id}
                 row={r}
@@ -295,16 +298,68 @@ function NetworkRosterSectionInner({
                 echelonGroups={echelonGroups}
                 hasEchelonUnits={hasEchelonUnits}
                 isEditing={editingId === r.id}
+                isMobile
                 onEdit={() => setEditingId(r.id)}
                 onCancel={() => setEditingId(null)}
                 onSave={saveRow}
+                onAutoSave={autosaveRow}
                 onDelete={() => removeRow(r.id)}
                 statusColor={statusColor}
               />
-            ))}
-          </tbody>
-        </table>
-      </div>
+            ))
+          )}
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={tableStyle}>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
+                <th style={{ padding: '0.35rem' }}>Name</th>
+                <th style={{ padding: '0.35rem' }}>Role</th>
+                <th style={{ padding: '0.35rem' }}>Parent ID</th>
+                <th style={{ padding: '0.35rem' }}>Host</th>
+                <th style={{ padding: '0.35rem' }}>Port</th>
+                <th style={{ padding: '0.35rem' }}>TLS</th>
+                <th style={{ padding: '0.35rem' }}>Bearer</th>
+                <th style={{ padding: '0.35rem' }} title="Their Local unit ID — I use this to match incoming sync">
+                  Peer unit ID
+                </th>
+                <th style={{ padding: '0.35rem' }}>Alerts</th>
+                <th style={{ padding: '0.35rem' }}>Auto-accept</th>
+                <th style={{ padding: '0.35rem' }}>Status</th>
+                <th style={{ padding: '0.35rem' }}>Last seen</th>
+                <th style={{ padding: '0.35rem' }} />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={13} style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>
+                    No units yet. Add BOC / BN / BDE endpoints your node syncs with.
+                  </td>
+                </tr>
+              )}
+              {rows.map((r) => (
+                <RosterRowEditor
+                  key={r.id}
+                  row={r}
+                  org={org}
+                  echelonGroups={echelonGroups}
+                  hasEchelonUnits={hasEchelonUnits}
+                  isEditing={editingId === r.id}
+                  isMobile={false}
+                  onEdit={() => setEditingId(r.id)}
+                  onCancel={() => setEditingId(null)}
+                  onSave={saveRow}
+                  onAutoSave={autosaveRow}
+                  onDelete={() => removeRow(r.id)}
+                  statusColor={statusColor}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </CollapsibleCard>
   )
 }
@@ -317,9 +372,11 @@ function RosterRowEditor({
   echelonGroups,
   hasEchelonUnits,
   isEditing,
+  isMobile,
   onEdit,
   onCancel,
   onSave,
+  onAutoSave,
   onDelete,
   statusColor,
 }: {
@@ -328,30 +385,86 @@ function RosterRowEditor({
   echelonGroups: EchelonSelectGroup[]
   hasEchelonUnits: boolean
   isEditing: boolean
+  isMobile: boolean
   onEdit: () => void
   onCancel: () => void
   onSave: (r: NetworkRosterRow) => void
+  onAutoSave: (r: NetworkRosterRow) => void
   onDelete: () => void
   statusColor: (s: string) => string
 }) {
   const [draft, setDraft] = useState(row)
+  const rowRef = useRef<HTMLDivElement | HTMLTableRowElement | null>(null)
+  const suppressBlurSaveRef = useRef(false)
   useEffect(() => {
     setDraft(row)
   }, [row])
+
+  const autosaveIfLeavingEditor = (relatedTarget: EventTarget | null) => {
+    if (!isEditing) return
+    if (suppressBlurSaveRef.current) {
+      suppressBlurSaveRef.current = false
+      return
+    }
+    const nextTarget = relatedTarget as Node | null
+    if (!nextTarget || !rowRef.current?.contains(nextTarget)) {
+      onAutoSave(draft)
+    }
+  }
 
   const roleSelectValue = parseEchelonRole(draft.echelonRole) ? draft.echelonRole : ''
   const legacyRole = draft.echelonRole && !parseEchelonRole(draft.echelonRole)
 
   if (!isEditing) {
     const seen = row.lastSeenMs ? new Date(row.lastSeenMs).toLocaleString() : '—'
-    const mergeBocLabel = row.ingestMergeBocId
-      ? org.bocs.find((b) => b.id === row.ingestMergeBocId)?.name ?? row.ingestMergeBocId.slice(0, 8) + '…'
-      : '—'
-    const mergePocLabel = row.ingestMergePocId
-      ? org.pocs.find((p) => p.id === row.ingestMergePocId)?.name ?? row.ingestMergePocId.slice(0, 8) + '…'
-      : '—'
+    const statusClass = `network-status-pill network-status-${row.status || 'unknown'}`
+    const statusTooltip = statusTooltipText(row, org)
+    if (isMobile) {
+      const roleScope =
+        parseEchelonRole(row.echelonRole)?.type === 'boc'
+          ? 'Battery subtree'
+          : parseEchelonRole(row.echelonRole)?.type === 'poc'
+            ? 'PLT subtree'
+            : 'Role-based'
+      return (
+        <div
+          className="network-roster-card"
+          style={{
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            background: 'var(--bg-primary)',
+            padding: '0.6rem',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.35rem' }}>
+            <strong style={{ color: 'var(--text-primary)' }}>{row.displayName}</strong>
+            <span className={statusClass} style={{ color: statusColor(row.status), fontWeight: 700 }} title={statusTooltip}>
+              {row.status}
+            </span>
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>
+            {formatEchelonRoleForDisplay(row.echelonRole, org)} • {row.host ?? '—'}:{row.port ?? '—'}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+            Peer: {row.peerUnitId ?? '—'} • Scope: {roleScope}
+          </div>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <button type="button" onClick={onEdit}>
+              Edit
+            </button>
+            <button type="button" onClick={onDelete}>
+              Del
+            </button>
+            <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--text-secondary)', alignSelf: 'center' }}>
+              {seen}
+            </span>
+          </div>
+        </div>
+      )
+    }
+
     return (
-      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+      <tr className="network-roster-row" style={{ borderBottom: '1px solid var(--border)' }}>
         <td style={{ padding: '0.35rem' }}>{row.displayName}</td>
         <td style={{ padding: '0.35rem' }}>{formatEchelonRoleForDisplay(row.echelonRole, org)}</td>
         <td style={{ padding: '0.35rem', fontFamily: 'monospace', fontSize: '0.75rem' }}>
@@ -362,15 +475,13 @@ function RosterRowEditor({
         <td style={{ padding: '0.35rem' }}>{row.useTls ? 'yes' : 'no'}</td>
         <td style={{ padding: '0.35rem' }}>{row.bearer === RADIO_BEARER_ID ? '1523 (placeholder)' : row.bearer}</td>
         <td style={{ padding: '0.35rem', fontFamily: 'monospace', fontSize: '0.72rem' }}>{row.peerUnitId ?? '—'}</td>
-        <td style={{ padding: '0.35rem', fontSize: '0.72rem', maxWidth: '7rem' }} title={row.ingestMergeBocId ?? ''}>
-          {mergeBocLabel}
-        </td>
-        <td style={{ padding: '0.35rem', fontSize: '0.72rem', maxWidth: '7rem' }} title={row.ingestMergePocId ?? ''}>
-          {mergePocLabel}
-        </td>
         <td style={{ padding: '0.35rem' }}>{row.syncAlertsEnabled ? 'on' : 'off'}</td>
         <td style={{ padding: '0.35rem' }}>{row.autoAcceptSync ? 'on' : 'off'}</td>
-        <td style={{ padding: '0.35rem', color: statusColor(row.status), fontWeight: 600 }}>{row.status}</td>
+        <td style={{ padding: '0.35rem' }}>
+          <span className={statusClass} style={{ color: statusColor(row.status), fontWeight: 600 }} title={statusTooltip}>
+            {row.status}
+          </span>
+        </td>
         <td style={{ padding: '0.35rem', whiteSpace: 'nowrap' }}>{seen}</td>
         <td style={{ padding: '0.35rem', whiteSpace: 'nowrap' }}>
           <button type="button" onClick={onEdit} style={{ marginRight: '0.25rem' }}>
@@ -384,8 +495,123 @@ function RosterRowEditor({
     )
   }
 
+  if (isMobile) {
+    return (
+      <div
+        className="network-roster-editor"
+        ref={(el) => {
+          rowRef.current = el
+        }}
+        onBlurCapture={(e) => autosaveIfLeavingEditor(e.relatedTarget)}
+        style={{
+          border: '1px solid var(--border)',
+          borderRadius: '8px',
+          background: 'var(--bg-primary)',
+          padding: '0.6rem',
+          display: 'grid',
+          gridTemplateColumns: '1fr',
+          gap: '0.45rem',
+        }}
+      >
+        <input
+          value={draft.displayName}
+          onChange={(e) => setDraft({ ...draft, displayName: e.target.value })}
+          placeholder="Display name"
+        />
+        <select
+          value={roleSelectValue}
+          onChange={(e) => setDraft({ ...draft, echelonRole: e.target.value })}
+          disabled={!hasEchelonUnits}
+        >
+          <option value="">{hasEchelonUnits ? 'Select echelon…' : 'Add units in Inventory / Management'}</option>
+          {echelonGroups.map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+          <input
+            value={draft.host ?? ''}
+            onChange={(e) => setDraft({ ...draft, host: e.target.value || null })}
+            placeholder="Host"
+          />
+          <input
+            type="number"
+            className="touch-stepper"
+            min={1}
+            max={65535}
+            step={1}
+            value={draft.port ?? ''}
+            onChange={(e) => setDraft({ ...draft, port: e.target.value ? parseInt(e.target.value, 10) : null })}
+            placeholder="Port"
+          />
+        </div>
+        <input
+          value={draft.peerUnitId ?? ''}
+          onChange={(e) => setDraft({ ...draft, peerUnitId: e.target.value.trim() || null })}
+          placeholder="Peer unit ID"
+        />
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+          Apply scope is automatic from Role (BOC = battery subtree, PLT = PLT subtree).
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem', fontSize: '0.78rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <input
+              type="checkbox"
+              checked={draft.useTls}
+              onChange={(e) => setDraft({ ...draft, useTls: e.target.checked })}
+            />
+            TLS
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <input
+              type="checkbox"
+              checked={draft.syncAlertsEnabled}
+              onChange={(e) => setDraft({ ...draft, syncAlertsEnabled: e.target.checked })}
+            />
+            Alerts
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <input
+              type="checkbox"
+              checked={draft.autoAcceptSync}
+              onChange={(e) => setDraft({ ...draft, autoAcceptSync: e.target.checked })}
+            />
+            Auto-accept
+          </label>
+        </div>
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
+          <button type="button" onClick={() => onSave(draft)}>
+            Save
+          </button>
+          <button
+            type="button"
+            onMouseDown={() => {
+              suppressBlurSaveRef.current = true
+            }}
+            onClick={onCancel}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
+    <tr
+      className="network-roster-editor"
+      ref={(el) => {
+        rowRef.current = el
+      }}
+      onBlurCapture={(e) => autosaveIfLeavingEditor(e.relatedTarget)}
+      style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}
+    >
       <td style={{ padding: '0.35rem' }}>
         <input
           value={draft.displayName}
@@ -474,50 +700,6 @@ function RosterRowEditor({
           style={{ width: '100%', minWidth: '56px', fontSize: '0.75rem' }}
         />
       </td>
-      <td style={{ padding: '0.35rem', verticalAlign: 'top' }}>
-        <select
-          value={draft.ingestMergeBocId ?? ''}
-          onChange={(e) => {
-            const v = e.target.value || null
-            setDraft({
-              ...draft,
-              ingestMergeBocId: v,
-              ingestMergePocId: v ? null : draft.ingestMergePocId,
-            })
-          }}
-          style={{ width: '100%', minWidth: '72px', maxWidth: '10rem', fontSize: '0.72rem' }}
-          title="Incoming snapshots from this peer merge only this battery"
-        >
-          <option value="">—</option>
-          {org.bocs.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-      </td>
-      <td style={{ padding: '0.35rem', verticalAlign: 'top' }}>
-        <select
-          value={draft.ingestMergePocId ?? ''}
-          onChange={(e) => {
-            const v = e.target.value || null
-            setDraft({
-              ...draft,
-              ingestMergePocId: v,
-              ingestMergeBocId: v ? null : draft.ingestMergeBocId,
-            })
-          }}
-          style={{ width: '100%', minWidth: '72px', maxWidth: '10rem', fontSize: '0.72rem' }}
-          title="Incoming snapshots merge only this PLT (ignored if Merge BOC is set)"
-        >
-          <option value="">—</option>
-          {org.pocs.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </td>
       <td style={{ padding: '0.35rem', textAlign: 'center' }}>
         <input
           type="checkbox"
@@ -540,7 +722,14 @@ function RosterRowEditor({
         <button type="button" onClick={() => onSave(draft)}>
           Save
         </button>
-        <button type="button" onClick={onCancel} style={{ marginLeft: '0.25rem' }}>
+        <button
+          type="button"
+          onMouseDown={() => {
+            suppressBlurSaveRef.current = true
+          }}
+          onClick={onCancel}
+          style={{ marginLeft: '0.25rem' }}
+        >
           Cancel
         </button>
       </td>

@@ -28,7 +28,7 @@ export function CollapsibleCard({
 
   return (
     <section
-      className={className}
+      className={['collapsible-card', className].filter(Boolean).join(' ')}
       style={{
         marginBottom: 0,
         background: 'var(--bg-secondary)',
@@ -40,6 +40,7 @@ export function CollapsibleCard({
       }}
     >
       <div
+        className="collapsible-card-header"
         style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -53,6 +54,7 @@ export function CollapsibleCard({
         }}
       >
         <button
+          className="collapsible-card-toggle"
           type="button"
           id={headerId}
           aria-expanded={open}
@@ -92,7 +94,7 @@ export function CollapsibleCard({
         ) : null}
       </div>
       {open && (
-        <div id={panelId} role="region" aria-labelledby={headerId}>
+        <div id={panelId} role="region" aria-labelledby={headerId} className="collapsible-card-body">
           {description ? (
             <div
               style={{

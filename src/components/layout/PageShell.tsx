@@ -34,6 +34,7 @@ export default function PageShell({
 }: Props) {
   return (
     <div
+      className="page-shell"
       style={{
         maxWidth: contentMaxWidth,
         margin: '0 auto',
@@ -53,6 +54,7 @@ export default function PageShell({
     >
       {!hideTitle && (
         <div
+          className="page-shell-header"
           style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -64,6 +66,7 @@ export default function PageShell({
         >
           {asHeading ? (
             <h1
+              className="page-shell-title"
               style={{
                 fontSize: isMobile ? '1.5rem' : '2rem',
                 fontWeight: 'bold',
@@ -76,6 +79,7 @@ export default function PageShell({
             </h1>
           ) : (
             <div
+              className="page-shell-title"
               style={{
                 fontSize: isMobile ? '1.5rem' : '2rem',
                 fontWeight: 'bold',

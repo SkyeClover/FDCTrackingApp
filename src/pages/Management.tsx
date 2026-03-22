@@ -234,6 +234,7 @@ export default function Management() {
     <PageShell
       title="Management"
       isMobile={isMobile}
+      contentMaxWidth="min(100%, 1680px)"
       actions={
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <button
@@ -303,185 +304,218 @@ export default function Management() {
       <UnitHierarchyModal isOpen={hierarchyOpen} onClose={() => setHierarchyOpen(false)} />
       <TaskAssignmentsModal isOpen={taskAssignmentsOpen} onClose={() => setTaskAssignmentsOpen(false)} />
 
-      <CollapsibleSection
-        title="Organization"
-        subtitle="Brigades, battalions, batteries & PLT FDCs — use Unit hierarchy to re-link Bn → Bde, BOC → Bn, PLT → BOC, launchers, RSVs, and Ammo PLT"
-        compact
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) minmax(360px, 500px)',
+          gap: '0.85rem',
+          alignItems: 'start',
+        }}
       >
-        <OrganizationSection
-          isMobile={isMobile}
-          onOpenCreateUnit={() => openCreateUnit(null)}
-          onOpenHierarchy={() => setHierarchyOpen(true)}
-        />
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Launchers" subtitle="HIMARS & PLT assignment" compact>
-        <LaunchersSection isMobile={isMobile} embedded />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Task templates"
-        subtitle="Durations & types — start tasks from Task assignments (header); lists respect your view role"
-        badge={taskTemplatesMemo.length}
-        compact
-      >
-          <div style={{ marginBottom: isMobile ? '0.75rem' : '1rem' }}>
-            <button
-              onClick={() => {
-                setEditingTemplate(null)
-                setShowTaskTemplateForm(!showTaskTemplateForm)
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: isMobile ? '0.5rem 0.6rem' : '0.5rem 1rem',
-                backgroundColor: 'var(--accent)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: isMobile ? '0.8rem' : '0.9rem',
-                width: isMobile ? '100%' : 'auto',
-                justifyContent: 'center',
-              }}
-            >
-              <Plus size={16} />
-              {showTaskTemplateForm ? 'Cancel' : 'Create Task Template'}
-            </button>
-          </div>
-
-          {showTaskTemplateForm && (
-            <TaskTemplateForm
-              editingTemplate={editingTemplate}
-              onSubmit={handleTaskTemplateSubmit}
-              onCancel={() => {
-                setShowTaskTemplateForm(false)
-                setEditingTemplate(null)
-              }}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: 0 }}>
+          <CollapsibleSection
+            title="Organization"
+            subtitle="Brigades, battalions, batteries & PLT FDCs — use Unit hierarchy to re-link Bn → Bde, BOC → Bn, PLT → BOC, launchers, RSVs, and Ammo PLT"
+            defaultCollapsed
+            compact
+          >
+            <OrganizationSection
               isMobile={isMobile}
+              onOpenCreateUnit={() => openCreateUnit(null)}
+              onOpenHierarchy={() => setHierarchyOpen(true)}
             />
-          )}
+          </CollapsibleSection>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.5rem' : '0.75rem' }}>
-            {taskTemplatesMemo.length === 0 ? (
-              <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: isMobile ? '0.75rem' : 'inherit' }}>
-                No task templates. Create one to define custom task durations.
-              </p>
-            ) : (
-              taskTemplatesMemo.map((template) => (
-                <div
-                  key={template.id}
-                  style={{
-                    padding: isMobile ? '0.5rem' : '0.75rem',
-                    backgroundColor: 'var(--bg-tertiary)',
-                    borderRadius: '6px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    width: '100%',
-                    maxWidth: '100%',
-                    boxSizing: 'border-box',
-                    gap: '0.5rem',
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        marginBottom: isMobile ? '0.15rem' : '0.25rem',
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: 'var(--text-primary)',
-                          fontWeight: '600',
-                          fontSize: isMobile ? '0.8rem' : '0.95rem',
-                          wordBreak: 'break-word',
-                          overflowWrap: 'break-word',
-                        }}
-                      >
-                        {template.name}
-                      </span>
-                      <span
-                        style={{
-                          padding: '0.15rem 0.5rem',
-                          backgroundColor: 'var(--bg-primary)',
-                          borderRadius: '3px',
-                          fontSize: '0.7rem',
-                          color: 'var(--text-secondary)',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {template.type}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '0.85rem',
-                        color: 'var(--text-secondary)',
-                        marginBottom: '0.25rem',
-                      }}
-                    >
-                      {template.description}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '0.8rem',
-                        color: 'var(--accent)',
-                        fontFamily: 'monospace',
-                        fontWeight: '500',
-                      }}
-                    >
-                      Duration: {formatDuration(template.duration)}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button
-                      onClick={() => {
-                        setEditingTemplate(template)
-                        setShowTaskTemplateForm(true)
-                      }}
-                      style={{
-                        padding: '0.35rem',
-                        backgroundColor: 'var(--bg-primary)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '4px',
-                        color: 'var(--text-primary)',
-                        cursor: 'pointer',
-                      }}
-                      title="Edit"
-                    >
-                      <Edit size={14} />
-                    </button>
-                    <button
-                      onClick={() => deleteTaskTemplate(template.id)}
-                      style={{
-                        padding: '0.35rem',
-                        backgroundColor: 'var(--bg-primary)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '4px',
-                        color: 'var(--danger)',
-                        cursor: 'pointer',
-                      }}
-                      title="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))
+          <CollapsibleSection title="Launchers" subtitle="HIMARS & PLT assignment" defaultCollapsed compact>
+            <LaunchersSection isMobile={isMobile} embedded />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="RSVs & assignments"
+            subtitle="Reload vehicles & routing — detailed table; echelon moves also in Unit hierarchy"
+            defaultCollapsed
+            compact
+          >
+            <RSVsManagement onAddRSV={() => setShowRSVForm(true)} />
+          </CollapsibleSection>
+        </div>
+
+        <aside
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.85rem',
+            minWidth: 0,
+            ...(isMobile
+              ? {}
+              : {
+                  position: 'sticky',
+                  top: '0.35rem',
+                  alignSelf: 'start',
+                }),
+          }}
+        >
+          <CollapsibleSection
+            title="Task templates"
+            subtitle="Durations & types — start tasks from Task assignments (header); lists respect your view role"
+            badge={taskTemplatesMemo.length}
+            defaultCollapsed
+            compact
+          >
+            <div style={{ marginBottom: isMobile ? '0.75rem' : '1rem' }}>
+              <button
+                onClick={() => {
+                  setEditingTemplate(null)
+                  setShowTaskTemplateForm(!showTaskTemplateForm)
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: isMobile ? '0.5rem 0.6rem' : '0.5rem 1rem',
+                  backgroundColor: 'var(--accent)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: isMobile ? '0.8rem' : '0.9rem',
+                  width: isMobile ? '100%' : 'auto',
+                  justifyContent: 'center',
+                }}
+              >
+                <Plus size={16} />
+                {showTaskTemplateForm ? 'Cancel' : 'Create Task Template'}
+              </button>
+            </div>
+
+            {showTaskTemplateForm && (
+              <TaskTemplateForm
+                editingTemplate={editingTemplate}
+                onSubmit={handleTaskTemplateSubmit}
+                onCancel={() => {
+                  setShowTaskTemplateForm(false)
+                  setEditingTemplate(null)
+                }}
+                isMobile={isMobile}
+              />
             )}
-          </div>
-      </CollapsibleSection>
 
-
-      <CollapsibleSection title="RSVs & assignments" subtitle="Reload vehicles & routing — detailed table; echelon moves also in Unit hierarchy" compact>
-        <RSVsManagement onAddRSV={() => setShowRSVForm(true)} />
-      </CollapsibleSection>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.5rem' : '0.75rem' }}>
+              {taskTemplatesMemo.length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: isMobile ? '0.75rem' : 'inherit' }}>
+                  No task templates. Create one to define custom task durations.
+                </p>
+              ) : (
+                taskTemplatesMemo.map((template) => (
+                  <div
+                    key={template.id}
+                    style={{
+                      padding: isMobile ? '0.5rem' : '0.75rem',
+                      backgroundColor: 'var(--bg-tertiary)',
+                      borderRadius: '6px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      width: '100%',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          marginBottom: isMobile ? '0.15rem' : '0.25rem',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: 'var(--text-primary)',
+                            fontWeight: '600',
+                            fontSize: isMobile ? '0.8rem' : '0.95rem',
+                            wordBreak: 'break-word',
+                            overflowWrap: 'break-word',
+                          }}
+                        >
+                          {template.name}
+                        </span>
+                        <span
+                          style={{
+                            padding: '0.15rem 0.5rem',
+                            backgroundColor: 'var(--bg-primary)',
+                            borderRadius: '3px',
+                            fontSize: '0.7rem',
+                            color: 'var(--text-secondary)',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {template.type}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.85rem',
+                          color: 'var(--text-secondary)',
+                          marginBottom: '0.25rem',
+                        }}
+                      >
+                        {template.description}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.8rem',
+                          color: 'var(--accent)',
+                          fontFamily: 'monospace',
+                          fontWeight: '500',
+                        }}
+                      >
+                        Duration: {formatDuration(template.duration)}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => {
+                          setEditingTemplate(template)
+                          setShowTaskTemplateForm(true)
+                        }}
+                        style={{
+                          padding: '0.35rem',
+                          backgroundColor: 'var(--bg-primary)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                        }}
+                        title="Edit"
+                      >
+                        <Edit size={14} />
+                      </button>
+                      <button
+                        onClick={() => deleteTaskTemplate(template.id)}
+                        style={{
+                          padding: '0.35rem',
+                          backgroundColor: 'var(--bg-primary)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          color: 'var(--danger)',
+                          cursor: 'pointer',
+                        }}
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CollapsibleSection>
+        </aside>
+      </div>
 
         {/* RSV Creation Modal */}
         {showRSVForm && (

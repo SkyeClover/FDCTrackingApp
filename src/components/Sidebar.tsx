@@ -9,6 +9,7 @@ interface SidebarProps {
 export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   return (
     <aside
+      className="app-sidebar"
       style={{
         width: '240px',
         backgroundColor: 'var(--bg-secondary)',
@@ -45,6 +46,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
           const isActive = currentPage === item.id
           return (
             <button
+              className={isActive ? 'app-nav-item is-active' : 'app-nav-item'}
               key={item.id}
               onClick={() => onPageChange(item.id)}
               style={{
@@ -61,18 +63,6 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                 fontSize: '0.95rem',
                 transition: 'all 0.2s',
                 textAlign: 'left',
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
-                  e.currentTarget.style.color = 'var(--text-primary)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                  e.currentTarget.style.color = 'var(--text-secondary)'
-                }
               }}
             >
               <Icon size={20} />

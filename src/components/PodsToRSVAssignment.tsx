@@ -354,8 +354,6 @@ export default memo(function PodsToRSVAssignment({}: PodsToRSVAssignmentProps) {
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
                   gap: '0.75rem',
-                  maxHeight: '400px',
-                  overflowY: 'auto',
                   padding: '0.5rem',
                 }}
               >

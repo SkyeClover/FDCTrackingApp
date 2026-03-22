@@ -36,6 +36,7 @@ function AppContentWithData() {
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minHeight: 0 }}>
           <MobileNav currentPage={currentPage} onPageChange={setCurrentPage} />
           <main
+            className="app-main-scroll"
             style={{
               flex: 1,
               minHeight: 0,
@@ -78,6 +79,7 @@ function AppContentWithData() {
         <div style={{ display: 'flex', height: '100%', width: '100%', minHeight: 0 }}>
           <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
           <main
+            className="app-main-scroll"
             style={{
               flex: 1,
               minHeight: 0,

@@ -629,16 +629,13 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
           No pods found
         </p>
       ) : (
-        <div style={{ overflowX: 'auto', maxHeight: '600px', overflowY: 'auto' }}>
+        <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr
                 style={{
                   backgroundColor: 'var(--bg-tertiary)',
                   borderBottom: '2px solid var(--border)',
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 1,
                 }}
               >
                 <th style={{ padding: '0.75rem', textAlign: 'left', width: '40px' }}>

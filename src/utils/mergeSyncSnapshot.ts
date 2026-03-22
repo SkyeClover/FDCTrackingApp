@@ -3,6 +3,19 @@ import { listNetworkRoster } from '../persistence/sqlite'
 import { normalizePeerUnitId } from '../lib/syncAlertStyle'
 import { parseEchelonRole } from '../components/network/echelonRoleUi'
 
+type WithId = { id: string }
+
+function upsertById<T extends WithId>(existing: T[], incoming: T[]): T[] {
+  if (incoming.length === 0) return existing
+  const existingIds = new Set(existing.map((x) => x.id))
+  const incomingById = new Map(incoming.map((x) => [x.id, x]))
+  const merged = existing.map((x) => incomingById.get(x.id) ?? x)
+  for (const x of incoming) {
+    if (!existingIds.has(x.id)) merged.push(x)
+  }
+  return merged
+}
+
 function taskInScope(t: Task, pocIds: Set<string>, launcherIds: Set<string>): boolean {
   if (t.pocIds?.some((id) => pocIds.has(id))) return true
   if (t.launcherIds?.some((id) => launcherIds.has(id))) return true
@@ -64,16 +77,6 @@ export function mergeAppStateByBocId(local: AppState, remote: AppState, bocId: s
   const remotePocs = remote.pocs.filter((p) => p.bocId === bocId)
   const remotePocIds = new Set(remotePocs.map((p) => p.id))
 
-  const oldLocalPocIds = new Set(local.pocs.filter((p) => p.bocId === bocId).map((p) => p.id))
-  const oldLocalLaunchers = local.launchers.filter((l) => l.pocId && oldLocalPocIds.has(l.pocId))
-  const oldLauncherIds = new Set(oldLocalLaunchers.map((l) => l.id))
-  const oldAmmo = local.ammoPlatoons.filter((a) => a.bocId === bocId)
-  const oldAmmoIds = new Set(oldAmmo.map((a) => a.id))
-  const oldRsvs = local.rsvs.filter(
-    (r) => r.bocId === bocId || (r.pocId != null && oldLocalPocIds.has(r.pocId))
-  )
-  const oldRsvIds = new Set(oldRsvs.map((r) => r.id))
-
   const remoteLaunchers = remote.launchers.filter((l) =>
     remoteLauncherAllowedForBocMerge(local, l, bocId, remotePocIds)
   )
@@ -92,38 +95,22 @@ export function mergeAppStateByBocId(local: AppState, remote: AppState, bocId: s
     podInBatteryScope(p, mergedPocIds, launcherIds, rsvIds, ammoIds)
   )
 
-  const mergedPocs = [...local.pocs.filter((p) => p.bocId !== bocId), ...remotePocs]
-
-  const mergedLaunchers = [
-    ...local.launchers.filter((l) => !(l.pocId && oldLocalPocIds.has(l.pocId))),
-    ...remoteLaunchers,
-  ]
-
-  const mergedAmmo = [...local.ammoPlatoons.filter((a) => a.bocId !== bocId), ...remoteAmmo]
-
-  const mergedRsvs = [
-    ...local.rsvs.filter((r) => !(r.bocId === bocId || (r.pocId != null && oldLocalPocIds.has(r.pocId)))),
-    ...remoteRsvs,
-  ]
-
-  const mergedPods = [
-    ...local.pods.filter(
-      (p) =>
-        !podInBatteryScope(p, oldLocalPocIds, oldLauncherIds, oldRsvIds, oldAmmoIds)
-    ),
-    ...remotePods,
-  ]
-
-  const mergedTasks = [
-    ...local.tasks.filter((t) => !taskInScope(t, oldLocalPocIds, oldLauncherIds)),
-    ...remote.tasks.filter((t) => taskInScope(t, mergedPocIds, launcherIds)),
-  ]
+  // Non-destructive merge: update incoming ids, keep local entities that sender didn't include.
+  const mergedPocs = upsertById(local.pocs, remotePocs)
+  const mergedLaunchers = upsertById(local.launchers, remoteLaunchers)
+  const mergedAmmo = upsertById(local.ammoPlatoons, remoteAmmo)
+  const mergedRsvs = upsertById(local.rsvs, remoteRsvs)
+  const mergedPods = upsertById(local.pods, remotePods)
+  const mergedTasks = upsertById(
+    local.tasks,
+    remote.tasks.filter((t) => taskInScope(t, mergedPocIds, launcherIds))
+  )
 
   const remoteBoc = remote.bocs.find((b) => b.id === bocId)
   const mergedBocs = local.bocs.map((b) => (b.id === bocId && remoteBoc ? remoteBoc : b))
 
   let ammoPltBocId = local.ammoPltBocId
-  if (local.ammoPltBocId === bocId) {
+  if (local.ammoPltBocId === bocId && remote.ammoPltBocId !== undefined) {
     ammoPltBocId = remote.ammoPltBocId
   }
 
@@ -146,13 +133,6 @@ export function mergeAppStateByBocId(local: AppState, remote: AppState, bocId: s
  */
 export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: string): AppState {
   const pocIds = new Set<string>([pocId])
-
-  const oldLocalLaunchers = local.launchers.filter((l) => l.pocId === pocId)
-  const oldLauncherIds = new Set(oldLocalLaunchers.map((l) => l.id))
-
-  const oldRsvs = local.rsvs.filter((r) => r.pocId === pocId)
-  const oldRsvIds = new Set(oldRsvs.map((r) => r.id))
-
   const oldAmmoIds = new Set<string>()
 
   const remotePocs = remote.pocs.filter((p) => p.id === pocId)
@@ -166,23 +146,15 @@ export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: s
     podInBatteryScope(p, pocIds, launcherIds, rsvIds, oldAmmoIds)
   )
 
-  const mergedPocs = [...local.pocs.filter((p) => p.id !== pocId), ...remotePocs]
-
-  const mergedLaunchers = [...local.launchers.filter((l) => l.pocId !== pocId), ...remoteLaunchers]
-
-  const mergedRsvs = [...local.rsvs.filter((r) => r.pocId !== pocId), ...remoteRsvs]
-
-  const mergedPods = [
-    ...local.pods.filter(
-      (p) => !podInBatteryScope(p, pocIds, oldLauncherIds, oldRsvIds, oldAmmoIds)
-    ),
-    ...remotePods,
-  ]
-
-  const mergedTasks = [
-    ...local.tasks.filter((t) => !taskInScope(t, pocIds, oldLauncherIds)),
-    ...remote.tasks.filter((t) => taskInScope(t, pocIds, launcherIds)),
-  ]
+  // Non-destructive merge for this PLT: update only known incoming ids.
+  const mergedPocs = upsertById(local.pocs, remotePocs)
+  const mergedLaunchers = upsertById(local.launchers, remoteLaunchers)
+  const mergedRsvs = upsertById(local.rsvs, remoteRsvs)
+  const mergedPods = upsertById(local.pods, remotePods)
+  const mergedTasks = upsertById(
+    local.tasks,
+    remote.tasks.filter((t) => taskInScope(t, pocIds, launcherIds))
+  )
 
   return {
     ...local,
@@ -204,12 +176,7 @@ export function rosterMergeScopeForFromUnitId(fromUnitId: string | null | undefi
   for (const r of listNetworkRoster()) {
     if (!r.peerUnitId?.trim()) continue
     if (normalizePeerUnitId(r.peerUnitId) !== key) continue
-    const boc = r.ingestMergeBocId?.trim() || null
-    const poc = r.ingestMergePocId?.trim() || null
-    if (boc || poc) {
-      return { ingestMergeBocId: boc, ingestMergePocId: poc }
-    }
-    // Default scope to roster role when explicit merge columns are empty.
+    // Scope is automatic from roster echelon role (no per-row merge selectors).
     const role = parseEchelonRole(r.echelonRole || '')
     if (role?.type === 'boc') {
       return { ingestMergeBocId: role.id, ingestMergePocId: null }
