@@ -1,5 +1,6 @@
 import type {
   AppState,
+  AmmoPlatoon,
   BOC,
   Battalion,
   Brigade,
@@ -21,6 +22,7 @@ export interface OrgForScope {
   launchers: Launcher[]
   pods: Pod[]
   rsvs: RSV[]
+  ammoPlatoons: AmmoPlatoon[]
 }
 
 export interface ScopedForceResult {
@@ -35,6 +37,12 @@ export interface ScopedForceResult {
 
 function pocIdsUnderBocIds(org: OrgForScope, bocIds: Set<string>): Set<string> {
   return new Set(org.pocs.filter((p) => p.bocId && bocIds.has(p.bocId)).map((p) => p.id))
+}
+
+function ammoPltIdsUnderBocIds(org: OrgForScope, bocIds: Set<string>): Set<string> {
+  return new Set(
+    org.ammoPlatoons.filter((ap) => ap.bocId && bocIds.has(ap.bocId)).map((ap) => ap.id)
+  )
 }
 
 function bocIdsUnderBattalionIds(org: OrgForScope, battalionIds: Set<string>): Set<string> {
@@ -67,19 +75,22 @@ export function getScopedForce(org: OrgForScope, role: CurrentUserRole | undefin
   if (role.type === 'brigade') {
     const bocIds = bocIdsUnderBrigade(org, role.id)
     const pocIds = pocIdsUnderBocIds(org, bocIds)
+    const ammoPltIds = ammoPltIdsUnderBocIds(org, bocIds)
     const launchers = org.launchers.filter((l) => l.pocId && pocIds.has(l.pocId))
     const launcherIds = new Set(launchers.map((l) => l.id))
     const rsvs = org.rsvs.filter(
       (r) =>
         (r.pocId && pocIds.has(r.pocId)) ||
-        (r.bocId && bocIds.has(r.bocId))
+        (r.bocId && bocIds.has(r.bocId)) ||
+        (!!r.ammoPltId && ammoPltIds.has(r.ammoPltId))
     )
     const rsvIds = new Set(rsvs.map((r) => r.id))
     const pods = org.pods.filter(
       (p) =>
         (p.pocId && pocIds.has(p.pocId)) ||
         (p.launcherId && launcherIds.has(p.launcherId)) ||
-        (p.rsvId && rsvIds.has(p.rsvId))
+        (p.rsvId && rsvIds.has(p.rsvId)) ||
+        (!!p.ammoPltId && ammoPltIds.has(p.ammoPltId))
     )
     return {
       viewDensity: 'compact',
@@ -95,19 +106,22 @@ export function getScopedForce(org: OrgForScope, role: CurrentUserRole | undefin
   if (role.type === 'battalion') {
     const bocIds = bocIdsUnderBattalionIds(org, new Set([role.id]))
     const pocIds = pocIdsUnderBocIds(org, bocIds)
+    const ammoPltIds = ammoPltIdsUnderBocIds(org, bocIds)
     const launchers = org.launchers.filter((l) => l.pocId && pocIds.has(l.pocId))
     const launcherIds = new Set(launchers.map((l) => l.id))
     const rsvs = org.rsvs.filter(
       (r) =>
         (r.pocId && pocIds.has(r.pocId)) ||
-        (r.bocId && bocIds.has(r.bocId))
+        (r.bocId && bocIds.has(r.bocId)) ||
+        (!!r.ammoPltId && ammoPltIds.has(r.ammoPltId))
     )
     const rsvIds = new Set(rsvs.map((r) => r.id))
     const pods = org.pods.filter(
       (p) =>
         (p.pocId && pocIds.has(p.pocId)) ||
         (p.launcherId && launcherIds.has(p.launcherId)) ||
-        (p.rsvId && rsvIds.has(p.rsvId))
+        (p.rsvId && rsvIds.has(p.rsvId)) ||
+        (!!p.ammoPltId && ammoPltIds.has(p.ammoPltId))
     )
     return {
       viewDensity: 'compact',
@@ -125,15 +139,23 @@ export function getScopedForce(org: OrgForScope, role: CurrentUserRole | undefin
     const plaunchers = org.launchers.filter((l) => l.pocId === pid)
     const plauncherIds = new Set(plaunchers.map((l) => l.id))
     const pocRow = org.pocs.find((p) => p.id === pid)
+    const parentBocIdSet = new Set(
+      pocRow?.bocId ? [pocRow.bocId] : ([] as string[])
+    )
+    const ammoPltIds = ammoPltIdsUnderBocIds(org, parentBocIdSet)
     const prsvs = org.rsvs.filter(
-      (r) => r.pocId === pid || (!!pocRow?.bocId && r.bocId === pocRow.bocId)
+      (r) =>
+        r.pocId === pid ||
+        (!!pocRow?.bocId && r.bocId === pocRow.bocId) ||
+        (!!r.ammoPltId && ammoPltIds.has(r.ammoPltId))
     )
     const prsvIds = new Set(prsvs.map((r) => r.id))
     const ppods = org.pods.filter(
       (p) =>
         p.pocId === pid ||
         (p.launcherId && plauncherIds.has(p.launcherId)) ||
-        (p.rsvId && prsvIds.has(p.rsvId))
+        (p.rsvId && prsvIds.has(p.rsvId)) ||
+        (!!p.ammoPltId && ammoPltIds.has(p.ammoPltId))
     )
     const ppoc = org.pocs.filter((p) => p.id === pid)
     const parentBocIds = new Set(ppoc.map((p) => p.bocId).filter(Boolean) as string[])
@@ -154,17 +176,22 @@ export function getScopedForce(org: OrgForScope, role: CurrentUserRole | undefin
   const bid = role.id
   const bpocs = org.pocs.filter((p) => p.bocId === bid)
   const bpocIds = new Set(bpocs.map((p) => p.id))
+  const bAmmoPltIds = ammoPltIdsUnderBocIds(org, new Set([bid]))
   const blaunchers = org.launchers.filter((l) => l.pocId && bpocIds.has(l.pocId))
   const blauncherIds = new Set(blaunchers.map((l) => l.id))
   const brsvs = org.rsvs.filter(
-    (r) => r.bocId === bid || (r.pocId && bpocIds.has(r.pocId))
+    (r) =>
+      r.bocId === bid ||
+      (r.pocId && bpocIds.has(r.pocId)) ||
+      (!!r.ammoPltId && bAmmoPltIds.has(r.ammoPltId))
   )
   const brsvIds = new Set(brsvs.map((r) => r.id))
   const bpods = org.pods.filter(
     (p) =>
       (p.pocId && bpocIds.has(p.pocId)) ||
       (p.launcherId && blauncherIds.has(p.launcherId)) ||
-      (p.rsvId && brsvIds.has(p.rsvId))
+      (p.rsvId && brsvIds.has(p.rsvId)) ||
+      (!!p.ammoPltId && bAmmoPltIds.has(p.ammoPltId))
   )
 
   return {
@@ -257,6 +284,7 @@ export function orgSliceFromState(state: {
   launchers: Launcher[]
   pods: Pod[]
   rsvs: RSV[]
+  ammoPlatoons?: AmmoPlatoon[]
 }): OrgForScope {
   return {
     brigades: state.brigades,
@@ -266,6 +294,7 @@ export function orgSliceFromState(state: {
     launchers: state.launchers,
     pods: state.pods,
     rsvs: state.rsvs,
+    ammoPlatoons: state.ammoPlatoons ?? [],
   }
 }
 

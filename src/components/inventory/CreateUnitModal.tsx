@@ -7,6 +7,7 @@ export type CreateUnitKind =
   | 'battalion'
   | 'boc'
   | 'poc'
+  | 'ammo-plt'
   | 'launcher'
   | 'rsv'
 
@@ -18,6 +19,7 @@ const OPS_KINDS: { id: CreateUnitKind; label: string; hint: string }[] = [
 ]
 
 const LINE_KINDS: { id: CreateUnitKind; label: string; hint: string }[] = [
+  { id: 'ammo-plt', label: 'Ammo PLT', hint: 'Pods & RSV holding (no firing)' },
   { id: 'launcher', label: 'Launcher', hint: 'HIMARS' },
   { id: 'rsv', label: 'RSV', hint: 'Reload vehicle' },
 ]
@@ -46,6 +48,8 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
     addLauncher,
     addRSV,
     assignPOCToBOC,
+    addAmmoPlatoon,
+    assignAmmoPlatoonToBOC,
   } = useAppData()
 
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -84,6 +88,7 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
 
   const needsAssignStep =
     kind === 'poc' ||
+    kind === 'ammo-plt' ||
     kind === 'launcher' ||
     kind === 'rsv' ||
     kind === 'battalion' ||
@@ -141,6 +146,14 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
       resetClose()
       return
     }
+    if (kind === 'ammo-plt') {
+      if (!name.trim()) return
+      const id = ts
+      addAmmoPlatoon({ id, name: name.trim() })
+      if (assignBocId) assignAmmoPlatoonToBOC(id, assignBocId)
+      resetClose()
+      return
+    }
     if (kind === 'launcher') {
       if (!name.trim()) return
       addLauncher({
@@ -180,6 +193,7 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
       kind === 'brigade' ||
       kind === 'boc' ||
       kind === 'poc' ||
+      kind === 'ammo-plt' ||
       kind === 'launcher' ||
       kind === 'rsv' ||
       kind === 'battalion'
@@ -446,7 +460,7 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
                 </label>
               )}
 
-              {kind === 'poc' && (
+              {(kind === 'poc' || kind === 'ammo-plt') && (
                 <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                   Battery (BOC)
                   <select

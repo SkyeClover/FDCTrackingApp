@@ -1,13 +1,35 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react'
-import { BOC, POC, Launcher, Pod, RSV, Round, Task, TaskTemplate, LogEntry, AppState, CurrentUserRole, RoundTypeConfig, Brigade, Battalion } from '../types'
+import {
+  BOC,
+  POC,
+  Launcher,
+  Pod,
+  RSV,
+  Round,
+  Task,
+  TaskTemplate,
+  LogEntry,
+  AppState,
+  CurrentUserRole,
+  RoundTypeConfig,
+  Brigade,
+  Battalion,
+  AmmoPlatoon,
+} from '../types'
+import { LEGACY_AMMO_PLT_ID } from '../constants/ammoPlatoon'
 import {
   exportToFile,
   importFromFile,
   getDefaultState,
+  deserializeState,
 } from '../utils/saveLoad'
+import {
+  mergeAppStateByBocId,
+  mergeAppStateByPocId,
+  rosterMergeScopeForFromUnitId,
+} from '../utils/mergeSyncSnapshot'
 import { normalizeLoadedAppState } from '../utils/normalizeAppState'
 import {
-  applySnapshotJson,
   saveAppStateToDb,
   flushPersistenceNow,
   writeInitialSetupCompleteToDb,
@@ -20,6 +42,7 @@ import {
   isLauncherInRoleScope,
   isPocInRoleScope,
   isTaskInRoleScope,
+  mergePreservedViewRoleAfterSync,
 } from '../utils/roleScope'
 
 // Funny completion messages based on "Funny Stuff.md"
@@ -60,6 +83,10 @@ interface AppDataContextType {
   updateBattalion: (id: string, updates: Partial<Battalion>) => void
   addBOC: (boc: BOC) => void
   addPOC: (poc: POC) => void
+  addAmmoPlatoon: (ap: AmmoPlatoon) => void
+  updateAmmoPlatoon: (id: string, updates: Partial<AmmoPlatoon>) => void
+  deleteAmmoPlatoon: (ammoPltId: string) => void
+  assignAmmoPlatoonToBOC: (ammoPltId: string, bocId: string) => void
   addLauncher: (launcher: Launcher) => void
   addPod: (pod: Pod) => void
   addRSV: (rsv: RSV, assignToAmmoPlt?: boolean) => void
@@ -124,12 +151,17 @@ interface AppDataContextType {
   addRoundType: (name: string) => void
   updateRoundType: (name: string, enabled: boolean) => void
   deleteRoundType: (name: string) => void
+  ammoPlatoons: AmmoPlatoon[]
+  /** @deprecated Legacy field; prefer ammoPlatoons[].bocId */
   ammoPltBocId?: string
-  assignAmmoPltToBOC: (bocId: string) => void
   /** Full app state for sync / export (uses latest ref). */
   getStateSnapshot: () => AppState
   /** Replace local DB + React state from snapshot JSON (e.g. ingest pull). Pass ingest `stateVersion` so Network “Data version” matches the snapshot you applied. */
-  applySnapshotFromJson: (json: string, ingestStateVersion?: number) => boolean
+  applySnapshotFromJson: (
+    json: string,
+    ingestStateVersion?: number,
+    options?: { fromUnitId?: string | null }
+  ) => boolean
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined)
@@ -393,21 +425,115 @@ export function AppDataProvider({
   const addBOC = useCallback((boc: BOC) => {
     setState((prev) => {
       const isFirstBOC = prev.bocs.length === 0
-      const newState = { ...prev, bocs: [...prev.bocs, boc] }
-      // Assign Ammo PLT to first BOC created
-      if (isFirstBOC && !prev.ammoPltBocId) {
-        newState.ammoPltBocId = boc.id
-        addLog({ type: 'info', message: `BOC "${boc.name}" created and Ammo PLT assigned to it` })
+      const prevAmmo = prev.ammoPlatoons ?? []
+      const hadOrphanAmmo = prevAmmo.some((ap) => !ap.bocId)
+      let ammoPlatoons = prevAmmo
+      let ammoPltBocId = prev.ammoPltBocId
+
+      if (isFirstBOC && hadOrphanAmmo) {
+        ammoPlatoons = prevAmmo.map((ap) => (!ap.bocId ? { ...ap, bocId: boc.id } : ap))
+        if (!ammoPltBocId) {
+          ammoPltBocId = boc.id
+        }
+        addLog({
+          type: 'info',
+          message: `BOC "${boc.name}" created; ammo platoons without a battery were linked to it`,
+        })
       } else {
         addLog({ type: 'info', message: `BOC "${boc.name}" created` })
       }
-      return newState
+
+      return { ...prev, bocs: [...prev.bocs, boc], ammoPlatoons, ammoPltBocId }
     })
   }, [addLog])
 
   const addPOC = useCallback((poc: POC) => {
     setState((prev) => ({ ...prev, pocs: [...prev.pocs, poc] }))
     addLog({ type: 'info', message: `POC "${poc.name}" created` })
+  }, [addLog])
+
+  const addAmmoPlatoon = useCallback((ap: AmmoPlatoon) => {
+    setState((prev) => ({ ...prev, ammoPlatoons: [...(prev.ammoPlatoons ?? []), ap] }))
+    addLog({ type: 'info', message: `Ammo platoon "${ap.name}" created` })
+  }, [addLog])
+
+  const updateAmmoPlatoon = useCallback((id: string, updates: Partial<AmmoPlatoon>) => {
+    setState((prev) => {
+      const row = prev.ammoPlatoons?.find((a) => a.id === id)
+      if (!row) return prev
+      if (updates.name && updates.name !== row.name) {
+        addLog({ type: 'info', message: `Ammo platoon renamed from "${row.name}" to "${updates.name}"` })
+      }
+      let ammoPltBocId = prev.ammoPltBocId
+      if (id === LEGACY_AMMO_PLT_ID && updates.bocId !== undefined) {
+        ammoPltBocId = updates.bocId || undefined
+      }
+      return {
+        ...prev,
+        ammoPltBocId,
+        ammoPlatoons: (prev.ammoPlatoons ?? []).map((a) => (a.id === id ? { ...a, ...updates } : a)),
+      }
+    })
+  }, [addLog])
+
+  const assignAmmoPlatoonToBOC = useCallback((ammoPltId: string, bocId: string) => {
+    setState((prev) => {
+      const ap = prev.ammoPlatoons?.find((a) => a.id === ammoPltId)
+      if (!ap) {
+        addLog({ type: 'warning', message: `Cannot assign ammo platoon: unit not found` })
+        return prev
+      }
+      if (!bocId) {
+        addLog({ type: 'info', message: `Ammo platoon "${ap.name}" unlinked from battery` })
+        let ammoPltBocId = prev.ammoPltBocId
+        if (ammoPltId === LEGACY_AMMO_PLT_ID) {
+          ammoPltBocId = undefined
+        }
+        return {
+          ...prev,
+          ammoPltBocId,
+          ammoPlatoons: (prev.ammoPlatoons ?? []).map((a) =>
+            a.id === ammoPltId ? { ...a, bocId: undefined } : a
+          ),
+        }
+      }
+      const boc = prev.bocs.find((b) => b.id === bocId)
+      if (!boc) {
+        addLog({ type: 'warning', message: `Cannot assign ammo platoon: BOC not found` })
+        return prev
+      }
+      addLog({ type: 'info', message: `Ammo platoon "${ap.name}" assigned to BOC "${boc.name}"` })
+      let ammoPltBocId = prev.ammoPltBocId
+      if (ammoPltId === LEGACY_AMMO_PLT_ID) {
+        ammoPltBocId = bocId
+      }
+      return {
+        ...prev,
+        ammoPltBocId,
+        ammoPlatoons: (prev.ammoPlatoons ?? []).map((a) =>
+          a.id === ammoPltId ? { ...a, bocId } : a
+        ),
+      }
+    })
+  }, [addLog])
+
+  const deleteAmmoPlatoon = useCallback((ammoPltId: string) => {
+    setState((prev) => {
+      const ap = prev.ammoPlatoons?.find((a) => a.id === ammoPltId)
+      if (!ap) return prev
+      addLog({ type: 'info', message: `Ammo platoon "${ap.name}" deleted` })
+      let ammoPltBocId = prev.ammoPltBocId
+      if (ammoPltId === LEGACY_AMMO_PLT_ID) {
+        ammoPltBocId = undefined
+      }
+      return {
+        ...prev,
+        ammoPlatoons: (prev.ammoPlatoons ?? []).filter((a) => a.id !== ammoPltId),
+        ammoPltBocId,
+        pods: prev.pods.map((p) => (p.ammoPltId === ammoPltId ? { ...p, ammoPltId: undefined } : p)),
+        rsvs: prev.rsvs.map((r) => (r.ammoPltId === ammoPltId ? { ...r, ammoPltId: undefined } : r)),
+      }
+    })
   }, [addLog])
 
   const addBrigade = useCallback((brigade: Brigade) => {
@@ -525,13 +651,31 @@ export function AppDataProvider({
   }, [addLog])
 
   const addRSV = useCallback((rsv: RSV, assignToAmmoPlt?: boolean) => {
-    const AMMO_PLT_ID = 'ammo-plt-1'
     setState((prev) => {
-      // If explicitly assigned to ammo plt, use that
       if (assignToAmmoPlt) {
-        const rsvWithAmmoPlt = { ...rsv, ammoPltId: AMMO_PLT_ID, pocId: undefined, bocId: undefined }
-        addLog({ type: 'info', message: `RSV "${rsv.name}" created and assigned to Ammo PLT` })
-        return { ...prev, rsvs: [...prev.rsvs, rsvWithAmmoPlt] }
+        let ammoPlatoons = [...(prev.ammoPlatoons ?? [])]
+        let ammoId =
+          prev.currentUserRole?.type === 'boc'
+            ? ammoPlatoons.find((ap) => ap.bocId === prev.currentUserRole!.id)?.id
+            : undefined
+        if (!ammoId) {
+          ammoId = ammoPlatoons[0]?.id
+        }
+        if (!ammoId) {
+          ammoId = LEGACY_AMMO_PLT_ID
+          ammoPlatoons.push({
+            id: LEGACY_AMMO_PLT_ID,
+            name: 'Ammo PLT',
+            bocId: prev.currentUserRole?.type === 'boc' ? prev.currentUserRole.id : prev.ammoPltBocId,
+          })
+        }
+        const plt = ammoPlatoons.find((a) => a.id === ammoId)
+        const rsvWithAmmoPlt = { ...rsv, ammoPltId: ammoId, pocId: undefined, bocId: undefined }
+        addLog({
+          type: 'info',
+          message: `RSV "${rsv.name}" created and assigned to ${plt?.name ?? 'Ammo PLT'}`,
+        })
+        return { ...prev, rsvs: [...prev.rsvs, rsvWithAmmoPlt], ammoPlatoons }
       }
       
       // If already has assignment, use it
@@ -582,11 +726,21 @@ export function AppDataProvider({
         pod.bocId === bocId ? { ...pod, bocId: undefined } : pod
       )
 
+      const ammoPlatoons = (prev.ammoPlatoons ?? []).map((ap) =>
+        ap.bocId === bocId ? { ...ap, bocId: undefined } : ap
+      )
+      let ammoPltBocId = prev.ammoPltBocId
+      if (ammoPltBocId === bocId) {
+        ammoPltBocId = undefined
+      }
+
       return {
         ...prev,
         bocs: prev.bocs.filter((b) => b.id !== bocId),
         pocs: updatedPOCs,
         pods: updatedPods,
+        ammoPlatoons,
+        ammoPltBocId,
         currentUserRole: updatedUserRole,
       }
     })
@@ -762,7 +916,7 @@ export function AppDataProvider({
         const template = prev.taskTemplates.find((t) => t.id === templateId)
         if (!template) return prev
 
-        const org = orgSliceFromState(prev)
+        const org = orgSliceFromState({ ...prev, ammoPlatoons: prev.ammoPlatoons ?? [] })
         if (!isLauncherInRoleScope(org, prev.currentUserRole, launcherId)) {
           addLog({
             type: 'error',
@@ -894,7 +1048,7 @@ export function AppDataProvider({
         const poc = prev.pocs.find((p) => p.id === pocId)
         if (!poc) return prev
 
-        const org = orgSliceFromState(prev)
+        const org = orgSliceFromState({ ...prev, ammoPlatoons: prev.ammoPlatoons ?? [] })
         if (!isPocInRoleScope(org, prev.currentUserRole, pocId)) {
           addLog({
             type: 'error',
@@ -1030,7 +1184,7 @@ export function AppDataProvider({
     const snap = stateRef.current
     const task = snap.tasks.find((t) => t.id === taskId)
     if (task) {
-      const org = orgSliceFromState(snap)
+      const org = orgSliceFromState({ ...snap, ammoPlatoons: snap.ammoPlatoons ?? [] })
       if (!isTaskInRoleScope(org, snap.currentUserRole, task)) {
         addLog({
           type: 'error',
@@ -1086,7 +1240,7 @@ export function AppDataProvider({
       const launcher = prev.launchers.find((l) => l.id === launcherId)
       if (!launcher || !launcher.currentTask) return prev
 
-      const org = orgSliceFromState(prev)
+      const org = orgSliceFromState({ ...prev, ammoPlatoons: prev.ammoPlatoons ?? [] })
       if (!isLauncherInRoleScope(org, prev.currentUserRole, launcherId)) {
         addLog({
           type: 'error',
@@ -1268,16 +1422,15 @@ export function AppDataProvider({
         }
         
         // Restore pod to RSV's parent unit
-        const AMMO_PLT_ID = 'ammo-plt-1'
         let updatedPod = { ...podToUnassign, rsvId: undefined }
-        
-        if (rsv.ammoPltId === AMMO_PLT_ID) {
-          // RSV is attached to ammo plt, restore pod to ammo plt
-          updatedPod = { ...updatedPod, ammoPltId: AMMO_PLT_ID, pocId: undefined }
+
+        if (rsv.ammoPltId) {
+          updatedPod = { ...updatedPod, ammoPltId: rsv.ammoPltId, pocId: undefined }
+          const ap = prev.ammoPlatoons?.find((a) => a.id === rsv.ammoPltId)
           if (podToUnassign) {
             addLog({
               type: 'info',
-              message: `Pod "${podToUnassign.name}" removed from RSV and returned to Ammo PLT`,
+              message: `Pod "${podToUnassign.name}" removed from RSV and returned to ${ap?.name ?? 'Ammo PLT'}`,
             })
           }
         } else if (rsv.pocId) {
@@ -1380,10 +1533,11 @@ export function AppDataProvider({
         }
       }
 
+      const apName = prev.ammoPlatoons?.find((a) => a.id === ammoPltId)?.name
       if (pod) {
         addLog({
           type: 'success',
-          message: `Pod "${pod.name}" assigned to Ammo PLT "${ammoPltId}"`,
+          message: `Pod "${pod.name}" assigned to ${apName ?? 'Ammo PLT'} (${ammoPltId})`,
         })
       }
 
@@ -1735,10 +1889,11 @@ export function AppDataProvider({
         }
       }
 
+      const apName = prev.ammoPlatoons?.find((a) => a.id === ammoPltId)?.name
       if (rsv) {
         addLog({
           type: 'success',
-          message: `RSV "${rsv.name}" assigned to Ammo PLT "${ammoPltId}"`,
+          message: `RSV "${rsv.name}" assigned to ${apName ?? 'Ammo PLT'} (${ammoPltId})`,
         })
       }
 
@@ -1754,7 +1909,7 @@ export function AppDataProvider({
       const task = prev.tasks.find((t) => t.id === taskId)
       const launcher = prev.launchers.find((l) => l.id === launcherId)
 
-      const org = orgSliceFromState(prev)
+      const org = orgSliceFromState({ ...prev, ammoPlatoons: prev.ammoPlatoons ?? [] })
       if (task && launcher && !isLauncherInRoleScope(org, prev.currentUserRole, launcherId)) {
         addLog({
           type: 'error',
@@ -1968,7 +2123,7 @@ export function AppDataProvider({
     const snap = stateRef.current
     const task = snap.tasks.find((t) => t.id === taskId)
     if (!task) return
-    const org = orgSliceFromState(snap)
+    const org = orgSliceFromState({ ...snap, ammoPlatoons: snap.ammoPlatoons ?? [] })
     if (!isTaskInRoleScope(org, snap.currentUserRole, task)) {
       addLog({
         type: 'error',
@@ -2060,7 +2215,7 @@ export function AppDataProvider({
 
   const completeFireMission = useCallback((taskId: string) => {
     setState((prev) => {
-      const org = orgSliceFromState(prev)
+      const org = orgSliceFromState({ ...prev, ammoPlatoons: prev.ammoPlatoons ?? [] })
       const task = prev.tasks.find((t) => t.id === taskId)
       if (task) {
         if (!isTaskInRoleScope(org, prev.currentUserRole, task)) {
@@ -2362,9 +2517,26 @@ export function AppDataProvider({
   )
 
   const applySnapshotFromJson = useCallback(
-    (json: string, ingestStateVersion?: number): boolean => {
+    (
+      json: string,
+      ingestStateVersion?: number,
+      options?: { fromUnitId?: string | null }
+    ): boolean => {
       try {
-        const s = applySnapshotJson(json, stateRef.current.currentUserRole)
+        const local = stateRef.current
+        const preserved = local.currentUserRole
+        const incoming = deserializeState(json)
+        const scope = options?.fromUnitId
+          ? rosterMergeScopeForFromUnitId(options.fromUnitId)
+          : null
+        let merged: AppState = incoming
+        if (scope?.ingestMergeBocId) {
+          merged = mergeAppStateByBocId(local, incoming, scope.ingestMergeBocId)
+        } else if (scope?.ingestMergePocId) {
+          merged = mergeAppStateByPocId(local, incoming, scope.ingestMergePocId)
+        }
+        const normalized = normalizeLoadedAppState({ ...merged, currentUserRole: undefined })
+        const s = mergePreservedViewRoleAfterSync(normalized, preserved)
         skipNextStateAutosaveRef.current = true
         saveAppStateToDb(
           s,
@@ -2374,7 +2546,11 @@ export function AppDataProvider({
         void flushPersistenceNow()
         writeInitialSetupCompleteToDb()
         setInitialSetupComplete(true)
-        addLog({ type: 'success', message: 'Snapshot applied (ingest / sync)' })
+        const mergeNote =
+          scope?.ingestMergeBocId || scope?.ingestMergePocId
+            ? ' (merged into local org — other batteries unchanged)'
+            : ''
+        addLog({ type: 'success', message: `Snapshot applied (ingest / sync)${mergeNote}` })
         return true
       } catch {
         addLog({ type: 'error', message: 'Failed to apply snapshot JSON' })
@@ -2493,18 +2669,6 @@ export function AppDataProvider({
     })
   }, [addLog])
 
-  const assignAmmoPltToBOC = useCallback((bocId: string) => {
-    setState((prev) => {
-      const boc = prev.bocs.find((b) => b.id === bocId)
-      if (!boc) {
-        addLog({ type: 'warning', message: `Cannot assign Ammo PLT: BOC not found` })
-        return prev
-      }
-      addLog({ type: 'info', message: `Ammo PLT reassigned to BOC "${boc.name}"` })
-      return { ...prev, ammoPltBocId: bocId }
-    })
-  }, [addLog])
-
   return (
     <AppDataContext.Provider
       value={{
@@ -2525,6 +2689,10 @@ export function AppDataProvider({
         updateBattalion,
         addBOC,
         addPOC,
+        addAmmoPlatoon,
+        updateAmmoPlatoon,
+        deleteAmmoPlatoon,
+        assignAmmoPlatoonToBOC,
         addLauncher,
         addPod,
         addRSV,
@@ -2580,8 +2748,8 @@ export function AppDataProvider({
         addRoundType,
         updateRoundType,
         deleteRoundType,
+        ammoPlatoons: state.ammoPlatoons ?? [],
         ammoPltBocId: state.ammoPltBocId,
-        assignAmmoPltToBOC,
         getStateSnapshot: () => stateRef.current,
         applySnapshotFromJson,
       }}

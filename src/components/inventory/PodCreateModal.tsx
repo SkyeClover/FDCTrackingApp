@@ -6,8 +6,6 @@ import SegmentedIntPicker from '../ui/SegmentedIntPicker'
 import TouchNumericStepper from '../ui/TouchNumericStepper'
 import type { RoundType } from '../../types'
 
-const AMMO_PLT_ID = 'ammo-plt-1'
-
 type Props = {
   isOpen: boolean
   onClose: () => void
@@ -39,6 +37,7 @@ export default function PodCreateModal({ isOpen, onClose }: Props) {
     brigades,
     rsvs,
     launchers,
+    ammoPlatoons,
   } = useAppData()
 
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
@@ -74,6 +73,10 @@ export default function PodCreateModal({ isOpen, onClose }: Props) {
   const launchersSorted = useMemo(
     () => [...launchers].sort((a, b) => a.name.localeCompare(b.name)),
     [launchers]
+  )
+  const ammoSorted = useMemo(
+    () => [...ammoPlatoons].sort((a, b) => a.name.localeCompare(b.name)),
+    [ammoPlatoons]
   )
 
   const applyPlacement = (podId: string, kind: string, id: string) => {
@@ -295,7 +298,14 @@ export default function PodCreateModal({ isOpen, onClose }: Props) {
               }}
             >
               <option value="unassigned">Unassigned — set later in table</option>
-              <option value={`ammo-plt|${AMMO_PLT_ID}`}>Ammo PLT</option>
+              <optgroup label="Ammo PLT">
+                {ammoSorted.map((ap) => (
+                  <option key={ap.id} value={`ammo-plt|${ap.id}`}>
+                    {ap.name}
+                    {ap.bocId ? ` (${bocsSorted.find((b) => b.id === ap.bocId)?.name ?? 'BOC'})` : ''}
+                  </option>
+                ))}
+              </optgroup>
               <optgroup label="On hand (PLT FDC)">
                 {pocsSorted.map((p) => (
                   <option key={p.id} value={`poc|${p.id}`}>

@@ -22,16 +22,17 @@ export interface ScopedForce {
  * Brigade / Battalion → batteries and PLTs under that echelon; BOC / POC as before.
  */
 export function useScopedForce(): ScopedForce {
-  const { brigades, battalions, bocs, pocs, launchers, pods, rsvs, currentUserRole } = useAppData()
+  const { brigades, battalions, bocs, pocs, launchers, pods, rsvs, ammoPlatoons, currentUserRole } =
+    useAppData()
 
   return useMemo(() => {
     const scoped = getScopedForce(
-      orgSliceFromState({ brigades, battalions, bocs, pocs, launchers, pods, rsvs }),
+      orgSliceFromState({ brigades, battalions, bocs, pocs, launchers, pods, rsvs, ammoPlatoons }),
       currentUserRole
     )
     return {
       ...scoped,
       currentUserRole,
     }
-  }, [brigades, battalions, bocs, pocs, launchers, pods, rsvs, currentUserRole])
+  }, [brigades, battalions, bocs, pocs, launchers, pods, rsvs, ammoPlatoons, currentUserRole])
 }

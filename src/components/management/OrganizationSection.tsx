@@ -225,16 +225,19 @@ export default function OrganizationSection({ isMobile = false, onOpenCreateUnit
     battalions,
     bocs,
     pocs,
+    ammoPlatoons,
     deleteBrigade,
     deleteBattalion,
     deleteBOC,
     deletePOC,
+    deleteAmmoPlatoon,
   } = useAppData()
 
   const [selectedBrigadeIds, setSelectedBrigadeIds] = useState<Set<string>>(new Set())
   const [selectedBattalionIds, setSelectedBattalionIds] = useState<Set<string>>(new Set())
   const [selectedBOCIds, setSelectedBOCIds] = useState<Set<string>>(new Set())
   const [selectedPOCIds, setSelectedPOCIds] = useState<Set<string>>(new Set())
+  const [selectedAmmoPltIds, setSelectedAmmoPltIds] = useState<Set<string>>(new Set())
 
   const brigadesMemo = useMemo(() => brigades, [brigades])
   const battalionsMemo = useMemo(() => {
@@ -252,6 +255,15 @@ export default function OrganizationSection({ isMobile = false, onOpenCreateUnit
     }))
   }, [bocs, battalions])
   const pocsMemo = useMemo(() => pocs, [pocs])
+
+  const ammoPlatoonsMemo = useMemo(() => {
+    const bocName = new Map(bocs.map((b) => [b.id, b.name]))
+    return ammoPlatoons.map((ap) => ({
+      id: ap.id,
+      name: ap.name,
+      detail: ap.bocId ? `BOC: ${bocName.get(ap.bocId) ?? ap.bocId}` : 'Not assigned to a battery',
+    }))
+  }, [ammoPlatoons, bocs])
 
   const isAllBrigadesSelected = useMemo(
     () => brigades.length > 0 && brigades.every((b) => selectedBrigadeIds.has(b.id)),
@@ -324,6 +336,27 @@ export default function OrganizationSection({ isMobile = false, onOpenCreateUnit
   }, [isAllPOCsSelected, pocs])
   const handlePOCSelect = useCallback((id: string) => {
     setSelectedPOCIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const isAllAmmoPltsSelected = useMemo(
+    () => ammoPlatoons.length > 0 && ammoPlatoons.every((ap) => selectedAmmoPltIds.has(ap.id)),
+    [ammoPlatoons, selectedAmmoPltIds]
+  )
+  const isSomeAmmoPltsSelected = useMemo(
+    () => ammoPlatoons.some((ap) => selectedAmmoPltIds.has(ap.id)),
+    [ammoPlatoons, selectedAmmoPltIds]
+  )
+  const handleAmmoPltSelectAll = useCallback(() => {
+    if (isAllAmmoPltsSelected) setSelectedAmmoPltIds(new Set())
+    else setSelectedAmmoPltIds(new Set(ammoPlatoons.map((ap) => ap.id)))
+  }, [isAllAmmoPltsSelected, ammoPlatoons])
+  const handleAmmoPltSelect = useCallback((id: string) => {
+    setSelectedAmmoPltIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -431,6 +464,16 @@ export default function OrganizationSection({ isMobile = false, onOpenCreateUnit
           onSelectAll={handlePOCSelectAll}
           isAllSelected={isAllPOCsSelected}
           isSomeSelected={isSomePOCsSelected}
+        />
+        <ItemCard
+          title="Ammo PLTs"
+          items={ammoPlatoonsMemo}
+          onDelete={deleteAmmoPlatoon}
+          selectedIds={selectedAmmoPltIds}
+          onSelect={handleAmmoPltSelect}
+          onSelectAll={handleAmmoPltSelectAll}
+          isAllSelected={isAllAmmoPltsSelected}
+          isSomeSelected={isSomeAmmoPltsSelected}
         />
       </div>
     </div>

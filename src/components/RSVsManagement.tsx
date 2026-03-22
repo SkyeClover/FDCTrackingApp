@@ -10,11 +10,19 @@ interface RSVsManagementProps {
   onAddRSV?: () => void
 }
 
-const AMMO_PLT_ID = 'ammo-plt-1'
-
 export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
   const isMobile = useIsMobile()
-  const { rsvs, pocs, bocs, pods, assignRSVToPOC, assignRSVToBOC, assignRSVToAmmoPlt, deleteRSV } = useAppData()
+  const {
+    rsvs,
+    pocs,
+    bocs,
+    pods,
+    ammoPlatoons,
+    assignRSVToPOC,
+    assignRSVToBOC,
+    assignRSVToAmmoPlt,
+    deleteRSV,
+  } = useAppData()
   
   const [selectedGroup, setSelectedGroup] = useState<RSVGroup>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -37,8 +45,7 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
         groups.poc.push(rsv)
       } else if (rsv.bocId) {
         groups.boc.push(rsv)
-      } else if (rsv.ammoPltId === AMMO_PLT_ID) {
-        // Only group as ammo-plt if it matches the expected constant
+      } else if (rsv.ammoPltId) {
         groups['ammo-plt'].push(rsv)
       } else {
         groups.unassigned.push(rsv)
@@ -71,16 +78,17 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
       const boc = bocs.find((b) => b.id === rsv.bocId)
       return { type: 'boc', displayType: 'BOC', name: boc?.name || 'Unknown', id: rsv.bocId }
     }
-    // Only treat as ammo platoon if it matches the expected constant
-    if (rsv.ammoPltId === AMMO_PLT_ID) {
-      return { type: 'ammo-plt', displayType: 'Ammo PLT', name: 'Ammo PLT', id: rsv.ammoPltId }
-    }
-    // If ammoPltId exists but is invalid, still show it but mark as corrupted
     if (rsv.ammoPltId) {
-      return { type: 'ammo-plt', displayType: 'Ammo PLT (Invalid)', name: 'Ammo PLT (Invalid)', id: rsv.ammoPltId }
+      const ap = ammoPlatoons.find((a) => a.id === rsv.ammoPltId)
+      return {
+        type: 'ammo-plt',
+        displayType: 'Ammo PLT',
+        name: ap?.name ?? `Unknown (${rsv.ammoPltId})`,
+        id: rsv.ammoPltId,
+      }
     }
     return { type: 'unassigned', displayType: 'Unassigned', name: 'Unassigned', id: '' }
-  }, [pocs, bocs])
+  }, [pocs, bocs, ammoPlatoons])
 
   // Get pods assigned to an RSV
   const getRSVPods = useCallback((rsvId: string) => {
@@ -97,7 +105,7 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
     // Apply new assignment
     switch (assignmentType) {
       case 'ammo-plt':
-        assignRSVToAmmoPlt(rsvId, AMMO_PLT_ID)
+        assignRSVToAmmoPlt(rsvId, assignmentId)
         break
       case 'poc':
         assignRSVToPOC(rsvId, assignmentId)
@@ -110,6 +118,40 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
         break
     }
   }, [assignRSVToPOC, assignRSVToBOC, assignRSVToAmmoPlt])
+
+  const ammoSorted = useMemo(
+    () => [...ammoPlatoons].sort((a, b) => a.name.localeCompare(b.name)),
+    [ammoPlatoons]
+  )
+  const pocsSorted = useMemo(() => [...pocs].sort((a, b) => a.name.localeCompare(b.name)), [pocs])
+  const bocsSorted = useMemo(() => [...bocs].sort((a, b) => a.name.localeCompare(b.name)), [bocs])
+
+  const rsvReassignOptions = useMemo(
+    () => (
+      <>
+        <option value="unassigned|">Unassigned</option>
+        <optgroup label="Ammo PLT">
+          {ammoSorted.map((ap) => (
+            <option key={ap.id} value={`ammo-plt|${ap.id}`}>
+              {ap.name}
+              {ap.bocId ? ` (${bocsSorted.find((b) => b.id === ap.bocId)?.name ?? 'BOC'})` : ''}
+            </option>
+          ))}
+        </optgroup>
+        {pocsSorted.map((poc) => (
+          <option key={poc.id} value={`poc|${poc.id}`}>
+            POC: {poc.name}
+          </option>
+        ))}
+        {bocsSorted.map((boc) => (
+          <option key={boc.id} value={`boc|${boc.id}`}>
+            BOC: {boc.name}
+          </option>
+        ))}
+      </>
+    ),
+    [ammoSorted, pocsSorted, bocsSorted]
+  )
 
   // Group counts
   const groupCounts = useMemo(() => ({
@@ -468,18 +510,7 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
                         boxSizing: 'border-box',
                       }}
                     >
-                      <option value="unassigned|">Unassigned</option>
-                      <option value={`ammo-plt|${AMMO_PLT_ID}`}>Ammo PLT</option>
-                      {pocs.map((poc) => (
-                        <option key={poc.id} value={`poc|${poc.id}`}>
-                          POC: {poc.name}
-                        </option>
-                      ))}
-                      {bocs.map((boc) => (
-                        <option key={boc.id} value={`boc|${boc.id}`}>
-                          BOC: {boc.name}
-                        </option>
-                      ))}
+                      {rsvReassignOptions}
                     </select>
                   </div>
 
@@ -733,18 +764,7 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
                           boxSizing: 'border-box',
                         }}
                       >
-                        <option value="unassigned|">Unassigned</option>
-                        <option value={`ammo-plt|${AMMO_PLT_ID}`}>Ammo PLT</option>
-                        {pocs.map((poc) => (
-                          <option key={poc.id} value={`poc|${poc.id}`}>
-                            POC: {poc.name}
-                          </option>
-                        ))}
-                        {bocs.map((boc) => (
-                          <option key={boc.id} value={`boc|${boc.id}`}>
-                            BOC: {boc.name}
-                          </option>
-                        ))}
+                        {rsvReassignOptions}
                       </select>
                     </td>
                     <td

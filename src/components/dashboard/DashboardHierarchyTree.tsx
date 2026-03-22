@@ -304,7 +304,7 @@ export default function DashboardHierarchyTree({
 
   if (effectiveRole === 'boc') {
     body = sortByName(bocs).map((boc) => (
-      <div key={boc.id}>{renderPocBlockFixed(boc)}</div>
+      <div key={boc.id}>{renderBocNode(boc, 0)}</div>
     ))
   } else if (effectiveRole === 'battalion') {
     body = buildBattalionSections()

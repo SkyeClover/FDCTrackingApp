@@ -4,7 +4,7 @@ import { DEFAULT_ROUND_TYPES } from '../constants/roundTypes'
 export const STORAGE_KEY = 'fdc-tracker-state'
 /** Persisted when the user finishes first-run setup or when existing data is detected (migration). */
 export const INITIAL_SETUP_KEY = 'fdc-initial-setup-done'
-export const APP_VERSION = '1.1.12'
+export const APP_VERSION = '1.1.13'
 
 /** Default task templates — reused by {@link getDefaultState} and legacy snapshot loads. */
 const DEFAULT_TASK_TEMPLATES: TaskTemplate[] = [
@@ -191,6 +191,7 @@ export function deserializeState(json: string): AppState {
       timestamp: new Date(log.timestamp),
     })) || [],
     lastSaved: parsed.lastSaved ? new Date(parsed.lastSaved) : undefined,
+    ammoPlatoons: Array.isArray(parsed.ammoPlatoons) ? parsed.ammoPlatoons : [],
   }
 }
 
@@ -266,6 +267,7 @@ export function getDefaultState(): AppState {
     roundTypes: { ...DEFAULT_ROUND_TYPES },
     version: APP_VERSION,
     currentUserRole: undefined,
+    ammoPlatoons: [],
   }
 }
 

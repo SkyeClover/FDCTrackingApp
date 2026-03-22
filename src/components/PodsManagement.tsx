@@ -19,8 +19,6 @@ interface PodsManagementProps {
   onAddPod?: () => void
 }
 
-const AMMO_PLT_ID = 'ammo-plt-1'
-
 function splitAssignValue(raw: string): [string, string] {
   const i = raw.indexOf('|')
   if (i < 0) return [raw, '']
@@ -36,6 +34,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
     brigades,
     rsvs,
     launchers,
+    ammoPlatoons,
     assignPodToPOC,
     assignPodToRSV,
     assignPodToAmmoPlt,
@@ -58,12 +57,11 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
   const podPrimaryGroup = useCallback((pod: Pod): PodGroup => {
     if (pod.launcherId) return 'launcher'
     if (pod.rsvId) return 'rsv'
-    if (pod.ammoPltId === AMMO_PLT_ID) return 'ammo-plt'
+    if (pod.ammoPltId) return 'ammo-plt'
     if (pod.pocId) return 'on-hand-poc'
     if (pod.bocId) return 'boc'
     if (pod.battalionId) return 'battalion'
     if (pod.brigadeId) return 'brigade'
-    if (pod.ammoPltId) return 'ammo-plt'
     return 'unassigned'
   }, [])
 
@@ -127,14 +125,6 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
           detail: rsv?.name || 'Unknown RSV',
         }
       }
-      if (pod.ammoPltId === AMMO_PLT_ID) {
-        return {
-          type: 'ammo-plt' as const,
-          selectValue: `ammo-plt|${AMMO_PLT_ID}`,
-          location: 'Ammo PLT',
-          detail: 'Ammo platoon stock',
-        }
-      }
       if (pod.pocId) {
         const poc = pocs.find((p) => p.id === pod.pocId)
         return {
@@ -172,11 +162,13 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
         }
       }
       if (pod.ammoPltId) {
+        const ap = ammoPlatoons.find((a) => a.id === pod.ammoPltId)
+        const bocNm = ap?.bocId ? bocs.find((b) => b.id === ap.bocId)?.name : undefined
         return {
           type: 'ammo-plt' as const,
           selectValue: `ammo-plt|${pod.ammoPltId}`,
           location: 'Ammo PLT',
-          detail: 'Invalid / legacy ammo PLT id',
+          detail: ap ? (bocNm ? `${ap.name} · ${bocNm}` : ap.name) : `Unknown plt (${pod.ammoPltId})`,
         }
       }
       return {
@@ -186,7 +178,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
         detail: '—',
       }
     },
-    [launchers, rsvs, pocs, bocs, battalions, brigades]
+    [launchers, rsvs, pocs, bocs, battalions, brigades, ammoPlatoons]
   )
 
   const handleAssignmentChange = useCallback(
@@ -344,11 +336,22 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
     () => [...launchers].sort((a, b) => a.name.localeCompare(b.name)),
     [launchers]
   )
+  const ammoSorted = useMemo(
+    () => [...ammoPlatoons].sort((a, b) => a.name.localeCompare(b.name)),
+    [ammoPlatoons]
+  )
 
   const reassignmentSelectOptions = (
     <>
       <option value="unassigned|">Unassigned</option>
-      <option value={`ammo-plt|${AMMO_PLT_ID}`}>Ammo PLT</option>
+      <optgroup label="Ammo PLT">
+        {ammoSorted.map((ap) => (
+          <option key={ap.id} value={`ammo-plt|${ap.id}`}>
+            {ap.name}
+            {ap.bocId ? ` (${bocsSorted.find((b) => b.id === ap.bocId)?.name ?? 'BOC'})` : ''}
+          </option>
+        ))}
+      </optgroup>
       <optgroup label="On hand (PLT FDC)">
         {pocsSorted.map((poc) => (
           <option key={poc.id} value={`poc|${poc.id}`}>

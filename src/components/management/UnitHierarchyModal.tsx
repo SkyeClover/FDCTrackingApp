@@ -1,9 +1,7 @@
-import { useMemo, useCallback, type CSSProperties } from 'react'
-import { X, GitBranch } from 'lucide-react'
+import { useMemo, useCallback, useState, type CSSProperties } from 'react'
+import { X, GitBranch, ChevronDown, ChevronRight } from 'lucide-react'
 import { useAppData } from '../../context/AppDataContext'
-import type { Battalion, BOC, Brigade, Launcher, POC, RSV } from '../../types'
-
-const AMMO_PLT_ID = 'ammo-plt-1'
+import type { AmmoPlatoon, Battalion, BOC, Brigade, Launcher, POC, RSV } from '../../types'
 
 type Props = {
   isOpen: boolean
@@ -21,6 +19,25 @@ const sel: CSSProperties = {
   maxWidth: '100%',
 }
 
+const branchBtn: CSSProperties = {
+  width: '100%',
+  maxWidth: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.4rem',
+  padding: '0.4rem 0.35rem',
+  textAlign: 'left',
+  backgroundColor: 'transparent',
+  border: 'none',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  color: 'var(--text-primary)',
+  fontSize: '0.92rem',
+  fontWeight: 700,
+  touchAction: 'manipulation',
+  boxSizing: 'border-box',
+}
+
 function treeIndent(level: number): CSSProperties {
   return {
     marginLeft: level * 14,
@@ -36,7 +53,7 @@ function sortByName<T extends { name: string }>(arr: T[]): T[] {
 function rsvPlacement(rsv: RSV): string {
   if (rsv.pocId) return `poc|${rsv.pocId}`
   if (rsv.bocId) return `boc|${rsv.bocId}`
-  if (rsv.ammoPltId === AMMO_PLT_ID) return `ammo|${AMMO_PLT_ID}`
+  if (rsv.ammoPltId) return `ammo|${rsv.ammoPltId}`
   return 'unassigned'
 }
 
@@ -48,21 +65,27 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
     pocs,
     launchers,
     rsvs,
-    ammoPltBocId,
-    assignAmmoPltToBOC,
+    ammoPlatoons,
     updateBattalion,
     updateBOC,
     assignPOCToBOC,
+    assignAmmoPlatoonToBOC,
     assignLauncherToPOC,
     assignRSVToPOC,
     assignRSVToBOC,
     assignRSVToAmmoPlt,
   } = useAppData()
 
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+  const branchExpanded = (key: string) => open[key] ?? true
+  const toggleBranch = (key: string) =>
+    setOpen((prev) => ({ ...prev, [key]: !(prev[key] ?? true) }))
+
   const brigadesSorted = useMemo(() => sortByName(brigades), [brigades])
   const battalionsSorted = useMemo(() => sortByName(battalions), [battalions])
   const bocsSorted = useMemo(() => sortByName(bocs), [bocs])
   const pocsSorted = useMemo(() => sortByName(pocs), [pocs])
+  const ammoSorted = useMemo(() => sortByName(ammoPlatoons ?? []), [ammoPlatoons])
 
   const applyRsvPlacement = useCallback(
     (rsvId: string, raw: string) => {
@@ -84,7 +107,13 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
     () => (
       <>
         <option value="unassigned">Unassigned</option>
-        <option value={`ammo|${AMMO_PLT_ID}`}>Ammo PLT</option>
+        <optgroup label="Ammo PLT">
+          {ammoSorted.map((ap) => (
+            <option key={ap.id} value={`ammo|${ap.id}`}>
+              {ap.name}
+            </option>
+          ))}
+        </optgroup>
         <optgroup label="BOC">
           {bocsSorted.map((b) => (
             <option key={b.id} value={`boc|${b.id}`}>
@@ -101,26 +130,28 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
         </optgroup>
       </>
     ),
-    [bocsSorted, pocsSorted]
+    [ammoSorted, bocsSorted, pocsSorted]
   )
 
   const launchersSorted = useMemo(() => sortByName(launchers), [launchers])
-  const rsvOnAmmoPlt = useMemo(() => rsvs.filter((r) => r.ammoPltId === AMMO_PLT_ID), [rsvs])
 
   if (!isOpen) return null
 
   const bnForBrigade = (bde: Brigade) => battalionsSorted.filter((b) => b.brigadeId === bde.id)
   const bocForBn = (bn: Battalion) => bocsSorted.filter((b) => b.battalionId === bn.id)
   const pocForBoc = (boc: BOC) => pocsSorted.filter((p) => p.bocId === boc.id)
+  const ammoForBoc = (boc: BOC) => ammoSorted.filter((ap) => ap.bocId === boc.id)
   const launchersForPoc = (poc: POC) => launchersSorted.filter((l) => l.pocId === poc.id)
   const rsvForPoc = (poc: POC) => rsvs.filter((r) => r.pocId === poc.id)
   const rsvForBocOnly = (boc: BOC) => rsvs.filter((r) => r.bocId === boc.id && !r.pocId)
+  const rsvForAmmoPlt = (ap: AmmoPlatoon) => rsvs.filter((r) => r.ammoPltId === ap.id)
 
   const orphanBattalions = battalionsSorted.filter((b) => !b.brigadeId)
   const orphanBocs = bocsSorted.filter((b) => !b.battalionId)
   const orphanPocs = pocsSorted.filter((p) => !p.bocId)
+  const orphanAmmoPlts = ammoSorted.filter((ap) => !ap.bocId)
   const orphanLaunchers = launchersSorted.filter((l) => !l.pocId)
-  const orphanRsvs = rsvs.filter((r) => !r.pocId && !r.bocId && r.ammoPltId !== AMMO_PLT_ID)
+  const orphanRsvs = rsvs.filter((r) => !r.pocId && !r.bocId && !r.ammoPltId)
 
   const renderLauncherRow = (l: Launcher, level: number) => (
     <div
@@ -184,111 +215,197 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
     </div>
   )
 
-  const renderPocBlock = (poc: POC, level: number) => (
-    <div key={poc.id} style={{ marginBottom: '0.5rem' }}>
-      <div
-        style={{
-          ...treeIndent(level),
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.5rem',
-          flexWrap: 'wrap',
-          marginBottom: '0.35rem',
-        }}
-      >
-        <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-          PLT (POC) {poc.name}
-        </span>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-          Battery (BOC)
-          <select
-            value={poc.bocId || ''}
-            onChange={(e) => assignPOCToBOC(poc.id, e.target.value)}
-            style={sel}
-          >
-            <option value="">— None —</option>
-            {bocsSorted.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
+  const renderPocBlock = (poc: POC, level: number) => {
+    const k = `poc-${poc.id}`
+    const ex = branchExpanded(k)
+    return (
+      <div key={poc.id} style={{ marginBottom: '0.5rem' }}>
+        <button type="button" onClick={() => toggleBranch(k)} style={{ ...branchBtn, ...treeIndent(level), fontWeight: 600, fontSize: '0.88rem' }}>
+          {ex ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          <span style={{ color: 'var(--text-primary)' }}>PLT (POC) {poc.name}</span>
+        </button>
+        {ex && (
+          <div style={{ marginTop: '0.35rem' }}>
+            <div
+              style={{
+                ...treeIndent(level + 1),
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                marginBottom: '0.35rem',
+              }}
+            >
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Battery (BOC)
+                <select
+                  value={poc.bocId || ''}
+                  onChange={(e) => assignPOCToBOC(poc.id, e.target.value)}
+                  style={sel}
+                >
+                  <option value="">— None —</option>
+                  {bocsSorted.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {launchersForPoc(poc).map((l) => renderLauncherRow(l, level + 2))}
+            {rsvForPoc(poc).map((r) => renderRsvRow(r, level + 2))}
+          </div>
+        )}
       </div>
-      {launchersForPoc(poc).map((l) => renderLauncherRow(l, level + 1))}
-      {rsvForPoc(poc).map((r) => renderRsvRow(r, level + 1))}
-    </div>
-  )
+    )
+  }
 
-  const renderBocBlock = (boc: BOC, level: number) => (
-    <div key={boc.id} style={{ marginBottom: '0.75rem' }}>
-      <div
-        style={{
-          ...treeIndent(level),
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.5rem',
-          flexWrap: 'wrap',
-          marginBottom: '0.35rem',
-        }}
-      >
-        <span style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--accent)' }}>BOC {boc.name}</span>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-          Battalion
-          <select
-            value={boc.battalionId || ''}
-            onChange={(e) => updateBOC(boc.id, { battalionId: e.target.value || undefined })}
-            style={sel}
-          >
-            <option value="">— None —</option>
-            {battalionsSorted.map((bn) => (
-              <option key={bn.id} value={bn.id}>
-                {bn.name}
-              </option>
-            ))}
-          </select>
-        </label>
+  const renderAmmoPltBlock = (ap: AmmoPlatoon, level: number) => {
+    const k = `ammo-${ap.id}`
+    const ex = branchExpanded(k)
+    return (
+      <div key={ap.id} style={{ marginBottom: '0.5rem' }}>
+        <button type="button" onClick={() => toggleBranch(k)} style={{ ...branchBtn, ...treeIndent(level), fontWeight: 600, fontSize: '0.86rem' }}>
+          {ex ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          <span style={{ color: 'var(--text-primary)' }}>Ammo PLT {ap.name}</span>
+        </button>
+        {ex && (
+          <div style={{ marginTop: '0.35rem' }}>
+            <div
+              style={{
+                ...treeIndent(level + 1),
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                marginBottom: '0.35rem',
+              }}
+            >
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Battery (BOC)
+                <select
+                  value={ap.bocId || ''}
+                  onChange={(e) => assignAmmoPlatoonToBOC(ap.id, e.target.value)}
+                  style={sel}
+                >
+                  <option value="">— None —</option>
+                  {bocsSorted.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {rsvForAmmoPlt(ap).map((r) => renderRsvRow(r, level + 2))}
+          </div>
+        )}
       </div>
-      {pocForBoc(boc).map((poc) => renderPocBlock(poc, level + 1))}
-      {rsvForBocOnly(boc).map((r) => renderRsvRow(r, level + 1))}
-    </div>
-  )
+    )
+  }
 
-  const renderBnBlock = (bn: Battalion, level: number) => (
-    <div key={bn.id} style={{ marginBottom: '0.75rem' }}>
-      <div
-        style={{
-          ...treeIndent(level),
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.5rem',
-          flexWrap: 'wrap',
-          marginBottom: '0.35rem',
-        }}
-      >
-        <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>Bn {bn.name}</span>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-          Brigade
-          <select
-            value={bn.brigadeId || ''}
-            onChange={(e) => updateBattalion(bn.id, { brigadeId: e.target.value || undefined })}
-            style={sel}
-          >
-            <option value="">— None —</option>
-            {brigadesSorted.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
+  const renderBocBlock = (boc: BOC, level: number) => {
+    const k = `boc-${boc.id}`
+    const ex = branchExpanded(k)
+    return (
+      <div key={boc.id} style={{ marginBottom: '0.75rem' }}>
+        <button type="button" onClick={() => toggleBranch(k)} style={{ ...branchBtn, ...treeIndent(level) }}>
+          {ex ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          <span style={{ color: 'var(--accent)' }}>BOC {boc.name}</span>
+        </button>
+        {ex && (
+          <div style={{ marginTop: '0.35rem' }}>
+            <div
+              style={{
+                ...treeIndent(level + 1),
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                marginBottom: '0.35rem',
+              }}
+            >
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Battalion
+                <select
+                  value={boc.battalionId || ''}
+                  onChange={(e) => updateBOC(boc.id, { battalionId: e.target.value || undefined })}
+                  style={sel}
+                >
+                  <option value="">— None —</option>
+                  {battalionsSorted.map((bn) => (
+                    <option key={bn.id} value={bn.id}>
+                      {bn.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {pocForBoc(boc).map((poc) => renderPocBlock(poc, level + 1))}
+            {ammoForBoc(boc).map((ap) => renderAmmoPltBlock(ap, level + 1))}
+            {rsvForBocOnly(boc).map((r) => renderRsvRow(r, level + 1))}
+          </div>
+        )}
       </div>
-      {bocForBn(bn).map((boc) => renderBocBlock(boc, level + 1))}
-    </div>
-  )
+    )
+  }
+
+  const renderBnBlock = (bn: Battalion, level: number) => {
+    const k = `bn-${bn.id}`
+    const ex = branchExpanded(k)
+    return (
+      <div key={bn.id} style={{ marginBottom: '0.75rem' }}>
+        <button type="button" onClick={() => toggleBranch(k)} style={{ ...branchBtn, ...treeIndent(level), fontSize: '0.95rem' }}>
+          {ex ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          <span>Bn {bn.name}</span>
+        </button>
+        {ex && (
+          <div style={{ marginTop: '0.35rem' }}>
+            <div
+              style={{
+                ...treeIndent(level + 1),
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                marginBottom: '0.35rem',
+              }}
+            >
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Brigade
+                <select
+                  value={bn.brigadeId || ''}
+                  onChange={(e) => updateBattalion(bn.id, { brigadeId: e.target.value || undefined })}
+                  style={sel}
+                >
+                  <option value="">— None —</option>
+                  {brigadesSorted.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {bocForBn(bn).map((boc) => renderBocBlock(boc, level + 1))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const hasAnyTree =
+    brigadesSorted.length > 0 ||
+    orphanBattalions.length > 0 ||
+    orphanBocs.length > 0 ||
+    orphanPocs.length > 0 ||
+    orphanAmmoPlts.length > 0 ||
+    orphanLaunchers.length > 0 ||
+    orphanRsvs.length > 0
 
   return (
     <div
@@ -337,7 +454,7 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
                 Unit hierarchy & assignments
               </h2>
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Use the dropdowns to move echelons and line equipment. Changes apply immediately.
+                Use the dropdowns to move echelons and line equipment. Tap section headers to expand or collapse.
               </p>
             </div>
           </div>
@@ -352,55 +469,19 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
         </div>
 
         <div style={{ overflowY: 'auto', padding: '1rem 1.25rem 1.25rem' }}>
-          {/* Ammo PLT */}
-          <div
-            style={{
-              padding: '0.75rem',
-              backgroundColor: 'var(--bg-tertiary)',
-              borderRadius: '8px',
-              marginBottom: '1rem',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-              AMMO PLT (echelon)
-            </div>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-              Align to battery (BOC) for dashboard context
-              <select
-                value={ammoPltBocId || ''}
-                onChange={(e) => {
-                  if (e.target.value) assignAmmoPltToBOC(e.target.value)
-                }}
-                style={{ ...sel, width: '100%', maxWidth: '400px' }}
-              >
-                <option value="">— Select BOC —</option>
-                {bocsSorted.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {rsvOnAmmoPlt.length > 0 && (
-              <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-                  RSVs on Ammo PLT
-                </div>
-                {rsvOnAmmoPlt.map((r) => renderRsvRow(r, 0))}
+          {brigadesSorted.map((bde) => {
+            const bk = `bde-${bde.id}`
+            const ex = branchExpanded(bk)
+            return (
+              <div key={bde.id} style={{ marginBottom: '1rem' }}>
+                <button type="button" onClick={() => toggleBranch(bk)} style={{ ...branchBtn, paddingLeft: 0 }}>
+                  {ex ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                  Bde {bde.name}
+                </button>
+                {ex && <div style={{ marginTop: '0.35rem' }}>{bnForBrigade(bde).map((bn) => renderBnBlock(bn, 0))}</div>}
               </div>
-            )}
-          </div>
-
-          {/* Linked tree */}
-          {brigadesSorted.map((bde) => (
-            <div key={bde.id} style={{ marginBottom: '1rem' }}>
-              <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                Bde {bde.name}
-              </div>
-              {bnForBrigade(bde).map((bn) => renderBnBlock(bn, 0))}
-            </div>
-          ))}
+            )
+          })}
 
           {orphanBattalions.length > 0 && (
             <div style={{ marginBottom: '1rem' }}>
@@ -429,6 +510,15 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
             </div>
           )}
 
+          {orphanAmmoPlts.length > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--warning)', marginBottom: '0.5rem' }}>
+                Ammo platoons not under a BOC
+              </div>
+              {orphanAmmoPlts.map((ap) => renderAmmoPltBlock(ap, 0))}
+            </div>
+          )}
+
           {(orphanLaunchers.length > 0 || orphanRsvs.length > 0) && (
             <div style={{ marginBottom: '1rem' }}>
               <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--warning)', marginBottom: '0.5rem' }}>
@@ -439,16 +529,11 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
             </div>
           )}
 
-          {brigades.length === 0 &&
-            orphanBattalions.length === 0 &&
-            orphanBocs.length === 0 &&
-            orphanPocs.length === 0 &&
-            orphanLaunchers.length === 0 &&
-            orphanRsvs.length === 0 && (
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
-                No units yet. Create brigades, battalions, BOCs, and POCs under Organization, then open this view again.
-              </p>
-            )}
+          {!hasAnyTree && (
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+              No units yet. Create brigades, battalions, BOCs, and POCs under Organization, then open this view again.
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -18,8 +18,7 @@ interface ReportModalProps {
 }
 
 export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], isOpen, onClose }: ReportModalProps) {
-  const { roundTypes, ammoPltBocId } = useAppData()
-  const AMMO_PLT_ID = 'ammo-plt-1'
+  const { roundTypes, ammoPlatoons } = useAppData()
   const [selectedBOC, setSelectedBOC] = useState<string>('')
   const [selectedPOC, setSelectedPOC] = useState<string>('')
   const [printTime, setPrintTime] = useState<string>('')
@@ -36,7 +35,12 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
   })
   
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
-  
+
+  const ammoPltsForSelectedBoc = useMemo(() => {
+    if (!selectedBOC) return []
+    return (ammoPlatoons ?? []).filter((ap) => ap.bocId === selectedBOC)
+  }, [selectedBOC, ammoPlatoons])
+
   if (!isOpen) return null
 
   // Filter POCs based on selection
@@ -166,73 +170,72 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
       report += '\n'
     })
 
-    // Include Ammo PLT if its BOC is selected
-    if (selectedBOC && ammoPltBocId === selectedBOC) {
-      const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === AMMO_PLT_ID)
-      const ammoPltPods = pods.filter((p) => {
-        if (p.ammoPltId === AMMO_PLT_ID) return true
-        if (p.rsvId) {
-          const rsv = rsvs.find((r) => r.id === p.rsvId)
-          if (rsv && rsv.ammoPltId === AMMO_PLT_ID) return true
-        }
-        return false
-      })
-      const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
-      const podsOnLaunchers = ammoPltPods.filter((p) => p.launcherId)
-      
-      // Separate pods in stock (directly assigned to ammo plt) from pods on RSVs
-      const podsInStock = podsOnGround.filter((p) => p.ammoPltId === AMMO_PLT_ID && !p.rsvId)
-      const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
+    if (selectedBOC && ammoPltsForSelectedBoc.length > 0) {
+      ammoPltsForSelectedBoc.forEach((ap) => {
+        const aid = ap.id
+        const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === aid)
+        const ammoPltPods = pods.filter((p) => {
+          if (p.ammoPltId === aid) return true
+          if (p.rsvId) {
+            const rsv = rsvs.find((r) => r.id === p.rsvId)
+            if (rsv && rsv.ammoPltId === aid) return true
+          }
+          return false
+        })
+        const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
+        const podsOnLaunchers = ammoPltPods.filter((p) => p.launcherId)
 
-      report += `AMMO PLT\n`
-      report += '-'.repeat(80) + '\n'
-      report += `  RSVs: ${ammoPltRSVs.length}\n`
-      report += `  Pods In Stock: ${podsInStock.length}\n`
-      report += `  Pods On RSVs: ${podsOnRSVs.length}\n`
-      report += `  Pods On Launchers: ${podsOnLaunchers.length}\n`
-      report += `  Total Pods: ${ammoPltPods.length}\n\n`
+        const podsInStock = podsOnGround.filter((p) => p.ammoPltId === aid && !p.rsvId)
+        const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
 
-      // Pods by round type
-      roundTypeOptions.forEach((option) => {
-        const podsOfType = ammoPltPods.filter((p) => p.rounds[0]?.type === option.value)
-        if (podsOfType.length > 0) {
-          const totalRounds = podsOfType.reduce((sum, p) => sum + p.rounds.length, 0)
-          const availableRounds = podsOfType.reduce(
-            (sum, p) => sum + p.rounds.filter((r) => r.status === 'available').length,
-            0
-          )
-          const usedRounds = podsOfType.reduce(
-            (sum, p) => sum + p.rounds.filter((r) => r.status === 'used').length,
-            0
-          )
+        report += `AMMO PLT: ${ap.name}\n`
+        report += '-'.repeat(80) + '\n'
+        report += `  RSVs: ${ammoPltRSVs.length}\n`
+        report += `  Pods In Stock: ${podsInStock.length}\n`
+        report += `  Pods On RSVs: ${podsOnRSVs.length}\n`
+        report += `  Pods On Launchers: ${podsOnLaunchers.length}\n`
+        report += `  Total Pods: ${ammoPltPods.length}\n\n`
 
-          report += `  ${option.label}:\n`
-          report += `    Pods: ${podsOfType.length}\n`
-          report += `    Total Rounds: ${totalRounds}\n`
-          report += `    Available: ${availableRounds}\n`
-          report += `    Used: ${usedRounds}\n\n`
-        }
-      })
+        roundTypeOptions.forEach((option) => {
+          const podsOfType = ammoPltPods.filter((p) => p.rounds[0]?.type === option.value)
+          if (podsOfType.length > 0) {
+            const totalRounds = podsOfType.reduce((sum, p) => sum + p.rounds.length, 0)
+            const availableRounds = podsOfType.reduce(
+              (sum, p) => sum + p.rounds.filter((r) => r.status === 'available').length,
+              0
+            )
+            const usedRounds = podsOfType.reduce(
+              (sum, p) => sum + p.rounds.filter((r) => r.status === 'used').length,
+              0
+            )
 
-      // RSV details with pod listings
-      if (ammoPltRSVs.length > 0) {
-        report += '  RSV Details:\n'
-        ammoPltRSVs.forEach((rsv) => {
-          const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
-          report += `    ${rsv.name}: ${rsvPods.length} pod${rsvPods.length !== 1 ? 's' : ''}\n`
-          if (rsvPods.length > 0) {
-            rsvPods.forEach((pod) => {
-              const roundType = pod.rounds[0]?.type || 'N/A'
-              const totalRounds = pod.rounds.length
-              const availableRounds = pod.rounds.filter((r) => r.status === 'available').length
-              report += `      - ${pod.name}: ${roundType} - ${availableRounds}/${totalRounds} rounds\n`
-            })
+            report += `  ${option.label}:\n`
+            report += `    Pods: ${podsOfType.length}\n`
+            report += `    Total Rounds: ${totalRounds}\n`
+            report += `    Available: ${availableRounds}\n`
+            report += `    Used: ${usedRounds}\n\n`
           }
         })
-        report += '\n'
-      }
 
-      report += '\n'
+        if (ammoPltRSVs.length > 0) {
+          report += '  RSV Details:\n'
+          ammoPltRSVs.forEach((rsv) => {
+            const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
+            report += `    ${rsv.name}: ${rsvPods.length} pod${rsvPods.length !== 1 ? 's' : ''}\n`
+            if (rsvPods.length > 0) {
+              rsvPods.forEach((pod) => {
+                const roundType = pod.rounds[0]?.type || 'N/A'
+                const totalRounds = pod.rounds.length
+                const availableRounds = pod.rounds.filter((r) => r.status === 'available').length
+                report += `      - ${pod.name}: ${roundType} - ${availableRounds}/${totalRounds} rounds\n`
+              })
+            }
+          })
+          report += '\n'
+        }
+
+        report += '\n'
+      })
     }
 
     report += '='.repeat(80) + '\n'
@@ -326,23 +329,25 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
         sections.push(sectionHtml)
       })
 
-      if (selectedBOC && ammoPltBocId === selectedBOC) {
-        const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === AMMO_PLT_ID)
-        const ammoPltPods = pods.filter((p) => {
-          if (p.ammoPltId === AMMO_PLT_ID) return true
-          if (p.rsvId) {
-            const r = rsvs.find((rv) => rv.id === p.rsvId)
-            return r?.ammoPltId === AMMO_PLT_ID
-          }
-          return false
-        })
-        const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
-        const podsOnLaunchers = ammoPltPods.filter((p) => p.launcherId)
-        const podsInStock = podsOnGround.filter((p) => p.ammoPltId === AMMO_PLT_ID && !p.rsvId)
-        const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
-        let ammoHtml = `
+      if (selectedBOC && ammoPltsForSelectedBoc.length > 0) {
+        ammoPltsForSelectedBoc.forEach((ap) => {
+          const aid = ap.id
+          const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === aid)
+          const ammoPltPods = pods.filter((p) => {
+            if (p.ammoPltId === aid) return true
+            if (p.rsvId) {
+              const r = rsvs.find((rv) => rv.id === p.rsvId)
+              return r?.ammoPltId === aid
+            }
+            return false
+          })
+          const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
+          const podsOnLaunchers = ammoPltPods.filter((p) => p.launcherId)
+          const podsInStock = podsOnGround.filter((p) => p.ammoPltId === aid && !p.rsvId)
+          const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
+          let ammoHtml = `
           <div class="report-section">
-            <h2>Ammo PLT</h2>
+            <h2>${esc(ap.name)} (Ammo PLT)</h2>
             <div class="report-grid">
               <div class="report-card"><span class="label">RSVs</span><span class="value">${ammoPltRSVs.length}</span></div>
               <div class="report-card"><span class="label">In Stock</span><span class="value">${podsInStock.length}</span></div>
@@ -351,12 +356,13 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
               <div class="report-card"><span class="label">Total Pods</span><span class="value">${ammoPltPods.length}</span></div>
             </div>
         `
-        ammoPltRSVs.forEach((rsv) => {
-          const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
-          ammoHtml += `<div class="report-card"><strong>${esc(rsv.name)}</strong> (${rsvPods.length} pod${rsvPods.length !== 1 ? 's' : ''})</div>`
+          ammoPltRSVs.forEach((rsv) => {
+            const rsvPods = pods.filter((p) => p.rsvId === rsv.id && !p.launcherId)
+            ammoHtml += `<div class="report-card"><strong>${esc(rsv.name)}</strong> (${rsvPods.length} pod${rsvPods.length !== 1 ? 's' : ''})</div>`
+          })
+          ammoHtml += '</div>'
+          sections.push(ammoHtml)
         })
-        ammoHtml += '</div>'
-        sections.push(ammoHtml)
       }
     }
 
@@ -947,26 +953,27 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
           })
           )}
 
-          {/* Ammo PLT Section - Show if its BOC is selected */}
-          {selectedBOC && ammoPltBocId === selectedBOC && (() => {
-            const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === AMMO_PLT_ID)
-            const ammoPltPods = pods.filter((p) => {
-              if (p.ammoPltId === AMMO_PLT_ID) return true
-              if (p.rsvId) {
-                const rsv = rsvs.find((r) => r.id === p.rsvId)
-                if (rsv && rsv.ammoPltId === AMMO_PLT_ID) return true
-              }
-              return false
-            })
-            const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
-            const podsOnLaunchers = ammoPltPods.filter((p) => p.launcherId)
-            
-            // Separate pods in stock (directly assigned to ammo plt) from pods on RSVs
-            const podsInStock = podsOnGround.filter((p) => p.ammoPltId === AMMO_PLT_ID && !p.rsvId)
-            const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
+          {selectedBOC &&
+            ammoPltsForSelectedBoc.map((ap) => {
+              const aid = ap.id
+              const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === aid)
+              const ammoPltPods = pods.filter((p) => {
+                if (p.ammoPltId === aid) return true
+                if (p.rsvId) {
+                  const rsv = rsvs.find((r) => r.id === p.rsvId)
+                  if (rsv && rsv.ammoPltId === aid) return true
+                }
+                return false
+              })
+              const podsOnGround = ammoPltPods.filter((p) => !p.launcherId)
+              const podsOnLaunchers = ammoPltPods.filter((p) => p.launcherId)
 
-            return (
+              const podsInStock = podsOnGround.filter((p) => p.ammoPltId === aid && !p.rsvId)
+              const podsOnRSVs = podsOnGround.filter((p) => p.rsvId)
+
+              return (
               <div
+                key={ap.id}
                 style={{
                   marginBottom: '1rem',
                   padding: isMobile ? '0.5rem' : '0.75rem',
@@ -987,7 +994,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
                     marginBottom: '0.5rem',
                   }}
                 >
-                  Ammo PLT
+                  {ap.name}
                 </h3>
 
                 {/* Summary - Compact */}
@@ -1161,8 +1168,8 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
                   </div>
                 )}
               </div>
-            )
-          })()}
+              )
+            })}
         </div>
         </div>
 

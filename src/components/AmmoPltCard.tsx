@@ -1,18 +1,18 @@
-import { Pod, RSV, RoundType } from '../types'
+import { AmmoPlatoon, Pod, RSV, RoundType } from '../types'
 import { Truck, Package } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
 import { useMemo } from 'react'
 
-const AMMO_PLT_ID = 'ammo-plt-1'
-
 interface AmmoPltCardProps {
+  ammoPlatoon: AmmoPlatoon
   pods: Pod[]
   rsvs: RSV[]
   onClick?: () => void
 }
 
 export default function AmmoPltCard({
+  ammoPlatoon,
   pods,
   rsvs,
   onClick,
@@ -21,19 +21,15 @@ export default function AmmoPltCard({
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
   
   // Get RSVs assigned to Ammo PLT
-  const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === AMMO_PLT_ID)
-  
-  // Get pods assigned to Ammo PLT (directly or on RSVs assigned to Ammo PLT)
+  const aid = ammoPlatoon.id
+  const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === aid)
+
   const ammoPltPods = pods.filter((p) => {
-    // Pod directly assigned to Ammo PLT
-    if (p.ammoPltId === AMMO_PLT_ID) return true
-    
-    // Pod on an RSV assigned to Ammo PLT
+    if (p.ammoPltId === aid) return true
     if (p.rsvId) {
       const rsv = rsvs.find((r) => r.id === p.rsvId)
-      if (rsv && rsv.ammoPltId === AMMO_PLT_ID) return true
+      if (rsv && rsv.ammoPltId === aid) return true
     }
-    
     return false
   })
   
@@ -104,7 +100,7 @@ export default function AmmoPltCard({
               color: 'var(--accent)',
             }}
           >
-            Ammo Platoon
+            {ammoPlatoon.name}
           </h3>
         </div>
       </div>

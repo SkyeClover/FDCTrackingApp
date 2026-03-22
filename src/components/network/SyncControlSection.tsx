@@ -286,7 +286,7 @@ export function SyncControlSection({
     }
     if (
       !confirm(
-        'Replace everything on this device with the last copy this website received? You can’t undo that.'
+        'Apply the ingest snapshot on this device? If Network → roster has “Merge BOC” or “Merge PLT” set for the sender’s Peer unit ID, only that subtree is merged and other batteries stay as-is. Otherwise the whole app state is replaced. You can’t undo that.'
       )
     ) {
       return
@@ -304,7 +304,7 @@ export function SyncControlSection({
         return
       }
       const pulledSv = r.stateVersion != null ? Number(r.stateVersion) : undefined
-      const ok = applySnapshotFromJson(r.snapshotJson, pulledSv)
+      const ok = applySnapshotFromJson(r.snapshotJson, pulledSv, { fromUnitId: r.fromUnitId })
       if (ok) {
         if (pulledSv != null && Number.isFinite(pulledSv)) {
           updateSyncMeta({ lastAppliedIngestStateVersion: pulledSv })

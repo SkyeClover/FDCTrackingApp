@@ -13,10 +13,9 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { useIsTablet } from '../hooks/useIsTablet'
 import { useScopedForce } from '../hooks/useScopedForce'
 import DashboardHierarchyTree from '../components/dashboard/DashboardHierarchyTree'
+import BOCBatteryDashboard from '../components/dashboard/BOCBatteryDashboard'
 import PageShell from '../components/layout/PageShell'
 import { Rocket, FileText, Activity, Package } from 'lucide-react'
-
-const AMMO_PLT_ID = 'ammo-plt-1'
 
 export default function Dashboard() {
   const {
@@ -28,6 +27,7 @@ export default function Dashboard() {
     tasks,
     brigades,
     battalions,
+    ammoPlatoons,
     reloadLauncher,
     saveToFile,
     loadFromFile,
@@ -35,7 +35,7 @@ export default function Dashboard() {
   } = useAppData()
   const [isFireMissionModalOpen, setIsFireMissionModalOpen] = useState(false)
   const [selectedPOC, setSelectedPOC] = useState<string | null>(null)
-  const [isAmmoPltModalOpen, setIsAmmoPltModalOpen] = useState(false)
+  const [selectedAmmoPltId, setSelectedAmmoPltId] = useState<string | null>(null)
   const [reloadLauncherId, setReloadLauncherId] = useState<string | null>(null)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [selectedLauncherId, setSelectedLauncherId] = useState<string | null>(null)
@@ -55,19 +55,35 @@ export default function Dashboard() {
   const launcherDetailReadOnly = echelonObserve
   const showPocCards = !echelonObserve
 
-  // Check if Ammo PLT has any RSVs or pods assigned (respect scoped view)
-  const hasAmmoPltContent = useMemo(() => {
-    const ammoPltRSVs = displayRSVs.filter((r) => r.ammoPltId === AMMO_PLT_ID)
-    const ammoPltPods = displayPods.filter((p) => {
-      if (p.ammoPltId === AMMO_PLT_ID) return true
-      if (p.rsvId) {
-        const rsv = displayRSVs.find((r) => r.id === p.rsvId)
-        if (rsv && rsv.ammoPltId === AMMO_PLT_ID) return true
-      }
-      return false
+  const ammoPltsOnDashboard = useMemo(() => {
+    const all = ammoPlatoons ?? []
+    if (!force.isScoped || !currentUserRole) return all
+    if (currentUserRole.type === 'boc') {
+      return all.filter((ap) => ap.bocId === currentUserRole.id)
+    }
+    if (currentUserRole.type === 'poc') {
+      const poc = pocs.find((p) => p.id === currentUserRole.id)
+      return all.filter((ap) => ap.bocId && ap.bocId === poc?.bocId)
+    }
+    if (currentUserRole.type === 'brigade' || currentUserRole.type === 'battalion') {
+      const ids = new Set(force.scopedBOCs.map((b) => b.id))
+      return all.filter((ap) => ap.bocId && ids.has(ap.bocId))
+    }
+    return all
+  }, [ammoPlatoons, force.isScoped, force.scopedBOCs, currentUserRole, pocs])
+
+  const ammoPltsWithContent = useMemo(() => {
+    return ammoPltsOnDashboard.filter((ap) => {
+      const hasRsv = displayRSVs.some((r) => r.ammoPltId === ap.id)
+      const hasPod = displayPods.some((p) => {
+        if (p.ammoPltId === ap.id) return true
+        if (!p.rsvId) return false
+        const r = displayRSVs.find((x) => x.id === p.rsvId)
+        return r?.ammoPltId === ap.id
+      })
+      return hasRsv || hasPod
     })
-    return ammoPltRSVs.length > 0 || ammoPltPods.length > 0
-  }, [displayRSVs, displayPods])
+  }, [ammoPltsOnDashboard, displayRSVs, displayPods])
 
   const handleInitiateFireMission = () => {
     setIsFireMissionModalOpen(true)
@@ -404,7 +420,26 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {((force.viewDensity === 'compact' && force.isScoped) ||
+      {currentUserRole?.type === 'boc' &&
+        displayBocsForTree.map((boc) => (
+          <BOCBatteryDashboard
+            key={boc.id}
+            boc={boc}
+            pocs={displayPocs.filter((p) => p.bocId === boc.id)}
+            launchers={displayLaunchers}
+            pods={displayPods}
+            rsvs={displayRSVs}
+            tasks={tasks}
+            ammoPltsWithContent={ammoPltsWithContent.filter((ap) => ap.bocId === boc.id)}
+            onPocDetail={setSelectedPOC}
+            onLauncherClick={setSelectedLauncherId}
+            onAmmoPltClick={setSelectedAmmoPltId}
+          />
+        ))}
+
+      {((force.viewDensity === 'compact' &&
+        force.isScoped &&
+        currentUserRole?.type !== 'boc') ||
         currentUserRole?.type === 'brigade' ||
         currentUserRole?.type === 'battalion') && (
         <div
@@ -486,23 +521,27 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Ammo PLT Card - Sidebar style on desktop, full width on mobile */}
-        {hasAmmoPltContent && (
+        {currentUserRole?.type !== 'boc' && ammoPltsWithContent.length > 0 && (
           <div
             style={{
               width: isMobile ? '100%' : showPocCards ? '280px' : '100%',
-              maxWidth: showPocCards ? undefined : isMobile ? '100%' : '400px',
+              maxWidth: showPocCards ? undefined : isMobile ? '100%' : '420px',
               flexShrink: 0,
               display: 'flex',
               flexDirection: 'column',
+              gap: showPocCards ? '0.65rem' : '0.75rem',
               minHeight: isMobile ? undefined : 0,
             }}
           >
-            <AmmoPltCard
-              pods={displayPods}
-              rsvs={displayRSVs}
-              onClick={() => setIsAmmoPltModalOpen(true)}
-            />
+            {ammoPltsWithContent.map((ap) => (
+              <AmmoPltCard
+                key={ap.id}
+                ammoPlatoon={ap}
+                pods={displayPods}
+                rsvs={displayRSVs}
+                onClick={() => setSelectedAmmoPltId(ap.id)}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -536,12 +575,20 @@ export default function Dashboard() {
         }
       })()}
 
-      <AmmoPltDetailModal
-        pods={pods}
-        rsvs={rsvs}
-        isOpen={isAmmoPltModalOpen}
-        onClose={() => setIsAmmoPltModalOpen(false)}
-      />
+      {selectedAmmoPltId &&
+        (() => {
+          const ap = ammoPlatoons.find((a) => a.id === selectedAmmoPltId)
+          if (!ap) return null
+          return (
+            <AmmoPltDetailModal
+              ammoPlatoon={ap}
+              pods={pods}
+              rsvs={rsvs}
+              isOpen
+              onClose={() => setSelectedAmmoPltId(null)}
+            />
+          )
+        })()}
 
       {reloadLauncherId && (() => {
         const launcher = launchers.find((l) => l.id === reloadLauncherId)

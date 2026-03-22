@@ -118,6 +118,8 @@ function NetworkRosterSectionInner({
       syncAlertsEnabled: true,
       autoAcceptSync: false,
       stationOfflineSinceMs: null,
+      ingestMergeBocId: null,
+      ingestMergePocId: null,
     }
     upsertNetworkRosterRow(row)
     appendAuditLog('network', 'Roster row added', id)
@@ -243,7 +245,10 @@ function NetworkRosterSectionInner({
           <strong>PLT FDC (POC)</strong> you created, and saving a row fills <strong>Parent ID</strong> from that tree.{' '}
           <strong>Apply parents from tree</strong> adds any missing BOC/POC rows, then updates all parents (legacy text roles
           skipped). Edit <strong>Host</strong>/<strong>Port</strong> per node (e.g. Pi at <code style={{ fontSize: '0.7rem' }}>fdc-tracker.local:8787</code> for sync).{' '}
-          <strong>Peer unit ID</strong> = sender’s Local unit ID for ingest alerts / auto-accept.
+          <strong>Peer unit ID</strong> = sender’s Local unit ID for ingest alerts / auto-accept.{' '}
+          <strong>Ingest merge BOC / PLT</strong> (optional): when this row’s Peer unit ID matches an incoming snapshot’s
+          sender, apply only that battery or PLT into your data so other batteries (e.g. A20) are not wiped. Leave both
+          empty for a full replace. Pick at most one — BOC merge includes every PLT under that battery.
         </p>
       }
     >
@@ -261,6 +266,12 @@ function NetworkRosterSectionInner({
               <th style={{ padding: '0.35rem' }} title="Their Local unit ID — I use this to match incoming sync">
                 Peer unit ID
               </th>
+              <th style={{ padding: '0.35rem' }} title="Merge only this battery when they push">
+                Merge BOC
+              </th>
+              <th style={{ padding: '0.35rem' }} title="Merge only this PLT FDC (finer than BOC)">
+                Merge PLT
+              </th>
               <th style={{ padding: '0.35rem' }}>Alerts</th>
               <th style={{ padding: '0.35rem' }}>Auto-accept</th>
               <th style={{ padding: '0.35rem' }}>Status</th>
@@ -271,7 +282,7 @@ function NetworkRosterSectionInner({
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={13} style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>
+                <td colSpan={15} style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>
                   No units yet. Add BOC / BN / BDE endpoints your node syncs with.
                 </td>
               </tr>
@@ -333,6 +344,12 @@ function RosterRowEditor({
 
   if (!isEditing) {
     const seen = row.lastSeenMs ? new Date(row.lastSeenMs).toLocaleString() : '—'
+    const mergeBocLabel = row.ingestMergeBocId
+      ? org.bocs.find((b) => b.id === row.ingestMergeBocId)?.name ?? row.ingestMergeBocId.slice(0, 8) + '…'
+      : '—'
+    const mergePocLabel = row.ingestMergePocId
+      ? org.pocs.find((p) => p.id === row.ingestMergePocId)?.name ?? row.ingestMergePocId.slice(0, 8) + '…'
+      : '—'
     return (
       <tr style={{ borderBottom: '1px solid var(--border)' }}>
         <td style={{ padding: '0.35rem' }}>{row.displayName}</td>
@@ -345,6 +362,12 @@ function RosterRowEditor({
         <td style={{ padding: '0.35rem' }}>{row.useTls ? 'yes' : 'no'}</td>
         <td style={{ padding: '0.35rem' }}>{row.bearer === RADIO_BEARER_ID ? '1523 (placeholder)' : row.bearer}</td>
         <td style={{ padding: '0.35rem', fontFamily: 'monospace', fontSize: '0.72rem' }}>{row.peerUnitId ?? '—'}</td>
+        <td style={{ padding: '0.35rem', fontSize: '0.72rem', maxWidth: '7rem' }} title={row.ingestMergeBocId ?? ''}>
+          {mergeBocLabel}
+        </td>
+        <td style={{ padding: '0.35rem', fontSize: '0.72rem', maxWidth: '7rem' }} title={row.ingestMergePocId ?? ''}>
+          {mergePocLabel}
+        </td>
         <td style={{ padding: '0.35rem' }}>{row.syncAlertsEnabled ? 'on' : 'off'}</td>
         <td style={{ padding: '0.35rem' }}>{row.autoAcceptSync ? 'on' : 'off'}</td>
         <td style={{ padding: '0.35rem', color: statusColor(row.status), fontWeight: 600 }}>{row.status}</td>
@@ -450,6 +473,50 @@ function RosterRowEditor({
           title="Same ID they use under Local unit ID — keeps alerts and auto-accept straight"
           style={{ width: '100%', minWidth: '56px', fontSize: '0.75rem' }}
         />
+      </td>
+      <td style={{ padding: '0.35rem', verticalAlign: 'top' }}>
+        <select
+          value={draft.ingestMergeBocId ?? ''}
+          onChange={(e) => {
+            const v = e.target.value || null
+            setDraft({
+              ...draft,
+              ingestMergeBocId: v,
+              ingestMergePocId: v ? null : draft.ingestMergePocId,
+            })
+          }}
+          style={{ width: '100%', minWidth: '72px', maxWidth: '10rem', fontSize: '0.72rem' }}
+          title="Incoming snapshots from this peer merge only this battery"
+        >
+          <option value="">—</option>
+          {org.bocs.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td style={{ padding: '0.35rem', verticalAlign: 'top' }}>
+        <select
+          value={draft.ingestMergePocId ?? ''}
+          onChange={(e) => {
+            const v = e.target.value || null
+            setDraft({
+              ...draft,
+              ingestMergePocId: v,
+              ingestMergeBocId: v ? null : draft.ingestMergeBocId,
+            })
+          }}
+          style={{ width: '100%', minWidth: '72px', maxWidth: '10rem', fontSize: '0.72rem' }}
+          title="Incoming snapshots merge only this PLT (ignored if Merge BOC is set)"
+        >
+          <option value="">—</option>
+          {org.pocs.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
       </td>
       <td style={{ padding: '0.35rem', textAlign: 'center' }}>
         <input

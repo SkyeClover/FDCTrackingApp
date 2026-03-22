@@ -1,4 +1,4 @@
-import { Pod, RSV } from '../types'
+import { AmmoPlatoon, Pod, RSV } from '../types'
 import { X, Package, Truck } from 'lucide-react'
 import { useAppData } from '../context/AppDataContext'
 import { getEnabledRoundTypeOptions } from '../constants/roundTypes'
@@ -8,16 +8,15 @@ import { useModal } from '../hooks/useModal'
 import { useSwipe } from '../hooks/useSwipe'
 import RSVDetailModal from './RSVDetailModal'
 
-const AMMO_PLT_ID = 'ammo-plt-1'
-
 interface AmmoPltDetailModalProps {
+  ammoPlatoon: AmmoPlatoon
   pods: Pod[]
   rsvs: RSV[]
   isOpen: boolean
   onClose: () => void
 }
 
-export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: AmmoPltDetailModalProps) {
+export default function AmmoPltDetailModal({ ammoPlatoon, pods, rsvs, isOpen, onClose }: AmmoPltDetailModalProps) {
   const { roundTypes } = useAppData()
   const isMobile = useIsMobile()
   const [selectedRSV, setSelectedRSV] = useState<RSV | null>(null)
@@ -36,20 +35,15 @@ export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: Ammo
   
   if (!isOpen) return null
 
-  // Get RSVs assigned to Ammo PLT
-  const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === AMMO_PLT_ID)
+  const aid = ammoPlatoon.id
+  const ammoPltRSVs = rsvs.filter((r) => r.ammoPltId === aid)
 
-  // Get pods assigned to Ammo PLT (directly or on RSVs assigned to Ammo PLT)
   const ammoPltPods = pods.filter((p) => {
-    // Pod directly assigned to Ammo PLT
-    if (p.ammoPltId === AMMO_PLT_ID) return true
-    
-    // Pod on an RSV assigned to Ammo PLT
+    if (p.ammoPltId === aid) return true
     if (p.rsvId) {
       const rsv = rsvs.find((r) => r.id === p.rsvId)
-      if (rsv && rsv.ammoPltId === AMMO_PLT_ID) return true
+      if (rsv && rsv.ammoPltId === aid) return true
     }
-    
     return false
   })
   
@@ -152,7 +146,7 @@ export default function AmmoPltDetailModal({ pods, rsvs, isOpen, onClose }: Ammo
                   color: 'var(--accent)',
                 }}
               >
-                Ammo Platoon - Ammunition Inventory
+                {ammoPlatoon.name} — Ammunition inventory
               </h2>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>

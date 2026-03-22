@@ -1,6 +1,7 @@
 import { useState, memo, useEffect } from 'react'
 import { Check, X as XIcon, Edit } from 'lucide-react'
 import TouchNumericStepper from '../ui/TouchNumericStepper'
+import { useAppData } from '../../context/AppDataContext'
 
 export const CompactEditableItem = memo(
   ({
@@ -133,7 +134,7 @@ export const PodEditableItem = memo(
     rsvs: Array<{ id: string; name: string }>
     pocs: Array<{ id: string; name: string }>
   }) => {
-    const AMMO_PLT_ID = 'ammo-plt-1'
+    const { ammoPlatoons } = useAppData()
 
     const getPodAssignment = () => {
       if (pod.launcherId) {
@@ -148,11 +149,12 @@ export const PodEditableItem = memo(
         const poc = pocs.find((p) => p.id === pod.pocId)
         return { type: 'poc', displayType: 'POC', name: poc?.name || 'Unknown', id: pod.pocId }
       }
-      if (pod.ammoPltId === AMMO_PLT_ID) {
-        return { type: 'ammo-plt', displayType: 'Ammo PLT', name: 'Ammo PLT', id: pod.ammoPltId }
-      }
       if (pod.ammoPltId) {
-        return { type: 'ammo-plt', displayType: 'Ammo PLT (Invalid)', name: 'Ammo PLT (Invalid)', id: pod.ammoPltId }
+        const ap = (ammoPlatoons ?? []).find((a) => a.id === pod.ammoPltId)
+        if (ap) {
+          return { type: 'ammo-plt', displayType: 'Ammo PLT', name: ap.name, id: pod.ammoPltId }
+        }
+        return { type: 'ammo-plt', displayType: 'Ammo PLT (Unknown)', name: 'Unknown ammo plt', id: pod.ammoPltId }
       }
       return { type: 'unassigned', displayType: 'Unassigned', name: 'Unassigned', id: '' }
     }

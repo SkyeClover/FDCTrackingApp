@@ -112,6 +112,13 @@ export interface BOC {
   battalionId?: string
 }
 
+/** Logistics-only platoon: holds pods/RSVs under a battery; no launchers / no firing. */
+export interface AmmoPlatoon {
+  id: string
+  name: string
+  bocId?: string
+}
+
 export interface LogEntry {
   id: string
   timestamp: Date
@@ -142,5 +149,7 @@ export interface AppState {
   version: string
   lastSaved?: Date
   currentUserRole?: CurrentUserRole
-  ammoPltBocId?: string // BOC that the Ammo PLT is assigned to
+  /** @deprecated Legacy single-platoon battery link; use ammoPlatoons[].bocId. Kept for migration. */
+  ammoPltBocId?: string
+  ammoPlatoons: AmmoPlatoon[]
 }

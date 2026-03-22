@@ -190,7 +190,13 @@ export async function pushSnapshotToPeer(
 async function fetchIngestStatusAtBase(
   meta: SyncMetaRow,
   baseRoot: string
-): Promise<{ ok: boolean; snapshotJson?: string; detail?: string; stateVersion?: number }> {
+): Promise<{
+  ok: boolean
+  snapshotJson?: string
+  detail?: string
+  stateVersion?: number
+  fromUnitId?: string | null
+}> {
   if (!meta.syncSharedSecret?.trim()) {
     return { ok: false, detail: 'Shared secret not set (Network → Sync).' }
   }
@@ -206,7 +212,11 @@ async function fetchIngestStatusAtBase(
     if (!res.ok) {
       return { ok: false, detail: `${text.slice(0, 220)} (${url})` }
     }
-    const j = JSON.parse(text) as { snapshotJson?: string; stateVersion?: number }
+    const j = JSON.parse(text) as {
+      snapshotJson?: string
+      stateVersion?: number
+      fromUnitId?: string | null
+    }
     if (typeof j.snapshotJson !== 'string' || j.snapshotJson.length === 0) {
       return { ok: false, detail: 'No snapshot in ingest yet (nothing pushed to this URL).' }
     }
@@ -215,6 +225,7 @@ async function fetchIngestStatusAtBase(
       ok: true,
       snapshotJson: j.snapshotJson,
       stateVersion: Number.isFinite(sv) && sv > 0 ? sv : undefined,
+      fromUnitId: j.fromUnitId != null && j.fromUnitId !== '' ? String(j.fromUnitId) : null,
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -229,10 +240,22 @@ async function fetchIngestStatusAtBase(
 export async function fetchIngestStatus(
   meta: SyncMetaRow,
   pageOrigin: string
-): Promise<{ ok: boolean; snapshotJson?: string; detail?: string; stateVersion?: number }> {
+): Promise<{
+  ok: boolean
+  snapshotJson?: string
+  detail?: string
+  stateVersion?: number
+  fromUnitId?: string | null
+}> {
   const listenPort = meta.peerListenPort || DEFAULT_PEER_LISTEN_PORT
   const bases = getIngestBaseCandidates(pageOrigin, listenPort)
-  let last: { ok: boolean; snapshotJson?: string; detail?: string; stateVersion?: number } = {
+  let last: {
+    ok: boolean
+    snapshotJson?: string
+    detail?: string
+    stateVersion?: number
+    fromUnitId?: string | null
+  } = {
     ok: false,
     detail: 'Could not load ingest.',
   }
