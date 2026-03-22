@@ -27,6 +27,7 @@ import {
   applyStationOfflineEscalation,
   STATION_OFFLINE_RED_AFTER_MS,
 } from '../../sync/rosterPresenceEscalation'
+import { CollapsibleCard } from './CollapsibleCard'
 
 export function SyncControlSection({
   isMobile: _isMobile,
@@ -369,26 +370,21 @@ export function SyncControlSection({
   }, [onSyncDone])
 
   return (
-    <section
-      style={{
-        marginBottom: '0.65rem',
-        background: 'var(--bg-secondary)',
-        border: '1px solid var(--border)',
-        borderRadius: '6px',
-        padding: '0.55rem 0.65rem',
-      }}
+    <CollapsibleCard
+      title="Sync & identity"
+      defaultOpen
+      description={
+        <p style={{ margin: 0 }}>
+          I keep a log below after each run so you can see what happened. Peers run in roster order; skip-echelon only when
+          you’ve turned it on and confirmed here.
+        </p>
+      }
     >
-      <h2 style={{ margin: '0 0 0.3rem', fontSize: '0.98rem' }}>Sync &amp; identity</h2>
-      <p style={{ margin: '0 0 0.45rem', color: 'var(--text-secondary)', fontSize: '0.78rem', lineHeight: 1.38 }}>
-        I keep a log below after each run so you can see what happened. Peers run in roster order; skip-echelon only when
-        you’ve turned it on and confirmed here.
-      </p>
-
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-          gap: '0.45rem 0.75rem',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',
+          gap: '0.55rem 0.85rem',
           marginBottom: '0.5rem',
           alignItems: 'start',
         }}
@@ -891,6 +887,6 @@ export function SyncControlSection({
           </div>
         </div>
       )}
-    </section>
+    </CollapsibleCard>
   )
 }

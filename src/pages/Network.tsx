@@ -5,6 +5,7 @@ import { Network as NetworkIcon, Wifi, Server, Globe, Activity, RadioTower } fro
 import { fetchLocalSystemInfo, shouldAttemptLocalAgentFetch } from '../lib/deviceAgent'
 import { NetworkRosterSection } from '../components/network/NetworkRosterSection'
 import { SyncControlSection } from '../components/network/SyncControlSection'
+import { CollapsibleCard } from '../components/network/CollapsibleCard'
 
 interface NetworkInfo {
   ipAddress: string
@@ -122,149 +123,166 @@ export default function Network() {
   }, [info, safeString])
 
   return (
-    <PageShell title="Network" isMobile={safeIsMobile}>
-      <SyncControlSection isMobile={safeIsMobile} onSyncDone={bumpRoster} />
-      <NetworkRosterSection
-        isMobile={safeIsMobile}
-        refreshKey={rosterTick}
-        onChanged={bumpRoster}
-        onEditingChange={onRosterEditingChange}
-      />
-
-      {hostedSkip && (
-        <p
-          style={{
-            margin: '0 0 0.6rem',
-            padding: '0.45rem 0.6rem',
-            borderRadius: '6px',
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-secondary)',
-            fontSize: '0.82rem',
-            lineHeight: 1.4,
-          }}
-        >
-          <strong style={{ color: 'var(--text-primary)' }}>When I’m opened from a regular website</strong> — I can’t see your
-          PC’s network card from here; that only works when you run me on your own machine or kiosk (browsers keep sites
-          from poking around your LAN).
-        </p>
-      )}
-
-      {loading && (
-        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', margin: '0 0 0.5rem', fontSize: '0.85rem' }}>
-          Loading this device’s network information…
-        </p>
-      )}
-
-      {!loading && !hostedSkip && error && (
-        <div
-          style={{
-            marginBottom: '0.75rem',
-            padding: '0.6rem 0.75rem',
-            borderRadius: '6px',
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-secondary)',
-            fontSize: '0.85rem',
-            lineHeight: 1.45,
-          }}
-        >
-          <strong style={{ color: 'var(--warning)' }}>Local agent</strong> — {error}
-          <button
-            type="button"
-            onClick={() => {
-              setLoading(true)
-              setError(null)
-              void fetchNetworkInfo()
-            }}
-            style={{
-              display: 'inline-block',
-              marginLeft: '0.75rem',
-              padding: '0.25rem 0.6rem',
-              backgroundColor: 'var(--accent)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {!loading && !hostedSkip && !error && !info && (
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
-          No network information for this device.
-        </p>
-      )}
-
-      {!loading && info && networkItems.length === 0 && (
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>Could not build display for this device.</p>
-      )}
-
-      {info && networkItems.length > 0 && (
+    <PageShell title="Network" isMobile={safeIsMobile} contentMaxWidth="min(100%, 1680px)">
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: safeIsMobile ? '1fr' : 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: '0.5rem',
-          marginBottom: '0.75rem',
+          gridTemplateColumns: safeIsMobile ? '1fr' : 'minmax(0, 1fr) minmax(280px, 420px)',
+          gap: '0.85rem',
+          alignItems: 'start',
         }}
       >
-        {networkItems.map((item, index) => (
-          <div
-            key={`network-${index}-${item.label}`}
-            style={{
-              backgroundColor: 'var(--bg-secondary)',
-              padding: '0.5rem 0.65rem',
-              borderRadius: '6px',
-              border: '1px solid var(--border)',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.5rem',
-            }}
-          >
-            <div style={{ color: 'var(--accent)', flexShrink: 0, marginTop: '2px' }}>{item.icon}</div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{item.label}</div>
-              <div
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: 0 }}>
+          <SyncControlSection isMobile={safeIsMobile} onSyncDone={bumpRoster} />
+          <NetworkRosterSection
+            isMobile={safeIsMobile}
+            refreshKey={rosterTick}
+            onChanged={bumpRoster}
+            onEditingChange={onRosterEditingChange}
+          />
+        </div>
+
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', minWidth: 0 }}>
+          <CollapsibleCard title="This device" defaultOpen>
+            {hostedSkip && (
+              <p
                 style={{
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)',
-                  wordBreak: 'break-word',
+                  margin: '0 0 0.6rem',
+                  padding: '0.45rem 0.6rem',
+                  borderRadius: '6px',
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.4,
                 }}
               >
-                {item.value}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      )}
+                <strong style={{ color: 'var(--text-primary)' }}>When I’m opened from a regular website</strong> — I can’t see your
+                PC’s network card from here; that only works when you run me on your own machine or kiosk (browsers keep sites
+                from poking around your LAN).
+              </p>
+            )}
 
-      {/* SINCGARS / 1523 Radio Connection Placeholder */}
-      <div
-        style={{
-          backgroundColor: 'var(--bg-secondary)',
-          padding: '0.65rem 0.75rem',
-          borderRadius: '6px',
-          border: '1px dashed var(--border)',
-          marginTop: '0.5rem',
-          textAlign: 'center',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-          <div style={{ color: 'var(--accent)', flexShrink: 0 }}>{React.createElement(RadioTower, { size: 20 })}</div>
-          <h3 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-            SINCGARS / 1523 Radio
-          </h3>
-        </div>
-        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.4 }}>
-          UI when connected. <span style={{ fontStyle: 'italic' }}>Not connected</span>
-        </p>
+            {loading && (
+              <p style={{ textAlign: 'center', color: 'var(--text-secondary)', margin: '0 0 0.5rem', fontSize: '0.85rem' }}>
+                Loading this device’s network information…
+              </p>
+            )}
+
+            {!loading && !hostedSkip && error && (
+              <div
+                style={{
+                  marginBottom: '0.75rem',
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: '6px',
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.85rem',
+                  lineHeight: 1.45,
+                }}
+              >
+                <strong style={{ color: 'var(--warning)' }}>Local agent</strong> — {error}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoading(true)
+                    setError(null)
+                    void fetchNetworkInfo()
+                  }}
+                  style={{
+                    display: 'inline-block',
+                    marginLeft: '0.75rem',
+                    padding: '0.25rem 0.6rem',
+                    backgroundColor: 'var(--accent)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {!loading && !hostedSkip && !error && !info && (
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+                No network information for this device.
+              </p>
+            )}
+
+            {!loading && info && networkItems.length === 0 && (
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Could not build display for this device.</p>
+            )}
+
+            {info && networkItems.length > 0 && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr',
+                  gap: '0.55rem',
+                }}
+              >
+                {networkItems.map((item, index) => (
+                  <div
+                    key={`network-${index}-${item.label}`}
+                    style={{
+                      backgroundColor: 'var(--bg-primary)',
+                      padding: '0.55rem 0.65rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border)',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.55rem',
+                    }}
+                  >
+                    <div style={{ color: 'var(--accent)', flexShrink: 0, marginTop: '2px' }}>{item.icon}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.02em' }}>
+                        {item.label}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.88rem',
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          wordBreak: 'break-word',
+                          marginTop: '0.15rem',
+                        }}
+                      >
+                        {item.value}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CollapsibleCard>
+
+          <CollapsibleCard title="SINCGARS / 1523 Radio" defaultOpen>
+            <div
+              style={{
+                border: '1px dashed var(--border)',
+                borderRadius: '6px',
+                padding: '0.65rem 0.75rem',
+                textAlign: 'center',
+                background: 'var(--bg-primary)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                <div style={{ color: 'var(--accent)', flexShrink: 0 }}>{React.createElement(RadioTower, { size: 20 })}</div>
+                <h3 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                  SINCGARS / 1523 Radio
+                </h3>
+              </div>
+              <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.4 }}>
+                UI when connected. <span style={{ fontStyle: 'italic' }}>Not connected</span>
+              </p>
+            </div>
+          </CollapsibleCard>
+        </aside>
       </div>
     </PageShell>
   )

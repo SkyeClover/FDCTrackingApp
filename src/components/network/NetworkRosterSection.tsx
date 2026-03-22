@@ -20,6 +20,7 @@ import {
   type OrgUnitsSlice,
 } from './echelonRoleUi'
 import { ensureBocPocRosterFromOrg } from './rosterFromOrg'
+import { CollapsibleCard } from './CollapsibleCard'
 
 function statusColor(status: string): string {
   if (status === 'green') return 'var(--success, #2a8)'
@@ -161,94 +162,91 @@ function NetworkRosterSectionInner({
     [isMobile]
   )
 
-  return (
-    <section
-      style={{
-        marginBottom: '0.65rem',
-        background: 'var(--bg-secondary)',
-        border: '1px solid var(--border)',
-        borderRadius: '6px',
-        padding: '0.55rem 0.65rem',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.35rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1rem' }}>Echelon roster &amp; reachability</h2>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              fontSize: '0.75rem',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={autoRollup}
-              onChange={(e) => {
-                const v = e.target.checked
-                setAutoRollup(v)
-                updateSyncMeta({ autoRollupFromOrg: v })
-                if (v) {
-                  const r = ensureBocPocRosterFromOrg(org, true)
-                  if (r.added > 0) {
-                    appendAuditLog(
-                      'network',
-                      'Auto roll-up: roster rows from Management',
-                      `added ${r.added} BOC/PLT FDC row(s)`
-                    )
-                  }
-                  reload()
-                  onChanged?.()
-                }
-              }}
-            />
-            Auto roll-up parent IDs
-          </label>
-          <button
-            type="button"
-            onClick={() => applyParentIdsFromTree()}
-            title="I’ll add any missing battery / PLT rows from Management, then fill parent IDs from your tree"
-            style={{
-              padding: '0.25rem 0.5rem',
-              borderRadius: '4px',
-              border: '1px solid var(--border)',
-              background: 'var(--bg-tertiary)',
-              color: 'var(--text-primary)',
-              fontSize: '0.75rem',
-              cursor: 'pointer',
-            }}
-          >
-            Apply parents from tree
-          </button>
-          <button
-            type="button"
-            onClick={addRow}
-            style={{
-              padding: '0.25rem 0.55rem',
-              borderRadius: '4px',
-              border: '1px solid var(--border)',
-              background: 'var(--accent)',
-              color: '#fff',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
-            }}
-          >
-            Add unit
-          </button>
-        </div>
-      </div>
-      <p style={{ margin: '0 0 0.4rem', color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.35 }}>
-        <strong>Role</strong> = echelon from <strong>Management</strong> (Bde → Bn → BOC → PLT FDC). When{' '}
-        <strong>Auto roll-up</strong> is on, turning it on adds a roster row for each <strong>Battery (BOC)</strong> and{' '}
-        <strong>PLT FDC (POC)</strong> you created, and saving a row fills <strong>Parent ID</strong> from that tree.{' '}
-        <strong>Apply parents from tree</strong> adds any missing BOC/POC rows, then updates all parents (legacy text roles
-        skipped). Edit <strong>Host</strong>/<strong>Port</strong> per node (e.g. Pi at <code style={{ fontSize: '0.7rem' }}>fdc-tracker.local:8787</code> for sync).{' '}
-        <strong>Peer unit ID</strong> = sender’s Local unit ID for ingest alerts / auto-accept.
-      </p>
+  const rosterToolbar = (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center', justifyContent: 'flex-end' }}>
+      <label
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.35rem',
+          fontSize: '0.75rem',
+          color: 'var(--text-secondary)',
+          cursor: 'pointer',
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={autoRollup}
+          onChange={(e) => {
+            const v = e.target.checked
+            setAutoRollup(v)
+            updateSyncMeta({ autoRollupFromOrg: v })
+            if (v) {
+              const r = ensureBocPocRosterFromOrg(org, true)
+              if (r.added > 0) {
+                appendAuditLog(
+                  'network',
+                  'Auto roll-up: roster rows from Management',
+                  `added ${r.added} BOC/PLT FDC row(s)`
+                )
+              }
+              reload()
+              onChanged?.()
+            }
+          }}
+        />
+        Auto roll-up parent IDs
+      </label>
+      <button
+        type="button"
+        onClick={() => applyParentIdsFromTree()}
+        title="I’ll add any missing battery / PLT rows from Management, then fill parent IDs from your tree"
+        style={{
+          padding: '0.25rem 0.5rem',
+          borderRadius: '4px',
+          border: '1px solid var(--border)',
+          background: 'var(--bg-tertiary)',
+          color: 'var(--text-primary)',
+          fontSize: '0.75rem',
+          cursor: 'pointer',
+        }}
+      >
+        Apply parents from tree
+      </button>
+      <button
+        type="button"
+        onClick={addRow}
+        style={{
+          padding: '0.25rem 0.55rem',
+          borderRadius: '4px',
+          border: '1px solid var(--border)',
+          background: 'var(--accent)',
+          color: '#fff',
+          cursor: 'pointer',
+          fontSize: '0.8rem',
+        }}
+      >
+        Add unit
+      </button>
+    </div>
+  )
 
+  return (
+    <CollapsibleCard
+      title="Echelon roster & reachability"
+      defaultOpen
+      headerRight={rosterToolbar}
+      description={
+        <p style={{ margin: 0, fontSize: '0.8rem', lineHeight: 1.35 }}>
+          <strong>Role</strong> = echelon from <strong>Management</strong> (Bde → Bn → BOC → PLT FDC). When{' '}
+          <strong>Auto roll-up</strong> is on, turning it on adds a roster row for each <strong>Battery (BOC)</strong> and{' '}
+          <strong>PLT FDC (POC)</strong> you created, and saving a row fills <strong>Parent ID</strong> from that tree.{' '}
+          <strong>Apply parents from tree</strong> adds any missing BOC/POC rows, then updates all parents (legacy text roles
+          skipped). Edit <strong>Host</strong>/<strong>Port</strong> per node (e.g. Pi at <code style={{ fontSize: '0.7rem' }}>fdc-tracker.local:8787</code> for sync).{' '}
+          <strong>Peer unit ID</strong> = sender’s Local unit ID for ingest alerts / auto-accept.
+        </p>
+      }
+    >
       <div style={{ overflowX: 'auto' }}>
         <table style={tableStyle}>
           <thead>
@@ -296,7 +294,7 @@ function NetworkRosterSectionInner({
           </tbody>
         </table>
       </div>
-    </section>
+    </CollapsibleCard>
   )
 }
 
