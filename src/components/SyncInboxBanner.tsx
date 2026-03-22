@@ -31,6 +31,8 @@ export function SyncInboxBanner() {
   const busyRef = useRef(false)
   const dismissTimerRef = useRef<number | null>(null)
   const offlineNotifySeenAtRef = useRef(0)
+  const noPeerMatchHintSvRef = useRef(0)
+  const alertsOffForRowHintSvRef = useRef(0)
 
   useEffect(() => {
     bannerRef.current = banner
@@ -126,9 +128,23 @@ export function SyncInboxBanner() {
         normalizePeerUnitId(r.peerUnitId) === normalizePeerUnitId(fromUid)
     )
 
-    /** Only roster rows with matching Peer unit ID get ingest UI (no unknown-peer banners). */
+    /** No roster Peer unit ID matches ingest fromUnitId — user sees nothing unless we hint. */
     if (!match) {
-      setBanner((b) => (b?.kind === 'pending' ? null : b))
+      if (
+        meta.incomingAlertsEnabled &&
+        noPeerMatchHintSvRef.current !== ingestSv
+      ) {
+        noPeerMatchHintSvRef.current = ingestSv
+        const who = fromUid ? `unit “${fromUid}”` : 'the peer (missing fromUnitId on snapshot)'
+        appendAuditLog('sync', 'Ingest pending — no roster Peer unit ID match', `${who} v${ingestSv}`)
+        setBanner({
+          kind: 'notice',
+          message: `Ingest has v${ingestSv} from ${who}. Set a Network roster row’s Peer unit ID to exactly match their Local unit ID to get apply prompts.`,
+        })
+        scheduleHideNotice(16_000)
+      } else if (!meta.incomingAlertsEnabled) {
+        setBanner((b) => (b?.kind === 'pending' ? null : b))
+      }
       return
     }
 
@@ -155,7 +171,25 @@ export function SyncInboxBanner() {
       return
     }
 
-    if (!match.syncAlertsEnabled) return
+    if (!match.syncAlertsEnabled && !match.autoAcceptSync) {
+      if (alertsOffForRowHintSvRef.current !== ingestSv) {
+        alertsOffForRowHintSvRef.current = ingestSv
+        appendAuditLog(
+          'sync',
+          'Ingest pending — sync alerts off for roster row',
+          `${match.displayName} (${fromUid ?? '?'}) v${ingestSv}`
+        )
+        if (meta.incomingAlertsEnabled) {
+          setBanner({
+            kind: 'notice',
+            message: `New data on ingest (v${ingestSv}) for ${match.displayName}, but sync alerts are off for that row — enable alerts or turn on auto-accept in Network.`,
+          })
+          scheduleHideNotice(14_000)
+        }
+      }
+      setBanner((b) => (b?.kind === 'pending' ? null : b))
+      return
+    }
 
     const label = match.displayName || (fromUid ? `Unit ${fromUid}` : 'Peer')
     setBanner({

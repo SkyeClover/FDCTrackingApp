@@ -288,7 +288,7 @@ async function fetchIngestHealthAtBase(baseRoot: string): Promise<{
       kind === 'clean' || kind === 'stale' || kind === 'unclean' ? kind : null
     return {
       ok: true,
-      stateVersion: typeof j.stateVersion === 'number' ? j.stateVersion : 0,
+      stateVersion: Number(j.stateVersion) || 0,
       fromUnitId: j.fromUnitId ?? null,
       browserPresent: typeof j.browserPresent === 'boolean' ? j.browserPresent : true,
       browserOfflineKind,

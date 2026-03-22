@@ -71,15 +71,17 @@ export async function runSnapshotPush(state: AppState, forceLabel: string): Prom
       lastError: stationMsg,
     })
 
-    if (!health.transportOk && !skipAllowed) {
-      targets.push({ row, result: 'unreachable', path: `${row.host}:${row.port}` })
-      appendAuditLog('sync', `push skipped ${row.id}`, 'peer offline, skip-echelon off')
-      continue
-    }
     if (!health.transportOk && skipAllowed) {
       targets.push({ row, result: 'skipped (offline, skip mode — try next)', path: `${row.host}:${row.port}` })
       appendAuditLog('sync', `skip hop ${row.id}`, 'offline with skip enabled')
       continue
+    }
+    if (!health.transportOk && !skipAllowed) {
+      appendAuditLog(
+        'sync',
+        `health failed ${row.id}, push anyway`,
+        'GET /fdc/v1/health failed or non-OK — still attempting POST /fdc/v1/push'
+      )
     }
 
     const pr = await pushSnapshotToPeer(row, meta, state, sv)

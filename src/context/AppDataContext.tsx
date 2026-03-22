@@ -2358,6 +2358,7 @@ export function AppDataProvider({
       try {
         const s = applySnapshotJson(json, stateRef.current.currentUserRole)
         setState(s)
+        saveAppStateToDb(s)
         writeInitialSetupCompleteToDb()
         setInitialSetupComplete(true)
         addLog({ type: 'success', message: 'Snapshot applied (ingest / sync)' })
