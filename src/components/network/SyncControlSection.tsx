@@ -9,6 +9,7 @@ import {
   listAuditLog,
   listNetworkRoster,
   updateSyncMeta,
+  upsertNetworkRosterRow,
 } from '../../persistence/sqlite'
 import { fetchIngestStatus, peerBaseUrl, sendPeerPing } from '../../sync/peerClient'
 import { isSyncSharedSecretConfigured } from '../../sync/syncGuards'
@@ -19,6 +20,7 @@ export function SyncControlSection({
   onSyncDone,
 }: {
   isMobile: boolean
+  /** Called after roster-affecting sync actions so the table refreshes. */
   onSyncDone?: () => void
 }) {
   const { getStateSnapshot, applySnapshotFromJson } = useAppData()
@@ -109,6 +111,13 @@ export function SyncControlSection({
         lines.push(
           `${row.displayName}: ${r.ok ? `OK ${r.detail ?? 'pong'}` : `FAIL ${r.detail ?? 'error'}`} → ${origin}`
         )
+        /** Ping proves reachability + HMAC; roster dots were only updated on push (GET health), so fix stale red here. */
+        upsertNetworkRosterRow({
+          ...row,
+          status: r.ok ? 'green' : 'red',
+          lastSeenMs: Date.now(),
+          lastError: r.ok ? null : (r.detail ?? 'ping failed'),
+        })
       }
       setLastPath(['Test message (quick ping — not a full data copy):', ...lines].join('\n'))
       setLastLog(new Date().toLocaleTimeString())
@@ -119,10 +128,11 @@ export function SyncControlSection({
         lines.slice(0, 8).join(' · ') + (lines.length > 8 ? ` … +${lines.length - 8}` : '')
       )
       setAuditTick((t) => t + 1)
+      onSyncDone?.()
     } finally {
       setPingBusy(false)
     }
-  }, [])
+  }, [onSyncDone])
 
   const doForce = useCallback(async () => {
     if (!isSyncSharedSecretConfigured(getSyncMeta())) {
