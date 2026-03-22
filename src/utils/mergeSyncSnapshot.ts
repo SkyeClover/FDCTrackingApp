@@ -1,6 +1,7 @@
 import type { AppState, Launcher, Pod, Task } from '../types'
 import { listNetworkRoster } from '../persistence/sqlite'
 import { normalizePeerUnitId } from '../lib/syncAlertStyle'
+import { parseEchelonRole } from '../components/network/echelonRoleUi'
 
 function taskInScope(t: Task, pocIds: Set<string>, launcherIds: Set<string>): boolean {
   if (t.pocIds?.some((id) => pocIds.has(id))) return true
@@ -205,8 +206,18 @@ export function rosterMergeScopeForFromUnitId(fromUnitId: string | null | undefi
     if (normalizePeerUnitId(r.peerUnitId) !== key) continue
     const boc = r.ingestMergeBocId?.trim() || null
     const poc = r.ingestMergePocId?.trim() || null
-    if (!boc && !poc) return null
-    return { ingestMergeBocId: boc, ingestMergePocId: poc }
+    if (boc || poc) {
+      return { ingestMergeBocId: boc, ingestMergePocId: poc }
+    }
+    // Default scope to roster role when explicit merge columns are empty.
+    const role = parseEchelonRole(r.echelonRole || '')
+    if (role?.type === 'boc') {
+      return { ingestMergeBocId: role.id, ingestMergePocId: null }
+    }
+    if (role?.type === 'poc') {
+      return { ingestMergeBocId: null, ingestMergePocId: role.id }
+    }
+    return null
   }
   return null
 }
