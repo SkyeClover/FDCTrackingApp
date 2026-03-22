@@ -1,4 +1,4 @@
-/** After this long in “station tab offline” yellow, roster shows red. */
+/** After this long with yellow candidate while tab is treated offline, roster shows red (sync/ping use immediate red for tab-closed). */
 export const STATION_OFFLINE_RED_AFTER_MS = 3 * 60 * 1000
 
 /**

@@ -99,11 +99,12 @@ export async function runSnapshotPush(state: AppState, forceLabel: string): Prom
     } else if (!ok) {
       candidate = 'yellow'
       stationMsg = pr.detail ?? 'push failed'
-    } else if (health.snapshotUnitMismatch || tabDown) {
+    } else if (tabDown) {
+      candidate = 'red'
+      stationMsg = tabDownMessage(health)
+    } else if (health.snapshotUnitMismatch) {
       candidate = 'yellow'
-      stationMsg = health.snapshotUnitMismatch
-        ? 'snapshot fromUnitId ≠ Peer unit ID on roster'
-        : tabDownMessage(health)
+      stationMsg = 'snapshot fromUnitId ≠ Peer unit ID on roster'
     } else {
       candidate = 'green'
       stationMsg = null

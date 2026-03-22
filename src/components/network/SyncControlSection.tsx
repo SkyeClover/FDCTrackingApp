@@ -194,7 +194,7 @@ export function SyncControlSection({
                 ? 'no tab heartbeat (unclean)'
                 : 'tab offline'
           line = `FAIL station closed (${kind}) — ${r.detail ?? 'pong'}`
-          candidate = 'yellow'
+          candidate = 'red'
           lastErr = `Walker Track tab not present (${kind})`
         } else if (h.snapshotUnitMismatch) {
           line = `WARN last snapshot on their ingest is from a different Local unit ID than this row’s Peer unit ID — ${r.detail ?? 'pong'}`
@@ -645,7 +645,7 @@ export function SyncControlSection({
         so <strong>Send test message</strong> can tell “tab up” vs “only Node is up.” I heartbeat to my local ingest while this tab
         is open. Closing the tab notifies <strong>Upstream for sign-off</strong> (and local ingest). If the tab dies, their ingest
         reports <em>unclean</em> (stale) after a couple of minutes. Snapshot push still works if their Node ingest is reachable —
-        yellow means “their operator UI probably isn’t running.”
+        roster <strong>red</strong> includes “station closed” (no Walker Track tab); <strong>yellow</strong> is for other warnings (e.g. peer unit ID / snapshot mismatch).
       </p>
 
       {(lastPath || lastLog) && (
