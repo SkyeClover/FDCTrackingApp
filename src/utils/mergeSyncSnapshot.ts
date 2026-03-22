@@ -256,8 +256,20 @@ function mapRemoteRsvsToLocalIds(
     if (!byName.has(k)) byName.set(k, r)
   }
   const usedIds = new Set(localRsvs.map((r) => r.id))
+  const unmappedLocalIds = new Set(localRsvs.map((r) => r.id))
   const remoteRsvIdToLocalRsvId = new Map<string, string>()
   const mappedRsvs: AppState['rsvs'] = []
+
+  const pickScopedLocalCandidate = (remoteRsv: AppState['rsvs'][number]): string | null => {
+    const candidates = localRsvs.filter((r) => {
+      if (!unmappedLocalIds.has(r.id)) return false
+      if (remoteRsv.pocId && r.pocId === remoteRsv.pocId) return true
+      if (remoteRsv.bocId && r.bocId === remoteRsv.bocId) return true
+      return false
+    })
+    if (candidates.length === 1) return candidates[0].id
+    return null
+  }
 
   for (const remoteRsv of incomingRsvs) {
     let targetId: string
@@ -268,27 +280,61 @@ function mapRemoteRsvsToLocalIds(
       const localByName = byName.get(normalizeName(remoteRsv.name))
       if (localByName) {
         targetId = localByName.id
-      } else if (!usedIds.has(remoteRsv.id)) {
-        targetId = remoteRsv.id
       } else {
-        const seed = `${remoteRsv.id}-RSV`
-        let candidate = seed
-        let n = 2
-        while (usedIds.has(candidate)) {
-          candidate = `${seed}-${n}`
-          n += 1
+        if (remoteRsv.name === remoteRsv.id) {
+          // Synthetic fallback row from ingest: prefer a unique unclaimed local RSV in same scope.
+          const scoped = pickScopedLocalCandidate(remoteRsv)
+          if (scoped) {
+            targetId = scoped
+          } else {
+            if (unmappedLocalIds.size === 1) {
+              targetId = [...unmappedLocalIds][0]
+            } else if (!usedIds.has(remoteRsv.id)) {
+              targetId = remoteRsv.id
+            } else {
+              const seed = `${remoteRsv.id}-RSV`
+              let candidate = seed
+              let n = 2
+              while (usedIds.has(candidate)) {
+                candidate = `${seed}-${n}`
+                n += 1
+              }
+              targetId = candidate
+            }
+          }
+        } else if (unmappedLocalIds.size === 1) {
+          targetId = [...unmappedLocalIds][0]
+        } else if (!usedIds.has(remoteRsv.id)) {
+          targetId = remoteRsv.id
+        } else {
+          const seed = `${remoteRsv.id}-RSV`
+          let candidate = seed
+          let n = 2
+          while (usedIds.has(candidate)) {
+            candidate = `${seed}-${n}`
+            n += 1
+          }
+          targetId = candidate
         }
-        targetId = candidate
-      }
     }
 
     remoteRsvIdToLocalRsvId.set(remoteRsv.id, targetId)
     usedIds.add(targetId)
-    mappedRsvs.push({ ...remoteRsv, id: targetId })
+    unmappedLocalIds.delete(targetId)
+    const localTarget = byId.get(targetId)
+    const syntheticFallbackName = normalizeName(remoteRsv.name) === normalizeName(remoteRsv.id)
+    if (localTarget && syntheticFallbackName) {
+      // Do not let a synthetic placeholder ("name === id") clobber real local metadata.
+      mappedRsvs.push({ ...localTarget })
+    } else {
+      mappedRsvs.push({ ...remoteRsv, id: targetId })
+    }
+  }
   }
 
   return { mappedRsvs, remoteRsvIdToLocalRsvId }
 }
+
 
 function resolveRemotePocIdForMerge(local: AppState, remote: AppState, mergePocId: string): string | null {
   if (remote.pocs.some((p) => p.id === mergePocId)) return mergePocId
@@ -318,6 +364,63 @@ function resolveRemoteBocIdForMerge(local: AppState, remote: AppState, mergeBocI
 
   if (remote.bocs.length === 1) return remote.bocs[0].id
   return null
+}
+
+function resolveRemoteBattalionIdForMerge(
+  local: AppState,
+  remote: AppState,
+  mergeBattalionId: string
+): string | null {
+  if (remote.battalions.some((b) => b.id === mergeBattalionId)) return mergeBattalionId
+  const localBn = local.battalions.find((b) => b.id === mergeBattalionId)
+  const localBnName = normalizeName(localBn?.name)
+  if (localBnName) {
+    const byName = remote.battalions.find((b) => normalizeName(b.name) === localBnName)
+    if (byName) return byName.id
+  }
+  if (remote.battalions.length === 1) return remote.battalions[0].id
+  return null
+}
+
+function resolveRemoteBrigadeIdForMerge(local: AppState, remote: AppState, mergeBrigadeId: string): string | null {
+  if (remote.brigades.some((b) => b.id === mergeBrigadeId)) return mergeBrigadeId
+  const localBde = local.brigades.find((b) => b.id === mergeBrigadeId)
+  const localBdeName = normalizeName(localBde?.name)
+  if (localBdeName) {
+    const byName = remote.brigades.find((b) => normalizeName(b.name) === localBdeName)
+    if (byName) return byName.id
+  }
+  if (remote.brigades.length === 1) return remote.brigades[0].id
+  return null
+}
+
+function buildRemoteScopeForBoc(remote: AppState, remoteBocId: string, localBocId: string): AppState {
+  const scopedPocs = remote.pocs.filter((p) => p.bocId === remoteBocId).map((p) => ({ ...p, bocId: localBocId }))
+  const scopedPocIds = new Set(scopedPocs.map((p) => p.id))
+  const scopedLaunchers = remote.launchers.filter((l) => l.pocId != null && scopedPocIds.has(l.pocId))
+  const scopedLauncherIds = new Set(scopedLaunchers.map((l) => l.id))
+  const scopedAmmo = remote.ammoPlatoons.filter((a) => a.bocId === remoteBocId).map((a) => ({ ...a, bocId: localBocId }))
+  const scopedAmmoIds = new Set(scopedAmmo.map((a) => a.id))
+  const scopedRsvs = remote.rsvs
+    .filter((r) => r.bocId === remoteBocId || (r.pocId != null && scopedPocIds.has(r.pocId)))
+    .map((r) => ({ ...r, bocId: r.bocId === remoteBocId ? localBocId : r.bocId }))
+  const scopedRsvIds = new Set(scopedRsvs.map((r) => r.id))
+  const scopedPods = remote.pods
+    .filter((p) => p.bocId === remoteBocId || podInBatteryScope(p, scopedPocIds, scopedLauncherIds, scopedRsvIds, scopedAmmoIds))
+    .map((p) => ({ ...p, bocId: p.bocId === remoteBocId ? localBocId : p.bocId }))
+  const scopedTasks = remote.tasks.filter((t) => taskInScope(t, scopedPocIds, scopedLauncherIds))
+
+  return {
+    ...remote,
+    bocs: remote.bocs.filter((b) => b.id === remoteBocId).map((b) => ({ ...b, id: localBocId })),
+    pocs: scopedPocs,
+    launchers: scopedLaunchers,
+    pods: scopedPods,
+    rsvs: scopedRsvs,
+    ammoPlatoons: scopedAmmo,
+    tasks: scopedTasks,
+    ammoPltBocId: remote.ammoPltBocId === remoteBocId ? localBocId : remote.ammoPltBocId,
+  }
 }
 
 /**
@@ -492,6 +595,134 @@ export function mergeAppStateByBocId(local: AppState, remote: AppState, bocId: s
 }
 
 /**
+ * Merges all battery/PLT operational data for one battalion from `remote` into `local`.
+ */
+export function mergeAppStateByBattalionId(local: AppState, remote: AppState, battalionId: string): AppState {
+  const sourceRemoteBattalionId = resolveRemoteBattalionIdForMerge(local, remote, battalionId)
+  if (!sourceRemoteBattalionId) return local
+
+  const localBn = local.battalions.find((b) => b.id === battalionId)
+  const remoteBn = remote.battalions.find((b) => b.id === sourceRemoteBattalionId)
+  let working: AppState = {
+    ...local,
+    battalions:
+      remoteBn != null
+        ? upsertById(local.battalions, [{ ...remoteBn, id: battalionId, brigadeId: localBn?.brigadeId ?? remoteBn.brigadeId }])
+        : local.battalions,
+  }
+
+  let remoteBocsInBn = remote.bocs.filter((b) => b.battalionId === sourceRemoteBattalionId)
+  if (remoteBocsInBn.length === 0 && remote.bocs.length > 0) {
+    // Some sender snapshots carry thin/mismatched parent ids; treat sender payload as battalion-scoped.
+    remoteBocsInBn = [...remote.bocs]
+  }
+  const localBocsInBn = working.bocs.filter((b) => b.battalionId === battalionId)
+  const localBocByName = new Map(localBocsInBn.map((b) => [normalizeName(b.name), b.id]))
+
+  for (const remoteBoc of remoteBocsInBn) {
+    const localById = localBocsInBn.find((b) => b.id === remoteBoc.id)
+    const localByName = localBocByName.get(normalizeName(remoteBoc.name))
+    const targetLocalBocId = localById?.id ?? localByName ?? remoteBoc.id
+    const remoteScopeForBoc = buildRemoteScopeForBoc(remote, remoteBoc.id, targetLocalBocId)
+    working = mergeAppStateByBocId(working, remoteScopeForBoc, targetLocalBocId)
+    if (!working.bocs.some((b) => b.id === targetLocalBocId)) {
+      working = {
+        ...working,
+        bocs: upsertById(working.bocs, [{ ...remoteBoc, id: targetLocalBocId, battalionId }]),
+      }
+    } else {
+      working = {
+        ...working,
+        bocs: upsertById(
+          working.bocs,
+          working.bocs
+            .filter((b) => b.id === targetLocalBocId)
+            .map((b) => ({ ...b, battalionId }))
+        ),
+      }
+    }
+  }
+
+  const remoteBattalionPods = remote.pods
+    .filter((p) => p.battalionId === sourceRemoteBattalionId)
+    .map((p) => ({ ...p, battalionId }))
+  if (remoteBattalionPods.length > 0) {
+    working = { ...working, pods: upsertById(working.pods, remoteBattalionPods) }
+  }
+
+  return reconcileAppStateIntegrity(working)
+}
+
+/**
+ * Merges all subordinate operational data for one brigade from `remote` into `local`.
+ */
+export function mergeAppStateByBrigadeId(local: AppState, remote: AppState, brigadeId: string): AppState {
+  const sourceRemoteBrigadeId = resolveRemoteBrigadeIdForMerge(local, remote, brigadeId)
+  if (!sourceRemoteBrigadeId) return local
+
+  const remoteBde = remote.brigades.find((b) => b.id === sourceRemoteBrigadeId)
+  let working: AppState = remoteBde
+    ? { ...local, brigades: upsertById(local.brigades, [{ ...remoteBde, id: brigadeId }]) }
+    : local
+
+  let remoteBattalions = remote.battalions.filter((b) => b.brigadeId === sourceRemoteBrigadeId)
+  if (remoteBattalions.length === 0 && remote.battalions.length > 0) {
+    // Same thin-parent fallback as battalion merge.
+    remoteBattalions = [...remote.battalions]
+  }
+  const localBattalions = working.battalions.filter((b) => b.brigadeId === brigadeId)
+  const localBnByName = new Map(localBattalions.map((b) => [normalizeName(b.name), b.id]))
+
+  for (const remoteBn of remoteBattalions) {
+    const localById = localBattalions.find((b) => b.id === remoteBn.id)
+    const localByName = localBnByName.get(normalizeName(remoteBn.name))
+    const targetLocalBnId = localById?.id ?? localByName ?? remoteBn.id
+
+    const remoteScopeForBn: AppState = {
+      ...remote,
+      battalions: remote.battalions
+        .filter((b) => b.id === remoteBn.id)
+        .map((b) => ({ ...b, id: targetLocalBnId, brigadeId })),
+      bocs: remote.bocs.filter((b) => b.battalionId === remoteBn.id),
+      pocs: remote.pocs,
+      launchers: remote.launchers,
+      pods: remote.pods
+        .map((p) => (p.battalionId === remoteBn.id ? { ...p, battalionId: targetLocalBnId, brigadeId } : p)),
+      rsvs: remote.rsvs,
+      ammoPlatoons: remote.ammoPlatoons,
+      tasks: remote.tasks,
+    }
+
+    working = mergeAppStateByBattalionId(working, remoteScopeForBn, targetLocalBnId)
+    if (!working.battalions.some((b) => b.id === targetLocalBnId)) {
+      working = {
+        ...working,
+        battalions: upsertById(working.battalions, [{ ...remoteBn, id: targetLocalBnId, brigadeId }]),
+      }
+    } else {
+      working = {
+        ...working,
+        battalions: upsertById(
+          working.battalions,
+          working.battalions
+            .filter((b) => b.id === targetLocalBnId)
+            .map((b) => ({ ...b, brigadeId }))
+        ),
+      }
+    }
+  }
+
+  const remoteBrigadePods = remote.pods
+    .filter((p) => p.brigadeId === sourceRemoteBrigadeId)
+    .map((p) => ({ ...p, brigadeId }))
+  if (remoteBrigadePods.length > 0) {
+    working = { ...working, pods: upsertById(working.pods, remoteBrigadePods) }
+  }
+
+  return reconcileAppStateIntegrity(working)
+}
+
+/**
  * Merges operational data for a single PLT FDC (`pocId`) from `remote` into `local`.
  * Only launchers (and their pods) that local org assigns to this POC are updated; other PLTs’ launchers are untouched.
  */
@@ -589,6 +820,8 @@ export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: s
 
 /** When ingest `fromUnitId` matches a roster row’s Peer unit ID, optional merge scope applies (battery / PLT). */
 export function rosterMergeScopeForFromUnitId(fromUnitId: string | null | undefined): {
+  ingestMergeBrigadeId: string | null
+  ingestMergeBattalionId: string | null
   ingestMergeBocId: string | null
   ingestMergePocId: string | null
 } | null {
@@ -599,11 +832,37 @@ export function rosterMergeScopeForFromUnitId(fromUnitId: string | null | undefi
     if (normalizePeerUnitId(r.peerUnitId) !== key) continue
     // Scope is automatic from roster echelon role (no per-row merge selectors).
     const role = parseEchelonRole(r.echelonRole || '')
+    if (role?.type === 'brigade') {
+      return {
+        ingestMergeBrigadeId: role.id,
+        ingestMergeBattalionId: null,
+        ingestMergeBocId: null,
+        ingestMergePocId: null,
+      }
+    }
+    if (role?.type === 'battalion') {
+      return {
+        ingestMergeBrigadeId: null,
+        ingestMergeBattalionId: role.id,
+        ingestMergeBocId: null,
+        ingestMergePocId: null,
+      }
+    }
     if (role?.type === 'boc') {
-      return { ingestMergeBocId: role.id, ingestMergePocId: null }
+      return {
+        ingestMergeBrigadeId: null,
+        ingestMergeBattalionId: null,
+        ingestMergeBocId: role.id,
+        ingestMergePocId: null,
+      }
     }
     if (role?.type === 'poc') {
-      return { ingestMergeBocId: null, ingestMergePocId: role.id }
+      return {
+        ingestMergeBrigadeId: null,
+        ingestMergeBattalionId: null,
+        ingestMergeBocId: null,
+        ingestMergePocId: role.id,
+      }
     }
     return null
   }

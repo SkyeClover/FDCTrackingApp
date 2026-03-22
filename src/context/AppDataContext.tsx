@@ -24,6 +24,8 @@ import {
   deserializeState,
 } from '../utils/saveLoad'
 import {
+  mergeAppStateByBattalionId,
+  mergeAppStateByBrigadeId,
   mergeAppStateByBocId,
   mergeAppStateByPocId,
   reconcileAppStateIntegrity,
@@ -2533,7 +2535,11 @@ export function AppDataProvider({
           ? rosterMergeScopeForFromUnitId(options.fromUnitId)
           : null
         let merged: AppState = incoming
-        if (scope?.ingestMergeBocId) {
+        if (scope?.ingestMergeBrigadeId) {
+          merged = mergeAppStateByBrigadeId(local, incoming, scope.ingestMergeBrigadeId)
+        } else if (scope?.ingestMergeBattalionId) {
+          merged = mergeAppStateByBattalionId(local, incoming, scope.ingestMergeBattalionId)
+        } else if (scope?.ingestMergeBocId) {
           merged = mergeAppStateByBocId(local, incoming, scope.ingestMergeBocId)
         } else if (scope?.ingestMergePocId) {
           merged = mergeAppStateByPocId(local, incoming, scope.ingestMergePocId)
@@ -2550,6 +2556,38 @@ export function AppDataProvider({
           `rsvs=${countDelta(s.rsvs.length, local.rsvs.length)}`,
           `tasks=${countDelta(s.tasks.length, local.tasks.length)}`,
         ].join(', ')
+        const localLauncherById = new Map(local.launchers.map((l) => [l.id, l]))
+        const nextLauncherById = new Map(s.launchers.map((l) => [l.id, l]))
+        const nextPodById = new Map(s.pods.map((p) => [p.id, p]))
+        const localPodById = new Map(local.pods.map((p) => [p.id, p]))
+        const nextRsvIds = new Set(s.rsvs.map((r) => r.id))
+        let launcherPodChanged = 0
+        for (const [id, nextL] of nextLauncherById) {
+          const prev = localLauncherById.get(id)
+          if (!prev) continue
+          if ((prev.podId ?? '') !== (nextL.podId ?? '')) launcherPodChanged += 1
+        }
+        let podCarrierChanged = 0
+        for (const [id, nextP] of nextPodById) {
+          const prev = localPodById.get(id)
+          if (!prev) continue
+          const prevCarrier = `${prev.launcherId ?? ''}|${prev.rsvId ?? ''}|${prev.pocId ?? ''}|${prev.bocId ?? ''}`
+          const nextCarrier = `${nextP.launcherId ?? ''}|${nextP.rsvId ?? ''}|${nextP.pocId ?? ''}|${nextP.bocId ?? ''}`
+          if (prevCarrier !== nextCarrier) podCarrierChanged += 1
+        }
+        const badLauncherPodRefs = s.launchers.filter((l) => l.podId && !nextPodById.has(l.podId)).length
+        const badPodLauncherRefs = s.pods.filter((p) => p.launcherId && !nextLauncherById.has(p.launcherId)).length
+        const badPodRsvRefs = s.pods.filter((p) => p.rsvId && !nextRsvIds.has(p.rsvId)).length
+        const syntheticRsvNames = s.rsvs.filter((r) => r.name === r.id).length
+        const assignmentStats = [
+          `launcherPodChanged=${launcherPodChanged}`,
+          `podCarrierChanged=${podCarrierChanged}`,
+          `podsOnLaunchers=${s.pods.filter((p) => Boolean(p.launcherId)).length}`,
+          `podsOnRsv=${s.pods.filter((p) => Boolean(p.rsvId)).length}`,
+          `podsInPoc=${s.pods.filter((p) => Boolean(p.pocId)).length}`,
+          `badRefs(l->p=${badLauncherPodRefs},p->l=${badPodLauncherRefs},p->rsv=${badPodRsvRefs})`,
+          `syntheticRsvNames=${syntheticRsvNames}`,
+        ].join(', ')
         skipNextStateAutosaveRef.current = true
         saveAppStateToDb(
           s,
@@ -2560,10 +2598,14 @@ export function AppDataProvider({
         writeInitialSetupCompleteToDb()
         setInitialSetupComplete(true)
         const mergeNote =
-          scope?.ingestMergeBocId || scope?.ingestMergePocId
+          scope?.ingestMergeBrigadeId ||
+          scope?.ingestMergeBattalionId ||
+          scope?.ingestMergeBocId ||
+          scope?.ingestMergePocId
             ? ' (merged into local org — other batteries unchanged)'
             : ''
         appendAuditLog('sync', 'Ingest apply summary', mergeStats)
+        appendAuditLog('sync', 'Ingest assignment diagnostics', assignmentStats)
         addLog({ type: 'success', message: `Snapshot applied (ingest / sync)${mergeNote}` })
         return true
       } catch {
