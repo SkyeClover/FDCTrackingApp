@@ -396,6 +396,29 @@ export function SyncControlSection({
     }
   }, [onSyncDone, setFeedback, publishSyncOutput, markLogsChanged])
 
+  const resetVersionCounters = useCallback(() => {
+    if (
+      !confirm(
+        'Reset local version counters? This sets local Data version back to 1 and clears ingest apply/dismiss markers on this device.'
+      )
+    ) {
+      return
+    }
+    updateSyncMeta({
+      stateVersion: 1,
+      lastAppliedIngestStateVersion: 0,
+      dismissedIngestStateVersion: 0,
+    })
+    setIngestSvOnThisSite(null)
+    refreshMeta()
+    appendAuditLog('sync', 'Local version counters reset', 'stateVersion=1, ingest markers cleared')
+    markLogsChanged()
+    publishSyncOutput(
+      'Local counters reset. Note: this site ingest version is owned by fdc-peer-server memory and resets when that server restarts.'
+    )
+    setFeedback('success', 'Local counters reset to baseline.')
+  }, [refreshMeta, setFeedback, publishSyncOutput, markLogsChanged])
+
   return (
     <CollapsibleCard
       title="Sync & identity"
@@ -658,6 +681,23 @@ export function SyncControlSection({
           }}
         >
           {cleanDisconnectBusy ? <><Loader2 size={14} className="spin-inline" aria-hidden />Signing off...</> : 'Clean disconnect (notify upstream)'}
+        </button>
+        <button
+          className="sync-action-btn"
+          type="button"
+          disabled={anyBusy}
+          onClick={resetVersionCounters}
+          title="Reset local Data version counter and ingest apply/dismiss markers on this device."
+          style={{
+            padding: '0.5rem 1rem',
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            cursor: anyBusy ? 'not-allowed' : 'pointer',
+          }}
+        >
+          Reset local counters
         </button>
         <span
           className={anyBusy ? 'sync-version-indicator is-busy' : 'sync-version-indicator'}
