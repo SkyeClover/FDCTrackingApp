@@ -1,7 +1,7 @@
 import type { AppState } from '../types'
 import { serializeStateForPeerSync } from '../utils/saveLoad'
 import { hmacSha256Hex } from './hmac'
-import type { NetworkRosterRow, SyncMetaRow } from '../persistence/sqlite'
+import { listNetworkRoster, type NetworkRosterRow, type SyncMetaRow } from '../persistence/sqlite'
 
 export interface PushResult {
   ok: boolean
@@ -245,11 +245,20 @@ export async function fetchIngestStatus(
   return last
 }
 
+export type IngestOfflineNotify = {
+  fromUnitId: string
+  clean: boolean
+  receivedAt: number
+}
+
 async function fetchIngestHealthAtBase(baseRoot: string): Promise<{
   ok: boolean
   stateVersion?: number
   fromUnitId?: string | null
   detail?: string
+  browserPresent?: boolean
+  browserOfflineKind?: 'clean' | 'stale' | 'unclean' | null
+  offlineNotify?: IngestOfflineNotify | null
 }> {
   const root = baseRoot.replace(/\/$/, '')
   const url = `${root}/fdc/v1/health`
@@ -257,11 +266,33 @@ async function fetchIngestHealthAtBase(baseRoot: string): Promise<{
     const res = await fetch(url, { method: 'GET', credentials: 'omit' })
     const text = await res.text()
     if (!res.ok) return { ok: false, detail: `${text.slice(0, 180)} (${url})` }
-    const j = JSON.parse(text) as { stateVersion?: number; fromUnitId?: string | null }
+    const j = JSON.parse(text) as {
+      stateVersion?: number
+      fromUnitId?: string | null
+      browserPresent?: boolean
+      browserOfflineKind?: string | null
+      offlineNotify?: { fromUnitId?: string; clean?: boolean; receivedAt?: number } | null
+    }
+    let offlineNotify: IngestOfflineNotify | null | undefined
+    if (j.offlineNotify && typeof j.offlineNotify.fromUnitId === 'string' && j.offlineNotify.receivedAt != null) {
+      offlineNotify = {
+        fromUnitId: j.offlineNotify.fromUnitId,
+        clean: j.offlineNotify.clean !== false,
+        receivedAt: Number(j.offlineNotify.receivedAt) || 0,
+      }
+    } else {
+      offlineNotify = undefined
+    }
+    const kind = j.browserOfflineKind
+    const browserOfflineKind =
+      kind === 'clean' || kind === 'stale' || kind === 'unclean' ? kind : null
     return {
       ok: true,
       stateVersion: typeof j.stateVersion === 'number' ? j.stateVersion : 0,
       fromUnitId: j.fromUnitId ?? null,
+      browserPresent: typeof j.browserPresent === 'boolean' ? j.browserPresent : true,
+      browserOfflineKind,
+      offlineNotify: offlineNotify ?? null,
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -278,6 +309,9 @@ export async function fetchIngestHealth(
   stateVersion?: number
   fromUnitId?: string | null
   detail?: string
+  browserPresent?: boolean
+  browserOfflineKind?: 'clean' | 'stale' | 'unclean' | null
+  offlineNotify?: IngestOfflineNotify | null
 }> {
   const bases = getIngestBaseCandidates(pageOrigin, peerListenPort)
   let last: {
@@ -285,6 +319,9 @@ export async function fetchIngestHealth(
     stateVersion?: number
     fromUnitId?: string | null
     detail?: string
+    browserPresent?: boolean
+    browserOfflineKind?: 'clean' | 'stale' | 'unclean' | null
+    offlineNotify?: IngestOfflineNotify | null
   } = { ok: false, detail: 'Could not reach ingest health.' }
   for (const base of bases) {
     last = await fetchIngestHealthAtBase(base)
@@ -296,15 +333,154 @@ export async function fetchIngestHealth(
   return last
 }
 
-export async function fetchPeerHealth(row: NetworkRosterRow): Promise<{ ok: boolean; latencyMs: number }> {
+/** GET health for a roster peer — transport up + optional browser-present (fdc-peer-server 2+). */
+export async function fetchPeerHealth(row: NetworkRosterRow): Promise<{
+  transportOk: boolean
+  browserPresent: boolean
+  browserOfflineKind: 'clean' | 'stale' | 'unclean' | null
+  latencyMs: number
+}> {
   const base = baseUrl(row)
-  if (!base) return { ok: false, latencyMs: 0 }
+  if (!base) return { transportOk: false, browserPresent: false, browserOfflineKind: null, latencyMs: 0 }
   const url = `${base}/fdc/v1/health`
   const t0 = performance.now()
   try {
     const r = await fetch(url, { method: 'GET', credentials: 'omit' })
-    return { ok: r.ok, latencyMs: Math.round(performance.now() - t0) }
+    const latencyMs = Math.round(performance.now() - t0)
+    if (!r.ok) return { transportOk: false, browserPresent: false, browserOfflineKind: null, latencyMs }
+    const text = await r.text()
+    let browserPresent = true
+    let browserOfflineKind: 'clean' | 'stale' | 'unclean' | null = null
+    try {
+      const j = JSON.parse(text) as { browserPresent?: boolean; browserOfflineKind?: string | null }
+      if (typeof j.browserPresent === 'boolean') browserPresent = j.browserPresent
+      const k = j.browserOfflineKind
+      if (k === 'clean' || k === 'stale' || k === 'unclean') browserOfflineKind = k
+    } catch {
+      /* legacy health JSON */
+    }
+    return { transportOk: true, browserPresent, browserOfflineKind, latencyMs }
   } catch {
-    return { ok: false, latencyMs: Math.round(performance.now() - t0) }
+    return {
+      transportOk: false,
+      browserPresent: false,
+      browserOfflineKind: null,
+      latencyMs: Math.round(performance.now() - t0),
+    }
+  }
+}
+
+async function postSignedToUrl(
+  url: string,
+  bodyObj: Record<string, unknown>,
+  secret: string
+): Promise<{ ok: boolean; status: number; detail: string }> {
+  const body = JSON.stringify(bodyObj)
+  const sig = secret ? await hmacSha256Hex(secret, body) : ''
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (sig) headers['X-FDC-Signature'] = sig
+  try {
+    const res = await fetch(url, { method: 'POST', headers, body, credentials: 'omit' })
+    const text = await res.text()
+    return { ok: res.ok, status: res.status, detail: text.slice(0, 300) }
+  } catch (e) {
+    return { ok: false, status: 0, detail: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/** Heartbeat this tab to the local peer ingest (session-ping). No-op if secret missing. */
+export async function sessionPingLocalIngest(
+  pageOrigin: string,
+  peerListenPort: number,
+  meta: SyncMetaRow
+): Promise<void> {
+  if (!meta.syncSharedSecret?.trim()) return
+  const bases = getIngestBaseCandidates(pageOrigin, peerListenPort || DEFAULT_PEER_LISTEN_PORT)
+  const body = { kind: 'session-ping' as const }
+  const secret = meta.syncSharedSecret
+  for (const base of bases) {
+    const root = base.replace(/\/$/, '')
+    const r = await postSignedToUrl(`${root}/fdc/v1/session-ping`, body, secret)
+    if (r.ok) return
+  }
+}
+
+/**
+ * Mark local browser session offline on this machine’s ingest (tab close / clean disconnect).
+ * Uses fetch keepalive when requested so the request may complete after unload.
+ */
+export async function reportBrowserOfflineLocalIngest(
+  pageOrigin: string,
+  peerListenPort: number,
+  meta: SyncMetaRow,
+  options: { clean: boolean; keepalive?: boolean }
+): Promise<void> {
+  if (!meta.syncSharedSecret?.trim()) return
+  const bases = getIngestBaseCandidates(pageOrigin, peerListenPort || DEFAULT_PEER_LISTEN_PORT)
+  const bodyObj = {
+    kind: 'browser-offline' as const,
+    clean: options.clean,
+    fromUnitId: meta.localUnitId?.trim() || undefined,
+  }
+  const body = JSON.stringify(bodyObj)
+  const secret = meta.syncSharedSecret
+  const sig = secret ? await hmacSha256Hex(secret, body) : ''
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (sig) headers['X-FDC-Signature'] = sig
+  for (const base of bases) {
+    const root = base.replace(/\/$/, '')
+    const url = `${root}/fdc/v1/browser-offline`
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'omit',
+        keepalive: Boolean(options.keepalive),
+      })
+      if (res.ok) return
+    } catch {
+      /* try next base */
+    }
+  }
+}
+
+/** POST offline-notify to the first roster row with a host (next upstream hop). */
+export async function notifyUpstreamOffline(
+  meta: SyncMetaRow,
+  options: { clean: boolean; keepalive?: boolean }
+): Promise<{ ok: boolean; detail: string }> {
+  if (!meta.syncSharedSecret?.trim()) {
+    return { ok: false, detail: 'No shared secret' }
+  }
+  const roster = listNetworkRoster()
+  const row = roster.find((r) => r.host && r.port != null && r.bearer === 'ip')
+  if (!row) return { ok: false, detail: 'No upstream peer in roster' }
+  const base = peerBaseUrl(row)
+  if (!base) return { ok: false, detail: 'Bad peer URL' }
+  const bodyObj = {
+    kind: 'offline-notify' as const,
+    fromUnitId: meta.localUnitId?.trim() || 'unknown',
+    clean: options.clean,
+  }
+  const body = JSON.stringify(bodyObj)
+  const secret = meta.syncSharedSecret
+  const sig = secret ? await hmacSha256Hex(secret, body) : ''
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (sig) headers['X-FDC-Signature'] = sig
+  const url = `${base.replace(/\/$/, '')}/fdc/v1/offline-notify`
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      credentials: 'omit',
+      keepalive: Boolean(options.keepalive),
+    })
+    const text = await res.text()
+    if (!res.ok) return { ok: false, detail: text.slice(0, 200) }
+    return { ok: true, detail: row.displayName }
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : String(e) }
   }
 }

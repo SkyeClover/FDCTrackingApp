@@ -11,7 +11,14 @@ import {
   updateSyncMeta,
   upsertNetworkRosterRow,
 } from '../../persistence/sqlite'
-import { fetchIngestStatus, peerBaseUrl, sendPeerPing } from '../../sync/peerClient'
+import {
+  fetchIngestStatus,
+  fetchPeerHealth,
+  notifyUpstreamOffline,
+  peerBaseUrl,
+  reportBrowserOfflineLocalIngest,
+  sendPeerPing,
+} from '../../sync/peerClient'
 import { isSyncSharedSecretConfigured } from '../../sync/syncGuards'
 import { runSnapshotPush } from '../../sync/syncEngine'
 
@@ -29,6 +36,7 @@ export function SyncControlSection({
   const [busy, setBusy] = useState(false)
   const [pullBusy, setPullBusy] = useState(false)
   const [pingBusy, setPingBusy] = useState(false)
+  const [cleanDisconnectBusy, setCleanDisconnectBusy] = useState(false)
   const [lastPath, setLastPath] = useState<string>('')
   const [lastLog, setLastLog] = useState<string>('')
   const [showSkipConfirm, setShowSkipConfirm] = useState(false)
@@ -106,17 +114,26 @@ export function SyncControlSection({
       }
       const lines: string[] = []
       for (const row of peers) {
+        const h = await fetchPeerHealth(row)
         const r = await sendPeerPing(row, m)
         const origin = peerBaseUrl(row) ?? row.displayName
+        const stationClosed = h.transportOk && !h.browserPresent
+        const stationNote = stationClosed
+          ? h.browserOfflineKind === 'clean'
+            ? 'station signed off'
+            : h.browserOfflineKind === 'stale'
+              ? 'no tab heartbeat'
+              : 'browser offline'
+          : null
         lines.push(
-          `${row.displayName}: ${r.ok ? `OK ${r.detail ?? 'pong'}` : `FAIL ${r.detail ?? 'error'}`} → ${origin}`
+          `${row.displayName}: ${r.ok ? `OK ${r.detail ?? 'pong'}` : `FAIL ${r.detail ?? 'error'}`}${stationNote ? ` · ${stationNote}` : ''} → ${origin}`
         )
-        /** Ping proves reachability + HMAC; roster dots were only updated on push (GET health), so fix stale red here. */
+        const rosterStatus = !r.ok ? 'red' : stationClosed ? 'yellow' : 'green'
         upsertNetworkRosterRow({
           ...row,
-          status: r.ok ? 'green' : 'red',
+          status: rosterStatus,
           lastSeenMs: Date.now(),
-          lastError: r.ok ? null : (r.detail ?? 'ping failed'),
+          lastError: !r.ok ? (r.detail ?? 'ping failed') : stationNote,
         })
       }
       setLastPath(['Test message (quick ping — not a full data copy):', ...lines].join('\n'))
@@ -217,6 +234,40 @@ export function SyncControlSection({
     saveMeta({ skipEchelonVerified: true, skipEchelonEnabled: true })
     setShowSkipConfirm(false)
   }, [saveMeta])
+
+  const doCleanDisconnect = useCallback(async () => {
+    if (!isSyncSharedSecretConfigured(getSyncMeta())) {
+      setLastPath('Set your shared passphrase before a clean disconnect.')
+      setLastLog(new Date().toLocaleTimeString())
+      setSyncOutputOpen(true)
+      return
+    }
+    if (
+      !confirm(
+        'Mark this station offline for sync (clean sign-off)? I’ll tell your local ingest and the first roster peer (next echelon up). Close the tab afterward or use this before walking away.'
+      )
+    ) {
+      return
+    }
+    setCleanDisconnectBusy(true)
+    try {
+      const m = getSyncMeta()
+      await reportBrowserOfflineLocalIngest(window.location.origin, m.peerListenPort, m, { clean: true })
+      const up = await notifyUpstreamOffline(m, { clean: true })
+      const lines = [
+        'Local ingest: marked browser session offline (clean).',
+        up.ok ? `Upstream (${up.detail}): notified of clean sign-off.` : `Upstream: ${up.detail}`,
+      ]
+      setLastPath(lines.join('\n'))
+      setLastLog(new Date().toLocaleTimeString())
+      setSyncOutputOpen(true)
+      appendAuditLog('network', 'Clean disconnect', lines.join(' · '))
+      setAuditTick((t) => t + 1)
+      onSyncDone?.()
+    } finally {
+      setCleanDisconnectBusy(false)
+    }
+  }, [onSyncDone])
 
   return (
     <section
@@ -379,7 +430,7 @@ export function SyncControlSection({
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.5rem' }}>
         <button
           type="button"
-          disabled={busy || pullBusy || pingBusy || !secretOk}
+          disabled={busy || pullBusy || pingBusy || cleanDisconnectBusy || !secretOk}
           onClick={() => void doForce()}
           style={{
             padding: '0.5rem 1rem',
@@ -387,7 +438,7 @@ export function SyncControlSection({
             color: '#fff',
             border: 'none',
             borderRadius: '6px',
-            cursor: busy || pullBusy || pingBusy || !secretOk ? 'not-allowed' : 'pointer',
+            cursor: busy || pullBusy || pingBusy || cleanDisconnectBusy || !secretOk ? 'not-allowed' : 'pointer',
             opacity: !secretOk ? 0.55 : 1,
           }}
         >
@@ -404,7 +455,7 @@ export function SyncControlSection({
             color: 'var(--text-primary)',
             border: '1px solid var(--border)',
             borderRadius: '6px',
-            cursor: busy || pullBusy || pingBusy || !secretOk ? 'not-allowed' : 'pointer',
+            cursor: busy || pullBusy || pingBusy || cleanDisconnectBusy || !secretOk ? 'not-allowed' : 'pointer',
             opacity: !secretOk ? 0.55 : 1,
           }}
         >
@@ -412,7 +463,7 @@ export function SyncControlSection({
         </button>
         <button
           type="button"
-          disabled={busy || pullBusy || pingBusy || !secretOk}
+          disabled={busy || pullBusy || pingBusy || cleanDisconnectBusy || !secretOk}
           onClick={() => void doPingPeers()}
           title="Send a quick hello to each LAN peer in the roster — doesn’t copy your full data."
           style={{
@@ -421,11 +472,28 @@ export function SyncControlSection({
             color: 'var(--text-primary)',
             border: '1px solid var(--border)',
             borderRadius: '6px',
-            cursor: busy || pullBusy || pingBusy || !secretOk ? 'not-allowed' : 'pointer',
+            cursor: busy || pullBusy || pingBusy || cleanDisconnectBusy || !secretOk ? 'not-allowed' : 'pointer',
             opacity: !secretOk ? 0.55 : 1,
           }}
         >
           {pingBusy ? 'Pinging…' : 'Send test message'}
+        </button>
+        <button
+          type="button"
+          disabled={busy || pullBusy || pingBusy || cleanDisconnectBusy || !secretOk}
+          onClick={() => void doCleanDisconnect()}
+          title="Tell your local peer server and the first roster row (upstream) that this Walker Track tab is signing off cleanly."
+          style={{
+            padding: '0.5rem 1rem',
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            cursor: busy || pullBusy || pingBusy || cleanDisconnectBusy || !secretOk ? 'not-allowed' : 'pointer',
+            opacity: !secretOk ? 0.55 : 1,
+          }}
+        >
+          {cleanDisconnectBusy ? 'Signing off…' : 'Clean disconnect (notify upstream)'}
         </button>
         <span style={{ alignSelf: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
           Data version: <strong>{sv}</strong>
@@ -433,6 +501,13 @@ export function SyncControlSection({
       </div>
       <p style={{ margin: '0 0 0.45rem', color: 'var(--text-secondary)', fontSize: '0.72rem', lineHeight: 1.35 }}>
         Over the internet: add the other site as a roster row (its hostname, port <code style={{ fontSize: '0.7rem' }}>443</code>, TLS on), and use the same shared passphrase there. If you’re on that same site, you can pull what was last saved there.
+      </p>
+      <p style={{ margin: '0 0 0.45rem', color: 'var(--text-secondary)', fontSize: '0.72rem', lineHeight: 1.35 }}>
+        <strong>Station presence:</strong> each copy should run <code style={{ fontSize: '0.7rem' }}>fdc-peer-server</code> with this
+        build. I heartbeat to it while the tab is open. Closing the tab sends a <em>clean</em> sign-off to your local ingest and
+        the first roster peer (upstream). If the tab dies without that, upstream sees <em>unclean</em> (stale heartbeat) after a
+        couple of minutes — roster goes yellow, push may skip. Use <strong>Clean disconnect</strong> before leaving if you won’t
+        close the tab.
       </p>
 
       {(lastPath || lastLog) && (

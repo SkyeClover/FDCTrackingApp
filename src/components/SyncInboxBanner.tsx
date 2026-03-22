@@ -27,8 +27,14 @@ type BannerState =
 export function SyncInboxBanner() {
   const { applySnapshotFromJson } = useAppData()
   const [banner, setBanner] = useState<BannerState>(null)
+  const bannerRef = useRef<BannerState>(null)
   const busyRef = useRef(false)
   const dismissTimerRef = useRef<number | null>(null)
+  const offlineNotifySeenAtRef = useRef(0)
+
+  useEffect(() => {
+    bannerRef.current = banner
+  }, [banner])
 
   const clearDismissTimer = useCallback(() => {
     if (dismissTimerRef.current) {
@@ -52,6 +58,38 @@ export function SyncInboxBanner() {
     const origin = window.location.origin
     const health = await fetchIngestHealth(origin, meta.peerListenPort)
     if (!health.ok) return
+
+    const offlineN = health.offlineNotify
+    if (
+      offlineN &&
+      meta.incomingAlertsEnabled &&
+      offlineN.receivedAt > offlineNotifySeenAtRef.current
+    ) {
+      const roster = listNetworkRoster()
+      const match = roster.find(
+        (r) =>
+          r.peerUnitId &&
+          offlineN.fromUnitId &&
+          normalizePeerUnitId(String(r.peerUnitId)) === normalizePeerUnitId(offlineN.fromUnitId)
+      )
+      if (match?.syncAlertsEnabled === false) {
+        offlineNotifySeenAtRef.current = offlineN.receivedAt
+      } else if (bannerRef.current?.kind !== 'pending') {
+        offlineNotifySeenAtRef.current = offlineN.receivedAt
+        const label = match?.displayName ?? offlineN.fromUnitId
+        appendAuditLog(
+          'sync',
+          'Upstream offline notice',
+          `${offlineN.fromUnitId} clean=${offlineN.clean}`
+        )
+        setBanner({
+          kind: 'notice',
+          message: `${label} (${offlineN.fromUnitId}) reported going offline — ${offlineN.clean ? 'clean sign-off' : 'disconnect'}.`,
+        })
+        const style = parseSyncAlertStyle(meta.syncAlertStyleJson)
+        scheduleHideNotice(style.durationMs)
+      }
+    }
 
     const ingestSv = health.stateVersion ?? 0
     const fromUid = health.fromUnitId ?? null

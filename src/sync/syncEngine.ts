@@ -44,21 +44,50 @@ export async function runSnapshotPush(state: AppState, forceLabel: string): Prom
       continue
     }
     const health = await fetchPeerHealth(row)
+    const stationClosed = health.transportOk && !health.browserPresent
+    const rosterStatus = !health.transportOk ? 'red' : stationClosed ? 'yellow' : 'green'
+    const stationMsg = !health.transportOk
+      ? 'ingest unreachable'
+      : stationClosed
+        ? health.browserOfflineKind === 'clean'
+          ? 'station signed off (clean)'
+          : health.browserOfflineKind === 'stale'
+            ? 'no browser heartbeat (unclean)'
+            : 'browser session offline'
+        : null
     upsertNetworkRosterRow({
       ...row,
-      status: health.ok ? 'green' : 'red',
+      status: rosterStatus,
       lastSeenMs: Date.now(),
-      lastError: health.ok ? null : 'health check failed',
+      lastError: stationMsg,
     })
 
-    if (!health.ok && !skipAllowed) {
+    if (!health.transportOk && !skipAllowed) {
       targets.push({ row, result: 'unreachable', path: `${row.host}:${row.port}` })
       appendAuditLog('sync', `push skipped ${row.id}`, 'peer offline, skip-echelon off')
       continue
     }
-    if (!health.ok && skipAllowed) {
+    if (!health.transportOk && skipAllowed) {
       targets.push({ row, result: 'skipped (offline, skip mode — try next)', path: `${row.host}:${row.port}` })
       appendAuditLog('sync', `skip hop ${row.id}`, 'offline with skip enabled')
+      continue
+    }
+    if (stationClosed && !skipAllowed) {
+      targets.push({
+        row,
+        result: `station offline (${health.browserOfflineKind ?? '?'})`,
+        path: `${row.host}:${row.port}`,
+      })
+      appendAuditLog('sync', `push skipped ${row.id}`, stationMsg ?? 'browser absent')
+      continue
+    }
+    if (stationClosed && skipAllowed) {
+      targets.push({
+        row,
+        result: `skipped (station offline — ${health.browserOfflineKind ?? '?'})`,
+        path: `${row.host}:${row.port}`,
+      })
+      appendAuditLog('sync', `skip hop ${row.id}`, stationMsg ?? 'browser absent')
       continue
     }
 

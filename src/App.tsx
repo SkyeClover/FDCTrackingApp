@@ -11,6 +11,7 @@ import SimpleKeyboard from './components/SimpleKeyboard'
 import KeyboardToggleButton from './components/KeyboardToggleButton'
 import MaintenanceBanner from './components/MaintenanceBanner'
 import { SyncInboxBanner } from './components/SyncInboxBanner'
+import { BrowserSessionLifecycle } from './components/network/BrowserSessionLifecycle'
 import { useIsMobile } from './hooks/useIsMobile'
 
 function AppContent() {
@@ -29,6 +30,7 @@ function AppContentWithData() {
 
   return (
     <NavigationProvider navigateTo={setCurrentPage}>
+      <BrowserSessionLifecycle />
       <SyncInboxBanner />
       {isMobile ? (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minHeight: 0 }}>

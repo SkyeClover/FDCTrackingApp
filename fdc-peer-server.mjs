@@ -4,7 +4,10 @@
  * Default: http://0.0.0.0:8787
  *
  * POST /fdc/v1/push — JSON body { kind, fromUnitId, stateVersion, snapshotJson }
- * POST /fdc/v1/ping — JSON body { kind: "ping" } — signed; does not store a snapshot
+ * POST /fdc/v1/ping — JSON body { kind: "ping" } — signed; reachability only (does not mark browser present)
+ * POST /fdc/v1/session-ping — JSON { kind: "session-ping" } — marks Walker Track browser tab alive on this host
+ * POST /fdc/v1/browser-offline — JSON { kind: "browser-offline", clean?: boolean, fromUnitId?: string }
+ * POST /fdc/v1/offline-notify — JSON { kind: "offline-notify", fromUnitId, clean?: boolean } — child tells upstream ingest
  * Header X-FDC-Signature: hex HMAC-SHA256 of raw body when FDC_SYNC_SECRET is set.
  */
 import http from 'http'
@@ -21,6 +24,9 @@ const SECRET = (process.env.FDC_SYNC_SECRET || '')
   .trim()
   .replace(/^\uFEFF/, '')
 
+/** If no session-ping / push from the browser in this long, health reports stale (unclean) offline. */
+const STALE_AFTER_MS = Number(process.env.FDC_BROWSER_STALE_MS || 135_000)
+
 const storePath = path.join(process.cwd(), '.fdc-peer-last.json')
 
 let last = {
@@ -28,6 +34,9 @@ let last = {
   fromUnitId: null,
   stateVersion: 0,
   snapshotJson: null,
+  browserLastActivityAt: Date.now(),
+  sessionOffline: null,
+  offlineNotify: null,
 }
 
 function loadStore() {
@@ -37,6 +46,9 @@ function loadStore() {
   } catch {
     /* empty */
   }
+  if (typeof last.browserLastActivityAt !== 'number' || !Number.isFinite(last.browserLastActivityAt)) {
+    last.browserLastActivityAt = Date.now()
+  }
 }
 
 function saveStore() {
@@ -45,6 +57,27 @@ function saveStore() {
   } catch (e) {
     console.error('fdc-peer: could not write store', e)
   }
+}
+
+function touchBrowserSession() {
+  last.browserLastActivityAt = Date.now()
+  last.sessionOffline = null
+  saveStore()
+}
+
+function computeBrowserPresence() {
+  const now = Date.now()
+  if (last.sessionOffline && typeof last.sessionOffline === 'object') {
+    return {
+      browserPresent: false,
+      offlineKind: last.sessionOffline.clean === false ? 'unclean' : 'clean',
+    }
+  }
+  const lastAct = last.browserLastActivityAt || now
+  if (now - lastAct > STALE_AFTER_MS) {
+    return { browserPresent: false, offlineKind: 'stale' }
+  }
+  return { browserPresent: true, offlineKind: null }
 }
 
 loadStore()
@@ -87,6 +120,23 @@ function sendJson(res, status, obj) {
   res.end(body)
 }
 
+function readPost(req, res, maxBytes, onBody) {
+  const chunks = []
+  let total = 0
+  req.on('data', (c) => {
+    chunks.push(c)
+    total += c.length
+    if (total > maxBytes) req.destroy()
+  })
+  req.on('end', () => {
+    try {
+      onBody(Buffer.concat(chunks).toString('utf8'))
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'handler_error' })
+    }
+  })
+}
+
 const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, corsHeaders)
@@ -97,14 +147,19 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host}`)
 
   if (req.method === 'GET' && url.pathname === '/fdc/v1/health') {
+    const presence = computeBrowserPresence()
     sendJson(res, 200, {
       ok: true,
       service: 'fdc-peer',
       stateVersion: last.stateVersion,
       fromUnitId: last.fromUnitId,
       signatureRequired: Boolean(SECRET),
-      /** Non-zero = secret loaded (length only; value never exposed) */
       secretCharCount: SECRET.length,
+      browserPresent: presence.browserPresent,
+      browserOfflineKind: presence.offlineKind,
+      browserLastActivityAt: last.browserLastActivityAt,
+      staleAfterMs: STALE_AFTER_MS,
+      offlineNotify: last.offlineNotify,
     })
     return
   }
@@ -126,15 +181,7 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/fdc/v1/ping') {
-    const chunks = []
-    let total = 0
-    req.on('data', (c) => {
-      chunks.push(c)
-      total += c.length
-      if (total > 65536) req.destroy()
-    })
-    req.on('end', () => {
-      const body = Buffer.concat(chunks).toString('utf8')
+    readPost(req, res, 65536, (body) => {
       const sig = req.headers['x-fdc-signature']
       if (!verifySig(body, sig)) {
         sendJson(res, 401, { ok: false, error: 'bad_signature' })
@@ -150,7 +197,7 @@ const server = http.createServer((req, res) => {
           ok: true,
           pong: true,
           receivedAt: Date.now(),
-          note: 'no snapshot stored',
+          note: 'no snapshot stored; does not affect browser-present',
         })
       } catch {
         sendJson(res, 400, { ok: false, error: 'parse_error' })
@@ -159,16 +206,84 @@ const server = http.createServer((req, res) => {
     return
   }
 
-  if (req.method === 'POST' && url.pathname === '/fdc/v1/push') {
-    const chunks = []
-    let total = 0
-    req.on('data', (c) => {
-      chunks.push(c)
-      total += c.length
-      if (total > 50 * 1024 * 1024) req.destroy()
+  if (req.method === 'POST' && url.pathname === '/fdc/v1/session-ping') {
+    readPost(req, res, 65536, (body) => {
+      const sig = req.headers['x-fdc-signature']
+      if (!verifySig(body, sig)) {
+        sendJson(res, 401, { ok: false, error: 'bad_signature' })
+        return
+      }
+      try {
+        const msg = JSON.parse(body || '{}')
+        if (msg.kind !== 'session-ping') {
+          sendJson(res, 400, { ok: false, error: 'expected_kind_session_ping' })
+          return
+        }
+        touchBrowserSession()
+        sendJson(res, 200, { ok: true, sessionPong: true, receivedAt: Date.now() })
+      } catch {
+        sendJson(res, 400, { ok: false, error: 'parse_error' })
+      }
     })
-    req.on('end', () => {
-      const body = Buffer.concat(chunks).toString('utf8')
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/fdc/v1/browser-offline') {
+    readPost(req, res, 65536, (body) => {
+      const sig = req.headers['x-fdc-signature']
+      if (!verifySig(body, sig)) {
+        sendJson(res, 401, { ok: false, error: 'bad_signature' })
+        return
+      }
+      try {
+        const msg = JSON.parse(body || '{}')
+        if (msg.kind !== 'browser-offline') {
+          sendJson(res, 400, { ok: false, error: 'expected_kind_browser_offline' })
+          return
+        }
+        last.sessionOffline = {
+          clean: msg.clean !== false,
+          at: Date.now(),
+          fromUnitId: typeof msg.fromUnitId === 'string' ? msg.fromUnitId : null,
+        }
+        saveStore()
+        sendJson(res, 200, { ok: true, noted: true, receivedAt: Date.now() })
+      } catch {
+        sendJson(res, 400, { ok: false, error: 'parse_error' })
+      }
+    })
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/fdc/v1/offline-notify') {
+    readPost(req, res, 65536, (body) => {
+      const sig = req.headers['x-fdc-signature']
+      if (!verifySig(body, sig)) {
+        sendJson(res, 401, { ok: false, error: 'bad_signature' })
+        return
+      }
+      try {
+        const msg = JSON.parse(body || '{}')
+        if (msg.kind !== 'offline-notify' || typeof msg.fromUnitId !== 'string' || !msg.fromUnitId.trim()) {
+          sendJson(res, 400, { ok: false, error: 'invalid_offline_notify' })
+          return
+        }
+        last.offlineNotify = {
+          fromUnitId: msg.fromUnitId.trim().slice(0, 64),
+          clean: msg.clean !== false,
+          receivedAt: Date.now(),
+        }
+        saveStore()
+        sendJson(res, 200, { ok: true, relayed: true })
+      } catch {
+        sendJson(res, 400, { ok: false, error: 'parse_error' })
+      }
+    })
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/fdc/v1/push') {
+    readPost(req, res, 50 * 1024 * 1024, (body) => {
       const sig = req.headers['x-fdc-signature']
       if (!verifySig(body, sig)) {
         sendJson(res, 401, { ok: false, error: 'bad_signature' })
@@ -181,6 +296,7 @@ const server = http.createServer((req, res) => {
           return
         }
         last = {
+          ...last,
           receivedAt: Date.now(),
           fromUnitId: msg.fromUnitId ?? null,
           stateVersion: Number(msg.stateVersion) || 0,
@@ -206,6 +322,9 @@ server.listen(PORT, HOST, () => {
   console.log(`Walker Track peer server http://${HOST}:${PORT}`)
   console.log('  GET  /fdc/v1/health')
   console.log('  POST /fdc/v1/ping')
+  console.log('  POST /fdc/v1/session-ping')
+  console.log('  POST /fdc/v1/browser-offline')
+  console.log('  POST /fdc/v1/offline-notify')
   console.log('  POST /fdc/v1/push')
   if (!SECRET) console.warn('  WARNING: FDC_SYNC_SECRET not set — signatures not required')
   else console.log(`  FDC_SYNC_SECRET: loaded (${SECRET.length} chars, must match app Network → Shared secret)`)
