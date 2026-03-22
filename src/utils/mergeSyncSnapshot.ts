@@ -16,6 +16,54 @@ function upsertById<T extends WithId>(existing: T[], incoming: T[]): T[] {
   return merged
 }
 
+function mapRemotePodsToLocalIds(localPods: Pod[], incomingPods: Pod[]): {
+  mappedPods: Pod[]
+  remotePodIdToLocalPodId: Map<string, string>
+} {
+  if (incomingPods.length === 0) {
+    return { mappedPods: incomingPods, remotePodIdToLocalPodId: new Map() }
+  }
+
+  const byUuid = new Map<string, Pod>()
+  const byId = new Map<string, Pod>()
+  const usedIds = new Set(localPods.map((p) => p.id))
+  for (const p of localPods) {
+    byId.set(p.id, p)
+    if (p.uuid) byUuid.set(p.uuid, p)
+  }
+
+  const remotePodIdToLocalPodId = new Map<string, string>()
+  const mappedPods: Pod[] = []
+
+  for (const remotePod of incomingPods) {
+    let targetId: string | null = null
+    const localByUuid = remotePod.uuid ? byUuid.get(remotePod.uuid) : undefined
+    if (localByUuid) {
+      targetId = localByUuid.id
+    } else {
+      const localById = byId.get(remotePod.id)
+      if (!localById || localById.uuid === remotePod.uuid) {
+        targetId = remotePod.id
+      } else {
+        const seed = remotePod.uuid ? `${remotePod.id}-${remotePod.uuid.slice(0, 8)}` : `${remotePod.id}-SYNC`
+        let candidate = seed
+        let n = 2
+        while (usedIds.has(candidate)) {
+          candidate = `${seed}-${n}`
+          n += 1
+        }
+        targetId = candidate
+      }
+    }
+
+    remotePodIdToLocalPodId.set(remotePod.id, targetId)
+    usedIds.add(targetId)
+    mappedPods.push({ ...remotePod, id: targetId })
+  }
+
+  return { mappedPods, remotePodIdToLocalPodId }
+}
+
 function taskInScope(t: Task, pocIds: Set<string>, launcherIds: Set<string>): boolean {
   if (t.pocIds?.some((id) => pocIds.has(id))) return true
   if (t.launcherIds?.some((id) => launcherIds.has(id))) return true
@@ -158,7 +206,7 @@ export function mergeAppStateByBocId(local: AppState, remote: AppState, bocId: s
     .map((id) => ({ id, name: id, launchers: [], bocId }))
   const remotePocs = [...remotePocsKnown, ...remotePocsFallback]
 
-  const remoteLaunchers = remote.launchers
+  let remoteLaunchers = remote.launchers
     .filter((l) =>
       remoteLauncherAllowedForBocMerge(local, l, sourceRemoteBocId, remotePocIds, remotePocById)
     )
@@ -192,13 +240,21 @@ export function mergeAppStateByBocId(local: AppState, remote: AppState, bocId: s
     }))
   const rsvIds = new Set(remoteRsvs.map((r) => r.id))
 
-  const remotePods = remote.pods
+  const scopedRemotePods = remote.pods
     .filter((p) => podInBatteryScope(p, remotePocIds, launcherIds, rsvIds, ammoIds))
     .map((p) => ({
       ...p,
       bocId: p.bocId === sourceRemoteBocId ? bocId : p.bocId,
       pocId: p.pocId ? (remoteToLocalPocId.get(p.pocId) ?? p.pocId) : p.pocId,
     }))
+  const { mappedPods: remotePods, remotePodIdToLocalPodId } = mapRemotePodsToLocalIds(
+    local.pods,
+    scopedRemotePods
+  )
+  remoteLaunchers = remoteLaunchers.map((l) => ({
+    ...l,
+    podId: l.podId ? (remotePodIdToLocalPodId.get(l.podId) ?? l.podId) : l.podId,
+  }))
 
   // Non-destructive merge: update incoming ids, keep local entities that sender didn't include.
   const mergedPocs = upsertById(local.pocs, remotePocs)
@@ -257,7 +313,7 @@ export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: s
       bocId: localPoc?.bocId ?? p.bocId,
     }))
   const remotePoc = remotePocs[0]
-  const remoteLaunchers = remote.launchers
+  let remoteLaunchers = remote.launchers
     .filter((l) => remoteLauncherAllowedForPocMerge(local, l, sourceRemotePocId))
     .map((l) => ({ ...l, pocId }))
   const launcherIds = new Set(remoteLaunchers.map((l) => l.id))
@@ -267,9 +323,17 @@ export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: s
     .map((r) => ({ ...r, pocId }))
   const rsvIds = new Set(remoteRsvs.map((r) => r.id))
 
-  const remotePods = remote.pods
+  const scopedRemotePods = remote.pods
     .filter((p) => podInBatteryScope(p, remoteScopePocIds, launcherIds, rsvIds, oldAmmoIds))
     .map((p) => (p.pocId === sourceRemotePocId ? { ...p, pocId } : p))
+  const { mappedPods: remotePods, remotePodIdToLocalPodId } = mapRemotePodsToLocalIds(
+    local.pods,
+    scopedRemotePods
+  )
+  remoteLaunchers = remoteLaunchers.map((l) => ({
+    ...l,
+    podId: l.podId ? (remotePodIdToLocalPodId.get(l.podId) ?? l.podId) : l.podId,
+  }))
 
   // Non-destructive merge for this PLT: update only known incoming ids.
   const mergedPocs = upsertById(local.pocs, remotePocs)
