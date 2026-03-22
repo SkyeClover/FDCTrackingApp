@@ -147,9 +147,11 @@ export function SyncControlSection({
           rosterStatus = 'red'
           lastErr = r.detail ?? 'ping failed'
         } else if (!tracked) {
-          line = `WARN crypto OK — peer can’t report if Walker Track tab is open (deploy current fdc-peer-server on them)`
+          line = row.peerUnitId?.trim()
+            ? `WARN crypto OK — ingest didn’t return per-unit tab presence (unexpected for Vercel / current peer server)`
+            : `WARN set “Peer unit ID” on this row (must match their Network → Local unit ID) so the ingest can report that station’s tab`
           rosterStatus = 'yellow'
-          lastErr = 'ingest has no session tracking'
+          lastErr = 'ingest has no per-unit session tracking'
         } else if (tabMissing) {
           const kind =
             h.browserOfflineKind === 'clean'
@@ -160,6 +162,10 @@ export function SyncControlSection({
           line = `FAIL station closed (${kind}) — ${r.detail ?? 'pong'}`
           rosterStatus = 'yellow'
           lastErr = `Walker Track tab not present (${kind})`
+        } else if (h.snapshotUnitMismatch) {
+          line = `WARN last snapshot on their ingest is from a different Local unit ID than this row’s Peer unit ID — ${r.detail ?? 'pong'}`
+          rosterStatus = 'yellow'
+          lastErr = 'snapshot fromUnitId ≠ Peer unit ID'
         } else {
           line = `OK Walker Track tab up — ${r.detail ?? 'pong'}`
           rosterStatus = 'green'

@@ -24,6 +24,18 @@
       "destination": "/api/fdc?route=ping"
     },
     {
+      "source": "/fdc/v1/session-ping",
+      "destination": "/api/fdc?route=session-ping"
+    },
+    {
+      "source": "/fdc/v1/browser-offline",
+      "destination": "/api/fdc?route=browser-offline"
+    },
+    {
+      "source": "/fdc/v1/offline-notify",
+      "destination": "/api/fdc?route=offline-notify"
+    },
+    {
       "source": "/fdc/v1/status",
       "destination": "/api/fdc?route=status"
     },

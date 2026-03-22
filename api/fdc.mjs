@@ -56,11 +56,26 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
-let memoryLast = {
-  receivedAt: 0,
-  fromUnitId: null,
-  stateVersion: 0,
-  snapshotJson: null,
+const STALE_AFTER_MS = Number(process.env.FDC_BROWSER_STALE_MS || 135000)
+
+function defaultState() {
+  return {
+    receivedAt: 0,
+    fromUnitId: null,
+    stateVersion: 0,
+    snapshotJson: null,
+    sessions: {},
+    offlineNotify: null,
+    browserLastActivityAt: 0,
+    sessionOffline: null,
+  }
+}
+
+let memoryLast = defaultState()
+
+function normUnit(s) {
+  if (!s || typeof s !== 'string') return ''
+  return s.replace(/\s/g, '').toUpperCase()
 }
 
 function hmacHex(body) {
@@ -142,24 +157,66 @@ async function writeRedisLast(obj) {
 }
 
 async function getLast() {
+  const d = defaultState()
+  let j = null
   if (hasRedisUrl()) {
-    const j = await readRedisLast()
-    if (j && typeof j === 'object') return { ...memoryLast, ...j }
+    j = await readRedisLast()
+  } else if (hasKvEnv()) {
+    j = await readKvLast()
   }
-  if (hasKvEnv()) {
-    const j = await readKvLast()
-    if (j && typeof j === 'object') return { ...memoryLast, ...j }
-  }
-  return memoryLast
+  const merged = { ...d, ...memoryLast, ...(j && typeof j === 'object' ? j : {}) }
+  if (!merged.sessions || typeof merged.sessions !== 'object') merged.sessions = {}
+  return merged
 }
 
-async function setLast(next) {
-  memoryLast = next
+async function persistState(s) {
+  memoryLast = s
   if (hasRedisUrl()) {
-    await writeRedisLast(next)
+    await writeRedisLast(s)
   } else if (hasKvEnv()) {
-    await writeKvLast(next)
+    await writeKvLast(s)
   }
+}
+
+async function updateState(fn) {
+  const s = await getLast()
+  fn(s)
+  if (!s.sessions || typeof s.sessions !== 'object') s.sessions = {}
+  await persistState(s)
+}
+
+function computeGlobalPresence(s) {
+  const now = Date.now()
+  if (s.sessionOffline && typeof s.sessionOffline === 'object') {
+    return {
+      browserPresent: false,
+      offlineKind: s.sessionOffline.clean === false ? 'unclean' : 'clean',
+    }
+  }
+  const raw = s.browserLastActivityAt
+  if (typeof raw !== 'number' || raw <= 0 || now - raw > STALE_AFTER_MS) {
+    return { browserPresent: false, offlineKind: 'stale' }
+  }
+  return { browserPresent: true, offlineKind: null }
+}
+
+function presenceForForUnit(s, forUnitRaw) {
+  const key = normUnit(forUnitRaw)
+  if (!key) return computeGlobalPresence(s)
+  const ent = s.sessions[key]
+  if (!ent || typeof ent.browserLastActivityAt !== 'number') {
+    return { browserPresent: false, offlineKind: 'stale' }
+  }
+  if (ent.sessionOffline && typeof ent.sessionOffline === 'object') {
+    return {
+      browserPresent: false,
+      offlineKind: ent.sessionOffline.clean === false ? 'unclean' : 'clean',
+    }
+  }
+  if (Date.now() - ent.browserLastActivityAt > STALE_AFTER_MS) {
+    return { browserPresent: false, offlineKind: 'stale' }
+  }
+  return { browserPresent: true, offlineKind: null }
 }
 
 function sendJson(res, status, obj, extra = {}) {
@@ -200,7 +257,17 @@ export default async function handler(req, res) {
   const route = url.searchParams.get('route') || ''
 
   if (req.method === 'GET' && route === 'health') {
+    const forQ = (url.searchParams.get('forUnit') || '').trim()
     const last = await getLast()
+    const presence = forQ ? presenceForForUnit(last, forQ) : computeGlobalPresence(last)
+    const k = normUnit(forQ)
+    const lastAct = forQ
+      ? last.sessions[k]?.browserLastActivityAt ?? 0
+      : last.browserLastActivityAt ?? 0
+    const snapMis =
+      Boolean(forQ) && Boolean(last.fromUnitId) && normUnit(last.fromUnitId) !== normUnit(forQ)
+    /** Without forUnit on a shared host we cannot attribute tab presence to a roster row (set Peer unit ID). */
+    const stationSessionTracked = forQ ? true : false
     sendJson(res, 200, {
       ok: true,
       service: 'fdc-peer',
@@ -208,6 +275,14 @@ export default async function handler(req, res) {
       fromUnitId: last.fromUnitId ?? null,
       signatureRequired: Boolean(SECRET),
       secretCharCount: SECRET.length,
+      stationSessionTracked,
+      forUnit: forQ || null,
+      snapshotUnitMismatch: snapMis,
+      browserPresent: presence.browserPresent,
+      browserOfflineKind: presence.offlineKind,
+      browserLastActivityAt: lastAct,
+      staleAfterMs: STALE_AFTER_MS,
+      offlineNotify: last.offlineNotify ?? null,
     })
     return
   }
@@ -260,6 +335,123 @@ export default async function handler(req, res) {
     return
   }
 
+  if (req.method === 'POST' && route === 'session-ping') {
+    let body
+    try {
+      body = await readBody(req, 65536)
+    } catch (e) {
+      sendJson(res, 413, { ok: false, error: e instanceof Error ? e.message : 'too_large' })
+      return
+    }
+    const sig = req.headers['x-fdc-signature']
+    if (!verifyPostSig(body, sig)) {
+      sendJson(res, 401, { ok: false, error: 'bad_signature' })
+      return
+    }
+    try {
+      const msg = JSON.parse(body || '{}')
+      if (msg.kind !== 'session-ping') {
+        sendJson(res, 400, { ok: false, error: 'expected_kind_session_ping' })
+        return
+      }
+      const uid =
+        typeof msg.unitId === 'string'
+          ? msg.unitId
+          : typeof msg.fromUnitId === 'string'
+            ? msg.fromUnitId
+            : ''
+      await updateState((s) => {
+        const key = normUnit(uid)
+        if (key) {
+          s.sessions[key] = s.sessions[key] || {}
+          s.sessions[key].browserLastActivityAt = Date.now()
+          s.sessions[key].sessionOffline = null
+        } else {
+          s.browserLastActivityAt = Date.now()
+          s.sessionOffline = null
+        }
+      })
+      sendJson(res, 200, { ok: true, sessionPong: true, receivedAt: Date.now() })
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'parse_error' })
+    }
+    return
+  }
+
+  if (req.method === 'POST' && route === 'browser-offline') {
+    let body
+    try {
+      body = await readBody(req, 65536)
+    } catch (e) {
+      sendJson(res, 413, { ok: false, error: e instanceof Error ? e.message : 'too_large' })
+      return
+    }
+    const sig = req.headers['x-fdc-signature']
+    if (!verifyPostSig(body, sig)) {
+      sendJson(res, 401, { ok: false, error: 'bad_signature' })
+      return
+    }
+    try {
+      const msg = JSON.parse(body || '{}')
+      if (msg.kind !== 'browser-offline') {
+        sendJson(res, 400, { ok: false, error: 'expected_kind_browser_offline' })
+        return
+      }
+      const uid = typeof msg.fromUnitId === 'string' ? msg.fromUnitId : ''
+      const off = {
+        clean: msg.clean !== false,
+        at: Date.now(),
+        fromUnitId: uid || null,
+      }
+      await updateState((s) => {
+        const key = normUnit(uid)
+        if (key) {
+          s.sessions[key] = s.sessions[key] || {}
+          s.sessions[key].sessionOffline = off
+        } else {
+          s.sessionOffline = off
+        }
+      })
+      sendJson(res, 200, { ok: true, noted: true, receivedAt: Date.now() })
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'parse_error' })
+    }
+    return
+  }
+
+  if (req.method === 'POST' && route === 'offline-notify') {
+    let body
+    try {
+      body = await readBody(req, 65536)
+    } catch (e) {
+      sendJson(res, 413, { ok: false, error: e instanceof Error ? e.message : 'too_large' })
+      return
+    }
+    const sig = req.headers['x-fdc-signature']
+    if (!verifyPostSig(body, sig)) {
+      sendJson(res, 401, { ok: false, error: 'bad_signature' })
+      return
+    }
+    try {
+      const msg = JSON.parse(body || '{}')
+      if (msg.kind !== 'offline-notify' || typeof msg.fromUnitId !== 'string' || !msg.fromUnitId.trim()) {
+        sendJson(res, 400, { ok: false, error: 'invalid_offline_notify' })
+        return
+      }
+      await updateState((s) => {
+        s.offlineNotify = {
+          fromUnitId: msg.fromUnitId.trim().slice(0, 64),
+          clean: msg.clean !== false,
+          receivedAt: Date.now(),
+        }
+      })
+      sendJson(res, 200, { ok: true, relayed: true })
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'parse_error' })
+    }
+    return
+  }
+
   if (req.method === 'POST' && route === 'push') {
     let body
     try {
@@ -279,16 +471,18 @@ export default async function handler(req, res) {
         sendJson(res, 400, { ok: false, error: 'invalid_payload' })
         return
       }
-      const next = {
-        receivedAt: Date.now(),
-        fromUnitId: msg.fromUnitId ?? null,
-        stateVersion: Number(msg.stateVersion) || 0,
-        snapshotJson: msg.snapshotJson,
-      }
-      await setLast(next)
+      const sv = Number(msg.stateVersion) || 0
+      await updateState((s) => {
+        Object.assign(s, {
+          receivedAt: Date.now(),
+          fromUnitId: msg.fromUnitId ?? null,
+          stateVersion: sv,
+          snapshotJson: msg.snapshotJson,
+        })
+      })
       sendJson(res, 200, {
         ok: true,
-        ackStateVersion: next.stateVersion,
+        ackStateVersion: sv,
         relayNote: `stored (${getStoreHint()}); relay ACK down-chain is app responsibility`,
       })
     } catch {

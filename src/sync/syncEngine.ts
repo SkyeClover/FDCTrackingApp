@@ -46,18 +46,24 @@ export async function runSnapshotPush(state: AppState, forceLabel: string): Prom
     const health = await fetchPeerHealth(row)
     const tabDown =
       health.transportOk && health.stationSessionTracked && !health.browserPresent
-    const rosterStatus = !health.transportOk ? 'red' : tabDown ? 'yellow' : 'green'
+    const rosterStatus = !health.transportOk
+      ? 'red'
+      : health.snapshotUnitMismatch || tabDown
+        ? 'yellow'
+        : 'green'
     const stationMsg = !health.transportOk
       ? 'ingest unreachable'
-      : tabDown
-        ? health.browserOfflineKind === 'clean'
-          ? 'Walker Track tab signed off (clean)'
-          : health.browserOfflineKind === 'stale'
-            ? 'no tab heartbeat (unclean)'
-            : 'Walker Track tab offline'
-        : !health.stationSessionTracked && health.transportOk
-          ? 'ingest up — session tracking unknown (old fdc-peer-server?)'
-          : null
+      : health.snapshotUnitMismatch
+        ? 'snapshot fromUnitId ≠ Peer unit ID on roster'
+        : tabDown
+          ? health.browserOfflineKind === 'clean'
+            ? 'Walker Track tab signed off (clean)'
+            : health.browserOfflineKind === 'stale'
+              ? 'no tab heartbeat (unclean)'
+              : 'Walker Track tab offline'
+          : !health.stationSessionTracked && health.transportOk
+            ? 'ingest up — set Peer unit ID or update peer server for tab presence'
+            : null
     upsertNetworkRosterRow({
       ...row,
       status: rosterStatus,

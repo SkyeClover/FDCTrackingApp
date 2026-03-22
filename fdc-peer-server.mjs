@@ -37,6 +37,8 @@ let last = {
   browserLastActivityAt: Date.now(),
   sessionOffline: null,
   offlineNotify: null,
+  /** Per Local unit ID (normalized): tab heartbeat + clean/unclean offline for that unit only. */
+  unitSessions: {},
 }
 
 function loadStore() {
@@ -49,6 +51,7 @@ function loadStore() {
   if (typeof last.browserLastActivityAt !== 'number' || !Number.isFinite(last.browserLastActivityAt)) {
     last.browserLastActivityAt = Date.now()
   }
+  if (!last.unitSessions || typeof last.unitSessions !== 'object') last.unitSessions = {}
 }
 
 function saveStore() {
@@ -65,6 +68,11 @@ function touchBrowserSession() {
   saveStore()
 }
 
+function normUnit(s) {
+  if (!s || typeof s !== 'string') return ''
+  return s.replace(/\s/g, '').toUpperCase()
+}
+
 function computeBrowserPresence() {
   const now = Date.now()
   if (last.sessionOffline && typeof last.sessionOffline === 'object') {
@@ -75,6 +83,26 @@ function computeBrowserPresence() {
   }
   const lastAct = last.browserLastActivityAt || now
   if (now - lastAct > STALE_AFTER_MS) {
+    return { browserPresent: false, offlineKind: 'stale' }
+  }
+  return { browserPresent: true, offlineKind: null }
+}
+
+/** When ?forUnit= matches roster Peer unit ID — unclean disconnect = stale for that id only. */
+function presenceForForUnit(forUnitRaw) {
+  const key = normUnit(forUnitRaw)
+  if (!key) return computeBrowserPresence()
+  const ent = last.unitSessions[key]
+  if (!ent || typeof ent.browserLastActivityAt !== 'number') {
+    return { browserPresent: false, offlineKind: 'stale' }
+  }
+  if (ent.sessionOffline && typeof ent.sessionOffline === 'object') {
+    return {
+      browserPresent: false,
+      offlineKind: ent.sessionOffline.clean === false ? 'unclean' : 'clean',
+    }
+  }
+  if (Date.now() - ent.browserLastActivityAt > STALE_AFTER_MS) {
     return { browserPresent: false, offlineKind: 'stale' }
   }
   return { browserPresent: true, offlineKind: null }
@@ -147,7 +175,17 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host}`)
 
   if (req.method === 'GET' && url.pathname === '/fdc/v1/health') {
-    const presence = computeBrowserPresence()
+    const forQ = (url.searchParams.get('forUnit') || '').trim()
+    const presence = forQ ? presenceForForUnit(forQ) : computeBrowserPresence()
+    const lastActForUnit = forQ
+      ? last.unitSessions[normUnit(forQ)]?.browserLastActivityAt ?? 0
+      : last.browserLastActivityAt ?? 0
+    const snapMis =
+      Boolean(forQ) &&
+      Boolean(last.fromUnitId) &&
+      normUnit(last.fromUnitId) !== normUnit(forQ)
+    /** Without forUnit, clients cannot attribute tab presence to a roster row (set Peer unit ID). */
+    const stationSessionTracked = Boolean(forQ)
     sendJson(res, 200, {
       ok: true,
       service: 'fdc-peer',
@@ -155,11 +193,12 @@ const server = http.createServer((req, res) => {
       fromUnitId: last.fromUnitId,
       signatureRequired: Boolean(SECRET),
       secretCharCount: SECRET.length,
-      /** When true, clients should trust browserPresent for “is the Walker Track tab up?” */
-      stationSessionTracked: true,
+      stationSessionTracked,
+      forUnit: forQ || null,
+      snapshotUnitMismatch: snapMis,
       browserPresent: presence.browserPresent,
       browserOfflineKind: presence.offlineKind,
-      browserLastActivityAt: last.browserLastActivityAt,
+      browserLastActivityAt: lastActForUnit,
       staleAfterMs: STALE_AFTER_MS,
       offlineNotify: last.offlineNotify,
     })
@@ -221,7 +260,21 @@ const server = http.createServer((req, res) => {
           sendJson(res, 400, { ok: false, error: 'expected_kind_session_ping' })
           return
         }
-        touchBrowserSession()
+        const uid =
+          typeof msg.unitId === 'string'
+            ? msg.unitId
+            : typeof msg.fromUnitId === 'string'
+              ? msg.fromUnitId
+              : ''
+        const k = normUnit(uid)
+        if (k) {
+          if (!last.unitSessions[k]) last.unitSessions[k] = {}
+          last.unitSessions[k].browserLastActivityAt = Date.now()
+          last.unitSessions[k].sessionOffline = null
+        } else {
+          touchBrowserSession()
+        }
+        saveStore()
         sendJson(res, 200, { ok: true, sessionPong: true, receivedAt: Date.now() })
       } catch {
         sendJson(res, 400, { ok: false, error: 'parse_error' })
@@ -243,10 +296,18 @@ const server = http.createServer((req, res) => {
           sendJson(res, 400, { ok: false, error: 'expected_kind_browser_offline' })
           return
         }
-        last.sessionOffline = {
+        const uid = typeof msg.fromUnitId === 'string' ? msg.fromUnitId : ''
+        const off = {
           clean: msg.clean !== false,
           at: Date.now(),
-          fromUnitId: typeof msg.fromUnitId === 'string' ? msg.fromUnitId : null,
+          fromUnitId: uid || null,
+        }
+        const k = normUnit(uid)
+        if (k) {
+          if (!last.unitSessions[k]) last.unitSessions[k] = {}
+          last.unitSessions[k].sessionOffline = off
+        } else {
+          last.sessionOffline = off
         }
         saveStore()
         sendJson(res, 200, { ok: true, noted: true, receivedAt: Date.now() })

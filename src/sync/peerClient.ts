@@ -341,6 +341,8 @@ export async function fetchPeerHealth(row: NetworkRosterRow): Promise<{
   /** Meaningful when stationSessionTracked; otherwise assume true for legacy (snapshot push still allowed). */
   browserPresent: boolean
   browserOfflineKind: 'clean' | 'stale' | 'unclean' | null
+  /** Last snapshot on ingest was pushed with a different Local unit ID than this row’s Peer unit ID. */
+  snapshotUnitMismatch: boolean
   latencyMs: number
 }> {
   const base = baseUrl(row)
@@ -350,10 +352,14 @@ export async function fetchPeerHealth(row: NetworkRosterRow): Promise<{
       stationSessionTracked: false,
       browserPresent: false,
       browserOfflineKind: null,
+      snapshotUnitMismatch: false,
       latencyMs: 0,
     }
   }
-  const url = `${base}/fdc/v1/health`
+  const peerUid = row.peerUnitId?.trim()
+  const url = peerUid
+    ? `${base}/fdc/v1/health?forUnit=${encodeURIComponent(peerUid)}`
+    : `${base}/fdc/v1/health`
   const t0 = performance.now()
   try {
     const r = await fetch(url, { method: 'GET', credentials: 'omit' })
@@ -364,6 +370,7 @@ export async function fetchPeerHealth(row: NetworkRosterRow): Promise<{
         stationSessionTracked: false,
         browserPresent: false,
         browserOfflineKind: null,
+        snapshotUnitMismatch: false,
         latencyMs,
       }
     }
@@ -371,28 +378,39 @@ export async function fetchPeerHealth(row: NetworkRosterRow): Promise<{
     let stationSessionTracked = false
     let browserPresent = true
     let browserOfflineKind: 'clean' | 'stale' | 'unclean' | null = null
+    let snapshotUnitMismatch = false
     try {
       const j = JSON.parse(text) as {
         stationSessionTracked?: boolean
         browserPresent?: boolean
         browserOfflineKind?: string | null
+        snapshotUnitMismatch?: boolean
       }
       if (j.stationSessionTracked === true) {
         stationSessionTracked = true
         browserPresent = typeof j.browserPresent === 'boolean' ? j.browserPresent : false
       }
+      if (j.snapshotUnitMismatch === true) snapshotUnitMismatch = true
       const k = j.browserOfflineKind
       if (k === 'clean' || k === 'stale' || k === 'unclean') browserOfflineKind = k
     } catch {
       /* legacy health JSON — no tab tracking */
     }
-    return { transportOk: true, stationSessionTracked, browserPresent, browserOfflineKind, latencyMs }
+    return {
+      transportOk: true,
+      stationSessionTracked,
+      browserPresent,
+      browserOfflineKind,
+      snapshotUnitMismatch,
+      latencyMs,
+    }
   } catch {
     return {
       transportOk: false,
       stationSessionTracked: false,
       browserPresent: false,
       browserOfflineKind: null,
+      snapshotUnitMismatch: false,
       latencyMs: Math.round(performance.now() - t0),
     }
   }
@@ -436,7 +454,11 @@ export async function sessionPingLocalIngest(
 ): Promise<void> {
   if (!meta.syncSharedSecret?.trim()) return
   const bases = getIngestBaseCandidates(pageOrigin, peerListenPort || DEFAULT_PEER_LISTEN_PORT)
-  const body = { kind: 'session-ping' as const }
+  const uid = meta.localUnitId?.trim()
+  const body = {
+    kind: 'session-ping' as const,
+    ...(uid ? { unitId: uid } : {}),
+  }
   const secret = meta.syncSharedSecret
   for (const base of bases) {
     const root = base.replace(/\/$/, '')
