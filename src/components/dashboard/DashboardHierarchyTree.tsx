@@ -630,6 +630,21 @@ export default function DashboardHierarchyTree({
               {sortByName(bns).map((bn) => {
                 const bocList = bocsByBattalion.map.get(bn.id) || []
                 if (bocList.length === 0) return null
+                const bnPocs = bocList.flatMap((boc) => pocsByBoc.get(boc.id) || [])
+                const bnLaunchers = bnPocs.flatMap((poc) => launchersByPoc.get(poc.id) || [])
+                const bnRoundSummary = summarizeRoundSummary({
+                  launcherList: bnLaunchers,
+                  pocIds: new Set(bnPocs.map((p) => p.id)),
+                  bocIds: new Set(bocList.map((b) => b.id)),
+                  battalionIds: new Set([bn.id]),
+                })
+                const bnRoundTooltip = `Loaded by type: ${formatByTypeSummary(
+                  bnRoundSummary.loadedByTypeAvailable,
+                  bnRoundSummary.loadedByTypeTotal
+                )} | Reload reserve by type: ${formatByTypeSummary(
+                  bnRoundSummary.reserveByTypeAvailable,
+                  bnRoundSummary.reserveByTypeTotal
+                )}`
                 const bk = `bg-${bg.id}-bn-${bn.id}`
                 return (
                   <div key={bn.id} style={{ marginBottom: '0.5rem' }}>
@@ -638,9 +653,12 @@ export default function DashboardHierarchyTree({
                         {isOpen(bk) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                         <span>{bn.name}</span>
                       </span>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                        {bocList.length} BOC
-                      </span>
+                      {renderSummaryChips(
+                        `${bocList.length} BOC · ${bnLaunchers.length} HIMARS`,
+                        formatTypePodRoundSummaryCompact(bnRoundSummary.loadedPodsByType, bnRoundSummary.loadedByTypeAvailable),
+                        formatTypePodRoundSummaryCompact(bnRoundSummary.reservePodsByType, bnRoundSummary.reserveByTypeAvailable),
+                        bnRoundTooltip
+                      )}
                     </button>
                     {isOpen(bk) && (
                       <div style={{ marginTop: '0.25rem', paddingLeft: '0.35rem' }}>
@@ -667,12 +685,35 @@ export default function DashboardHierarchyTree({
             <div style={{ marginTop: '0.35rem', paddingLeft: '0.75rem' }}>
               {sortByName(battalionsByBrigade.orphan).map((bn) => {
                 const bocList = bocsByBattalion.map.get(bn.id) || []
+                const bnPocs = bocList.flatMap((boc) => pocsByBoc.get(boc.id) || [])
+                const bnLaunchers = bnPocs.flatMap((poc) => launchersByPoc.get(poc.id) || [])
+                const bnRoundSummary = summarizeRoundSummary({
+                  launcherList: bnLaunchers,
+                  pocIds: new Set(bnPocs.map((p) => p.id)),
+                  bocIds: new Set(bocList.map((b) => b.id)),
+                  battalionIds: new Set([bn.id]),
+                })
+                const bnRoundTooltip = `Loaded by type: ${formatByTypeSummary(
+                  bnRoundSummary.loadedByTypeAvailable,
+                  bnRoundSummary.loadedByTypeTotal
+                )} | Reload reserve by type: ${formatByTypeSummary(
+                  bnRoundSummary.reserveByTypeAvailable,
+                  bnRoundSummary.reserveByTypeTotal
+                )}`
                 const bk = `orph-bn-${bn.id}`
                 return (
                   <div key={bn.id} style={{ marginBottom: '0.45rem' }}>
                     <button type="button" onClick={() => toggle(bk)} style={{ ...branchBtn, paddingLeft: '0.25rem' }}>
-                      {isOpen(bk) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                      <span>{bn.name}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                        {isOpen(bk) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        <span>{bn.name}</span>
+                      </span>
+                      {renderSummaryChips(
+                        `${bocList.length} BOC · ${bnLaunchers.length} HIMARS`,
+                        formatTypePodRoundSummaryCompact(bnRoundSummary.loadedPodsByType, bnRoundSummary.loadedByTypeAvailable),
+                        formatTypePodRoundSummaryCompact(bnRoundSummary.reservePodsByType, bnRoundSummary.reserveByTypeAvailable),
+                        bnRoundTooltip
+                      )}
                     </button>
                     {isOpen(bk) && (
                       <div style={{ paddingLeft: '0.35rem' }}>{bocList.map((boc) => renderBocNode(boc, 8))}</div>
