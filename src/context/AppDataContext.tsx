@@ -26,6 +26,7 @@ import {
 import {
   mergeAppStateByBocId,
   mergeAppStateByPocId,
+  reconcileAppStateIntegrity,
   rosterMergeScopeForFromUnitId,
 } from '../utils/mergeSyncSnapshot'
 import { normalizeLoadedAppState } from '../utils/normalizeAppState'
@@ -2537,7 +2538,8 @@ export function AppDataProvider({
         } else if (scope?.ingestMergePocId) {
           merged = mergeAppStateByPocId(local, incoming, scope.ingestMergePocId)
         }
-        const normalized = normalizeLoadedAppState({ ...merged, currentUserRole: undefined })
+        const reconciled = reconcileAppStateIntegrity(merged)
+        const normalized = normalizeLoadedAppState({ ...reconciled, currentUserRole: undefined })
         const s = mergePreservedViewRoleAfterSync(normalized, preserved)
         const countDelta = (next: number, prev: number) => `${next} (${next >= prev ? '+' : ''}${next - prev})`
         const mergeStats = [
