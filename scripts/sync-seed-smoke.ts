@@ -1,6 +1,6 @@
 import type { AppState, TaskTemplate } from '../src/types'
 import {
-  mergeAppStateByBocId,
+  mergeAppStateByPocId,
   reconcileAppStateIntegrity,
 } from '../src/utils/mergeSyncSnapshot'
 
@@ -38,9 +38,33 @@ function run(): void {
   bocLocal.battalions = [{ id: 'bn-local', name: '1-27 FAR', brigadeId: 'bde-local' }]
   bocLocal.bocs = [{ id: 'boc-local', name: 'A Battery', pocs: [], battalionId: 'bn-local' }]
   bocLocal.pocs = [{ id: 'poc-local-a10', name: 'A10', launchers: [], bocId: 'boc-local' }]
-  bocLocal.launchers = [{ id: 'L-A10-1', name: 'A10-L1', pocId: 'poc-local-a10', status: 'idle' }]
+  bocLocal.launchers = [
+    { id: 'L-A10-1', name: 'A10-L1', pocId: 'poc-local-a10', status: 'idle' },
+    { id: 'L-A10-2', name: 'A10-L2', pocId: 'poc-local-a10', status: 'idle' },
+  ]
   // Existing local RSV with real name (different id than sender).
   bocLocal.rsvs = [{ id: 'rsv-local-a10-1', name: 'A10 RSV 1', pocId: 'poc-local-a10', bocId: 'boc-local' }]
+  bocLocal.pods = [
+    {
+      id: 'pod-local-stale-l2',
+      uuid: 'uuid-local-stale-l2',
+      name: 'STALE_POD_L2',
+      rounds: [{ id: 's1', type: 'M31', status: 'available' }],
+      launcherId: 'L-A10-2',
+      pocId: 'poc-local-a10',
+    },
+  ]
+  bocLocal.tasks = [
+    {
+      id: 'reload-stale-l2',
+      name: 'Reload stale',
+      description: 'Stale local task should be pruned by authoritative merge',
+      status: 'in-progress',
+      progress: 5,
+      launcherIds: ['L-A10-2'],
+      pocIds: ['poc-local-a10'],
+    },
+  ]
 
   // Sender (POC) snapshot with different hierarchy IDs and RSV omitted (only referenced by pods).
   const pocRemote = baseState()
@@ -91,11 +115,12 @@ function run(): void {
     },
   ]
 
-  // Hop 1: POC -> BOC scoped merge.
-  const mergedAtBoc = mergeAppStateByBocId(bocLocal, pocRemote, 'boc-local')
-  const rsv = mergedAtBoc.rsvs.find((r) => r.id === 'rsv-local-a10-1')
-  assert(Boolean(rsv), 'Expected local scoped RSV to remain present')
-  assert(rsv?.name === 'A10 RSV 1', 'Expected RSV real name to be preserved')
+  // Hop 1: POC -> BOC scoped merge (POC scoped path, with remote/local POC ID mismatch).
+  const mergedAtBoc = mergeAppStateByPocId(bocLocal, pocRemote, 'poc-remote-a10')
+  const pocScopedRsvs = mergedAtBoc.rsvs.filter((r) => r.pocId === 'poc-local-a10')
+  assert(pocScopedRsvs.length === 1, `Expected exactly one RSV in POC scope, got ${pocScopedRsvs.length}`)
+  const rsv = pocScopedRsvs[0]
+  assert(rsv.name === 'A10 RSV 1', 'Expected RSV real name to be preserved')
   assert(!mergedAtBoc.rsvs.some((x) => x.name === x.id), 'Expected no synthetic fallback RSV labels')
 
   const launcher = mergedAtBoc.launchers.find((l) => l.id === 'L-A10-1')
@@ -103,7 +128,22 @@ function run(): void {
   const loadedPod = mergedAtBoc.pods.find((p) => p.id === launcher?.podId)
   assert(Boolean(loadedPod), 'Expected launcher podId to resolve to an existing pod')
   assert(loadedPod?.launcherId === 'L-A10-1', 'Expected loaded pod to point back to launcher')
-  assert(loadedPod?.rsvId === 'rsv-local-a10-1', 'Expected pod RSV to resolve to local RSV id')
+  assert(loadedPod?.rsvId === rsv.id, 'Expected pod RSV to resolve to local RSV id')
+  assert(!mergedAtBoc.launchers.some((l) => l.id === 'L-A10-2'), 'Expected stale launcher to be pruned')
+  assert(
+    !mergedAtBoc.pods.some((p) => p.id === 'pod-local-stale-l2'),
+    'Expected stale pod to be pruned with stale launcher'
+  )
+  assert(
+    !mergedAtBoc.tasks.some((t) => t.id === 'reload-stale-l2'),
+    'Expected stale task to be pruned with stale launcher scope'
+  )
+  const reloadTask = mergedAtBoc.tasks.find((t) => t.id === 'reload-1')
+  assert(Boolean(reloadTask), 'Expected incoming launcher task to be present')
+  assert(
+    reloadTask?.launcherIds?.includes('L-A10-1') === true,
+    'Expected incoming task to reference updated launcher scope'
+  )
 
   // Hop 2/3: BOC -> Battalion -> Brigade behave like full-apply then integrity reconcile.
   const atBn = reconcileAppStateIntegrity({ ...mergedAtBoc })
@@ -111,7 +151,7 @@ function run(): void {
   const endLauncher = atBde.launchers.find((l) => l.id === 'L-A10-1')
   const endPod = atBde.pods.find((p) => p.id === endLauncher?.podId)
   assert(Boolean(endPod), 'Expected launcher/pod link to survive upstream hops')
-  assert(endPod?.rsvId === 'rsv-local-a10-1', 'Expected RSV resolution to survive upstream hops')
+  assert(endPod?.rsvId === rsv.id, 'Expected RSV resolution to survive upstream hops')
 
   console.log('SYNC_SMOKE_OK')
   console.log(
@@ -120,9 +160,10 @@ function run(): void {
         launchers: atBde.launchers.length,
         pods: atBde.pods.length,
         rsvs: atBde.rsvs.length,
+        tasks: atBde.tasks.length,
         launcherPod: endLauncher?.podId ?? null,
         podRsv: endPod?.rsvId ?? null,
-        rsvName: atBde.rsvs.find((x) => x.id === 'rsv-local-a10-1')?.name ?? null,
+        rsvName: rsv.name,
       },
       null,
       2

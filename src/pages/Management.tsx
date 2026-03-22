@@ -172,6 +172,7 @@ export default function Management() {
   const {
     taskTemplates,
     addRSV,
+    ammoPlatoons,
     addTaskTemplate,
     updateTaskTemplate,
     deleteTaskTemplate,
@@ -218,13 +219,17 @@ export default function Management() {
   }
 
   const taskTemplatesMemo = useMemo(() => taskTemplates, [taskTemplates])
+  const ammoPlatoonsMemo = useMemo(
+    () => [...ammoPlatoons].sort((a, b) => a.name.localeCompare(b.name)),
+    [ammoPlatoons]
+  )
 
   const handleAddRSV = useCallback(
-    (data: { name: string; assignToAmmoPlt?: boolean }) => {
+    (data: { name: string; assignToAmmoPlt?: boolean; preferredAmmoPltId?: string }) => {
       addRSV({
         id: Date.now().toString(),
         name: data.name,
-      }, data.assignToAmmoPlt)
+      }, data.assignToAmmoPlt, data.preferredAmmoPltId)
       setShowRSVForm(false)
     },
     [addRSV]
@@ -577,8 +582,9 @@ export default function Management() {
                   const formData = new FormData(e.target as HTMLFormElement)
                   const name = formData.get('name') as string
                   const assignToAmmoPlt = formData.get('assignToAmmoPlt') === 'on'
+                  const preferredAmmoPltId = (formData.get('preferredAmmoPltId') as string | null)?.trim() || undefined
                   if (name?.trim()) {
-                    handleAddRSV({ name: name.trim(), assignToAmmoPlt })
+                    handleAddRSV({ name: name.trim(), assignToAmmoPlt, preferredAmmoPltId })
                   }
                 }}
                 style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
@@ -619,6 +625,39 @@ export default function Management() {
                   />
                   <span>Assign to Ammo PLT (instead of current user's unit)</span>
                 </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <label
+                    htmlFor="preferredAmmoPltId"
+                    style={{ color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 500 }}
+                  >
+                    Preferred Ammo PLT (optional)
+                  </label>
+                  <select
+                    id="preferredAmmoPltId"
+                    name="preferredAmmoPltId"
+                    defaultValue=""
+                    style={{
+                      padding: '0.5rem',
+                      backgroundColor: 'var(--bg-primary)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '4px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    <option value="">Auto-pick based on role / first available</option>
+                    {ammoPlatoonsMemo.map((ap) => (
+                      <option key={ap.id} value={ap.id}>
+                        {ap.name}
+                      </option>
+                    ))}
+                  </select>
+                  {ammoPlatoonsMemo.length === 0 ? (
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                      No Ammo PLTs exist yet. If selected, a default Ammo PLT will be created.
+                    </span>
+                  ) : null}
+                </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button
                     type="submit"

@@ -94,7 +94,7 @@ interface AppDataContextType {
   assignAmmoPlatoonToBOC: (ammoPltId: string, bocId: string) => void
   addLauncher: (launcher: Launcher) => void
   addPod: (pod: Pod) => void
-  addRSV: (rsv: RSV, assignToAmmoPlt?: boolean) => void
+  addRSV: (rsv: RSV, assignToAmmoPlt?: boolean, preferredAmmoPltId?: string) => void
   deleteBrigade: (brigadeId: string) => void
   deleteBattalion: (battalionId: string) => void
   deleteBOC: (bocId: string) => void
@@ -655,14 +655,20 @@ export function AppDataProvider({
     addLog({ type: 'info', message: `Pod "${pod.name}" created` })
   }, [addLog])
 
-  const addRSV = useCallback((rsv: RSV, assignToAmmoPlt?: boolean) => {
+  const addRSV = useCallback((rsv: RSV, assignToAmmoPlt?: boolean, preferredAmmoPltId?: string) => {
     setState((prev) => {
       if (assignToAmmoPlt) {
         let ammoPlatoons = [...(prev.ammoPlatoons ?? [])]
-        let ammoId =
-          prev.currentUserRole?.type === 'boc'
-            ? ammoPlatoons.find((ap) => ap.bocId === prev.currentUserRole!.id)?.id
-            : undefined
+        let ammoId = preferredAmmoPltId?.trim() || undefined
+        if (ammoId && !ammoPlatoons.some((ap) => ap.id === ammoId)) {
+          ammoId = undefined
+        }
+        if (!ammoId) {
+          ammoId =
+            prev.currentUserRole?.type === 'boc'
+              ? ammoPlatoons.find((ap) => ap.bocId === prev.currentUserRole!.id)?.id
+              : undefined
+        }
         if (!ammoId) {
           ammoId = ammoPlatoons[0]?.id
         }
@@ -2588,6 +2594,35 @@ export function AppDataProvider({
           `badRefs(l->p=${badLauncherPodRefs},p->l=${badPodLauncherRefs},p->rsv=${badPodRsvRefs})`,
           `syntheticRsvNames=${syntheticRsvNames}`,
         ].join(', ')
+        const countPruned = <T extends { id: string }>(prevRows: T[], nextRows: T[]): number => {
+          const nextIds = new Set(nextRows.map((row) => row.id))
+          let removed = 0
+          for (const row of prevRows) {
+            if (!nextIds.has(row.id)) removed += 1
+          }
+          return removed
+        }
+        const scopeLabel = scope?.ingestMergeBrigadeId
+          ? `brigade:${scope.ingestMergeBrigadeId}`
+          : scope?.ingestMergeBattalionId
+            ? `battalion:${scope.ingestMergeBattalionId}`
+            : scope?.ingestMergeBocId
+              ? `boc:${scope.ingestMergeBocId}`
+              : scope?.ingestMergePocId
+                ? `poc:${scope.ingestMergePocId}`
+                : 'full'
+        const pruneStats = [
+          `scope=${scopeLabel}`,
+          `brigades=${countPruned(local.brigades, s.brigades)}`,
+          `battalions=${countPruned(local.battalions, s.battalions)}`,
+          `bocs=${countPruned(local.bocs, s.bocs)}`,
+          `pocs=${countPruned(local.pocs, s.pocs)}`,
+          `ammoPlatoons=${countPruned(local.ammoPlatoons, s.ammoPlatoons)}`,
+          `launchers=${countPruned(local.launchers, s.launchers)}`,
+          `pods=${countPruned(local.pods, s.pods)}`,
+          `rsvs=${countPruned(local.rsvs, s.rsvs)}`,
+          `tasks=${countPruned(local.tasks, s.tasks)}`,
+        ].join(', ')
         skipNextStateAutosaveRef.current = true
         saveAppStateToDb(
           s,
@@ -2606,6 +2641,7 @@ export function AppDataProvider({
             : ''
         appendAuditLog('sync', 'Ingest apply summary', mergeStats)
         appendAuditLog('sync', 'Ingest assignment diagnostics', assignmentStats)
+        appendAuditLog('sync', 'Ingest authoritative prune counts', pruneStats)
         addLog({ type: 'success', message: `Snapshot applied (ingest / sync)${mergeNote}` })
         return true
       } catch {

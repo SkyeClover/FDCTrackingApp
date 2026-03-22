@@ -16,6 +16,16 @@ function upsertById<T extends WithId>(existing: T[], incoming: T[]): T[] {
   return merged
 }
 
+function replaceByScope<T extends WithId>(
+  existing: T[],
+  incoming: T[],
+  inScope: (row: T) => boolean
+): T[] {
+  const incomingById = new Map(incoming.map((x) => [x.id, x]))
+  const keptOutsideScope = existing.filter((x) => !inScope(x) && !incomingById.has(x.id))
+  return [...keptOutsideScope, ...incoming]
+}
+
 function mapRemotePodsToLocalIds(localPods: Pod[], incomingPods: Pod[]): {
   mappedPods: Pod[]
   remotePodIdToLocalPodId: Map<string, string>
@@ -224,13 +234,18 @@ function remoteLauncherAllowedForBocMerge(
   return true
 }
 
-function remoteLauncherAllowedForPocMerge(local: AppState, remoteL: Launcher, mergePocId: string): boolean {
-  if (remoteL.pocId !== mergePocId) return false
+function remoteLauncherAllowedForPocMerge(
+  local: AppState,
+  remoteL: Launcher,
+  sourceRemotePocId: string,
+  targetLocalPocId: string
+): boolean {
+  if (remoteL.pocId !== sourceRemotePocId) return false
 
   const existing = local.launchers.find((l) => l.id === remoteL.id)
   if (!existing) return true
   if (!existing.pocId) return true
-  return existing.pocId === mergePocId
+  return existing.pocId === targetLocalPocId
 }
 
 function normalizeName(s: string | null | undefined): string {
@@ -350,6 +365,24 @@ function resolveRemotePocIdForMerge(local: AppState, remote: AppState, mergePocI
   const inferredPocIds = [...inferRemotePocIds(remote)]
   if (inferredPocIds.length === 1) return inferredPocIds[0]
   return null
+}
+
+function resolveLocalPocIdForMerge(local: AppState, remote: AppState, requestedPocId: string): string {
+  if (local.pocs.some((p) => p.id === requestedPocId)) return requestedPocId
+
+  const requestedAsName = local.pocs.filter((p) => normalizeName(p.name) === normalizeName(requestedPocId))
+  if (requestedAsName.length === 1) return requestedAsName[0].id
+
+  const remotePocByRequestedId = remote.pocs.find((p) => p.id === requestedPocId)
+  if (remotePocByRequestedId) {
+    const byRemoteName = local.pocs.filter(
+      (p) => normalizeName(p.name) === normalizeName(remotePocByRequestedId.name)
+    )
+    if (byRemoteName.length === 1) return byRemoteName[0].id
+  }
+
+  if (local.pocs.length === 1 && remote.pocs.length === 1) return local.pocs[0].id
+  return requestedPocId
 }
 
 function resolveRemoteBocIdForMerge(local: AppState, remote: AppState, mergeBocId: string): string | null {
@@ -558,20 +591,42 @@ export function mergeAppStateByBocId(local: AppState, remote: AppState, bocId: s
     podId: l.podId ? (remotePodIdToLocalPodId.get(l.podId) ?? l.podId) : l.podId,
   }))
 
-  // Non-destructive merge: update incoming ids, keep local entities that sender didn't include.
-  const mergedPocs = upsertById(local.pocs, remotePocs)
-  const mergedLaunchers = upsertById(local.launchers, remoteLaunchers)
-  const mergedAmmo = upsertById(local.ammoPlatoons, remoteAmmo)
-  const mergedRsvs = upsertById(local.rsvs, mappedRemoteRsvs)
-  const mergedPods = upsertById(local.pods, remotePods)
-  const mergedTasks = upsertById(
+  const localLauncherIdsInBoc = new Set(
+    local.launchers.filter((l) => l.pocId != null && localPocIdsInBoc.has(l.pocId)).map((l) => l.id)
+  )
+  const localAmmoIdsInBoc = new Set(local.ammoPlatoons.filter((a) => a.bocId === bocId).map((a) => a.id))
+  const localRsvIdsInBoc = new Set(localRsvsInScope.map((r) => r.id))
+  const incomingTasksInScope = remote.tasks
+    .filter((t) => taskInScope(t, remotePocIds, launcherIds))
+    .map((t) => ({
+      ...t,
+      pocIds: t.pocIds?.map((id) => (remoteToLocalPocId.get(id) ?? id)),
+    }))
+
+  // Authoritative battery merge: sender scope replaces local scope.
+  const mergedPocs = replaceByScope(local.pocs, remotePocs, (p) => p.bocId === bocId)
+  const mergedLaunchers = replaceByScope(
+    local.launchers,
+    remoteLaunchers,
+    (l) => l.pocId != null && localPocIdsInBoc.has(l.pocId)
+  )
+  const mergedAmmo = replaceByScope(local.ammoPlatoons, remoteAmmo, (a) => a.bocId === bocId)
+  const mergedRsvs = replaceByScope(
+    local.rsvs,
+    mappedRemoteRsvs,
+    (r) => r.bocId === bocId || (r.pocId != null && localPocIdsInBoc.has(r.pocId))
+  )
+  const mergedPods = replaceByScope(
+    local.pods,
+    remotePods,
+    (p) =>
+      p.bocId === bocId ||
+      podInBatteryScope(p, localPocIdsInBoc, localLauncherIdsInBoc, localRsvIdsInBoc, localAmmoIdsInBoc)
+  )
+  const mergedTasks = replaceByScope(
     local.tasks,
-    remote.tasks
-      .filter((t) => taskInScope(t, remotePocIds, launcherIds))
-      .map((t) => ({
-        ...t,
-        pocIds: t.pocIds?.map((id) => (remoteToLocalPocId.get(id) ?? id)),
-      }))
+    incomingTasksInScope,
+    (t) => taskInScope(t, localPocIdsInBoc, localLauncherIdsInBoc)
   )
   const remoteBoc = remote.bocs.find((b) => b.id === sourceRemoteBocId)
   const mergedBocs = remoteBoc ? upsertById(local.bocs, [{ ...remoteBoc, id: bocId }]) : local.bocs
@@ -619,10 +674,12 @@ export function mergeAppStateByBattalionId(local: AppState, remote: AppState, ba
   const localBocsInBn = working.bocs.filter((b) => b.battalionId === battalionId)
   const localBocByName = new Map(localBocsInBn.map((b) => [normalizeName(b.name), b.id]))
 
+  const authoritativeBocIds = new Set<string>()
   for (const remoteBoc of remoteBocsInBn) {
     const localById = localBocsInBn.find((b) => b.id === remoteBoc.id)
     const localByName = localBocByName.get(normalizeName(remoteBoc.name))
     const targetLocalBocId = localById?.id ?? localByName ?? remoteBoc.id
+    authoritativeBocIds.add(targetLocalBocId)
     const remoteScopeForBoc = buildRemoteScopeForBoc(remote, remoteBoc.id, targetLocalBocId)
     working = mergeAppStateByBocId(working, remoteScopeForBoc, targetLocalBocId)
     if (!working.bocs.some((b) => b.id === targetLocalBocId)) {
@@ -646,8 +703,48 @@ export function mergeAppStateByBattalionId(local: AppState, remote: AppState, ba
   const remoteBattalionPods = remote.pods
     .filter((p) => p.battalionId === sourceRemoteBattalionId)
     .map((p) => ({ ...p, battalionId }))
-  if (remoteBattalionPods.length > 0) {
-    working = { ...working, pods: upsertById(working.pods, remoteBattalionPods) }
+  const mergedBocs = replaceByScope(
+    working.bocs,
+    working.bocs
+      .filter((b) => authoritativeBocIds.has(b.id))
+      .map((b) => ({ ...b, battalionId })),
+    (b) => b.battalionId === battalionId
+  )
+  const removedBocIds = new Set(
+    local.bocs.filter((b) => b.battalionId === battalionId).map((b) => b.id).filter((id) => !authoritativeBocIds.has(id))
+  )
+  const removedPocIds = new Set(working.pocs.filter((p) => p.bocId && removedBocIds.has(p.bocId)).map((p) => p.id))
+  const removedLauncherIds = new Set(
+    working.launchers.filter((l) => l.pocId && removedPocIds.has(l.pocId)).map((l) => l.id)
+  )
+  const removedRsvIds = new Set(
+    working.rsvs
+      .filter((r) => (r.bocId && removedBocIds.has(r.bocId)) || (r.pocId && removedPocIds.has(r.pocId)))
+      .map((r) => r.id)
+  )
+  working = {
+    ...working,
+    bocs: mergedBocs,
+    pocs: working.pocs.filter((p) => !(p.bocId && removedBocIds.has(p.bocId))),
+    ammoPlatoons: working.ammoPlatoons.filter((a) => !(a.bocId && removedBocIds.has(a.bocId))),
+    rsvs: working.rsvs.filter(
+      (r) => !((r.bocId && removedBocIds.has(r.bocId)) || (r.pocId && removedPocIds.has(r.pocId)))
+    ),
+    launchers: working.launchers.filter((l) => !(l.pocId && removedPocIds.has(l.pocId))),
+    pods: replaceByScope(
+      working.pods.filter(
+        (p) =>
+          !(
+            (p.bocId && removedBocIds.has(p.bocId)) ||
+            (p.pocId && removedPocIds.has(p.pocId)) ||
+            (p.launcherId && removedLauncherIds.has(p.launcherId)) ||
+            (p.rsvId && removedRsvIds.has(p.rsvId))
+          )
+      ),
+      remoteBattalionPods,
+      (p) => p.battalionId === battalionId
+    ),
+    tasks: working.tasks.filter((t) => !taskInScope(t, removedPocIds, removedLauncherIds)),
   }
 
   return reconcileAppStateIntegrity(working)
@@ -673,10 +770,12 @@ export function mergeAppStateByBrigadeId(local: AppState, remote: AppState, brig
   const localBattalions = working.battalions.filter((b) => b.brigadeId === brigadeId)
   const localBnByName = new Map(localBattalions.map((b) => [normalizeName(b.name), b.id]))
 
+  const authoritativeBattalionIds = new Set<string>()
   for (const remoteBn of remoteBattalions) {
     const localById = localBattalions.find((b) => b.id === remoteBn.id)
     const localByName = localBnByName.get(normalizeName(remoteBn.name))
     const targetLocalBnId = localById?.id ?? localByName ?? remoteBn.id
+    authoritativeBattalionIds.add(targetLocalBnId)
 
     const remoteScopeForBn: AppState = {
       ...remote,
@@ -715,8 +814,54 @@ export function mergeAppStateByBrigadeId(local: AppState, remote: AppState, brig
   const remoteBrigadePods = remote.pods
     .filter((p) => p.brigadeId === sourceRemoteBrigadeId)
     .map((p) => ({ ...p, brigadeId }))
-  if (remoteBrigadePods.length > 0) {
-    working = { ...working, pods: upsertById(working.pods, remoteBrigadePods) }
+  const mergedBattalions = replaceByScope(
+    working.battalions,
+    working.battalions
+      .filter((b) => authoritativeBattalionIds.has(b.id))
+      .map((b) => ({ ...b, brigadeId })),
+    (b) => b.brigadeId === brigadeId
+  )
+  const removedBattalionIds = new Set(
+    local.battalions
+      .filter((b) => b.brigadeId === brigadeId)
+      .map((b) => b.id)
+      .filter((id) => !authoritativeBattalionIds.has(id))
+  )
+  const removedBocIds = new Set(working.bocs.filter((b) => b.battalionId && removedBattalionIds.has(b.battalionId)).map((b) => b.id))
+  const removedPocIds = new Set(working.pocs.filter((p) => p.bocId && removedBocIds.has(p.bocId)).map((p) => p.id))
+  const removedLauncherIds = new Set(
+    working.launchers.filter((l) => l.pocId && removedPocIds.has(l.pocId)).map((l) => l.id)
+  )
+  const removedRsvIds = new Set(
+    working.rsvs
+      .filter((r) => (r.bocId && removedBocIds.has(r.bocId)) || (r.pocId && removedPocIds.has(r.pocId)))
+      .map((r) => r.id)
+  )
+  working = {
+    ...working,
+    battalions: mergedBattalions,
+    bocs: working.bocs.filter((b) => !(b.battalionId && removedBattalionIds.has(b.battalionId))),
+    pocs: working.pocs.filter((p) => !(p.bocId && removedBocIds.has(p.bocId))),
+    ammoPlatoons: working.ammoPlatoons.filter((a) => !(a.bocId && removedBocIds.has(a.bocId))),
+    rsvs: working.rsvs.filter(
+      (r) => !((r.bocId && removedBocIds.has(r.bocId)) || (r.pocId && removedPocIds.has(r.pocId)))
+    ),
+    launchers: working.launchers.filter((l) => !(l.pocId && removedPocIds.has(l.pocId))),
+    pods: replaceByScope(
+      working.pods.filter(
+        (p) =>
+          !(
+            (p.battalionId && removedBattalionIds.has(p.battalionId)) ||
+            (p.bocId && removedBocIds.has(p.bocId)) ||
+            (p.pocId && removedPocIds.has(p.pocId)) ||
+            (p.launcherId && removedLauncherIds.has(p.launcherId)) ||
+            (p.rsvId && removedRsvIds.has(p.rsvId))
+          )
+      ),
+      remoteBrigadePods,
+      (p) => p.brigadeId === brigadeId
+    ),
+    tasks: working.tasks.filter((t) => !taskInScope(t, removedPocIds, removedLauncherIds)),
   }
 
   return reconcileAppStateIntegrity(working)
@@ -727,28 +872,29 @@ export function mergeAppStateByBrigadeId(local: AppState, remote: AppState, brig
  * Only launchers (and their pods) that local org assigns to this POC are updated; other PLTs’ launchers are untouched.
  */
 export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: string): AppState {
-  const sourceRemotePocId = resolveRemotePocIdForMerge(local, remote, pocId)
+  const targetLocalPocId = resolveLocalPocIdForMerge(local, remote, pocId)
+  const sourceRemotePocId = resolveRemotePocIdForMerge(local, remote, targetLocalPocId)
   if (!sourceRemotePocId) return local
 
   const remoteScopePocIds = new Set<string>([sourceRemotePocId])
   const oldAmmoIds = new Set<string>()
 
-  const localPoc = local.pocs.find((p) => p.id === pocId)
+  const localPoc = local.pocs.find((p) => p.id === targetLocalPocId)
   const remotePocsKnown = remote.pocs
     .filter((p) => p.id === sourceRemotePocId)
     .map((p) => ({
       ...p,
-      id: pocId,
+      id: targetLocalPocId,
       bocId: localPoc?.bocId ?? p.bocId,
     }))
   const remotePocs =
     remotePocsKnown.length > 0
       ? remotePocsKnown
-      : [{ id: pocId, name: localPoc?.name ?? pocId, launchers: [], bocId: localPoc?.bocId }]
+      : [{ id: targetLocalPocId, name: localPoc?.name ?? targetLocalPocId, launchers: [], bocId: localPoc?.bocId }]
   const remotePoc = remotePocs[0]
   let remoteLaunchers = remote.launchers
-    .filter((l) => remoteLauncherAllowedForPocMerge(local, l, sourceRemotePocId))
-    .map((l) => ({ ...l, pocId }))
+    .filter((l) => remoteLauncherAllowedForPocMerge(local, l, sourceRemotePocId, targetLocalPocId))
+    .map((l) => ({ ...l, pocId: targetLocalPocId }))
   const launcherIds = new Set(remoteLaunchers.map((l) => l.id))
 
   const inferredRsvIds = new Set<string>()
@@ -757,14 +903,14 @@ export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: s
   }
   const remoteRsvsKnown = remote.rsvs
     .filter((r) => r.pocId === sourceRemotePocId)
-    .map((r) => ({ ...r, pocId }))
+    .map((r) => ({ ...r, pocId: targetLocalPocId }))
   const knownRsvIds = new Set(remoteRsvsKnown.map((r) => r.id))
   const localRsvIds = new Set(local.rsvs.map((r) => r.id))
   const remoteRsvsFallback = [...inferredRsvIds]
     .filter((id) => !knownRsvIds.has(id) && !localRsvIds.has(id))
-    .map((id) => ({ id, name: id, pocId }))
+    .map((id) => ({ id, name: id, pocId: targetLocalPocId }))
   const remoteRsvs = [...remoteRsvsKnown, ...remoteRsvsFallback]
-  const localRsvsInScope = local.rsvs.filter((r) => r.pocId === pocId)
+  const localRsvsInScope = local.rsvs.filter((r) => r.pocId === targetLocalPocId)
   const { mappedRsvs: mappedRemoteRsvs, remoteRsvIdToLocalRsvId } = mapRemoteRsvsToLocalIds(
     localRsvsInScope,
     remoteRsvs
@@ -776,7 +922,7 @@ export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: s
   const scopedRemotePods = remote.pods
     .filter((p) => podInBatteryScope(p, remoteScopePocIds, launcherIds, rsvIds, oldAmmoIds))
     .map((p) => ({
-      ...(p.pocId === sourceRemotePocId ? { ...p, pocId } : p),
+      ...(p.pocId === sourceRemotePocId ? { ...p, pocId: targetLocalPocId } : p),
       rsvId: p.rsvId ? (remoteRsvIdToLocalRsvId.get(p.rsvId) ?? p.rsvId) : p.rsvId,
     }))
   const { mappedPods: remotePods, remotePodIdToLocalPodId } = mapRemotePodsToLocalIds(
@@ -788,19 +934,31 @@ export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: s
     podId: l.podId ? (remotePodIdToLocalPodId.get(l.podId) ?? l.podId) : l.podId,
   }))
 
-  // Non-destructive merge for this PLT: update only known incoming ids.
-  const mergedPocs = upsertById(local.pocs, remotePocs)
-  const mergedLaunchers = upsertById(local.launchers, remoteLaunchers)
-  const mergedRsvs = upsertById(local.rsvs, mappedRemoteRsvs)
-  const mergedPods = upsertById(local.pods, remotePods)
-  const mergedTasks = upsertById(
+  const localLauncherIdsInPoc = new Set(
+    local.launchers.filter((l) => l.pocId != null && l.pocId === targetLocalPocId).map((l) => l.id)
+  )
+  const localRsvIdsInPoc = new Set(local.rsvs.filter((r) => r.pocId === targetLocalPocId).map((r) => r.id))
+  const incomingTasksInScope = remote.tasks
+    .filter((t) => taskInScope(t, remoteScopePocIds, launcherIds))
+    .map((t) => ({
+      ...t,
+      pocIds: t.pocIds?.map((id) => (id === sourceRemotePocId ? targetLocalPocId : id)),
+    }))
+
+  // Authoritative PLT merge: sender scope replaces local scope.
+  const mergedPocs = replaceByScope(local.pocs, remotePocs, (p) => p.id === targetLocalPocId)
+  const mergedLaunchers = replaceByScope(local.launchers, remoteLaunchers, (l) => l.pocId === targetLocalPocId)
+  const mergedRsvs = replaceByScope(local.rsvs, mappedRemoteRsvs, (r) => r.pocId === targetLocalPocId)
+  const mergedPods = replaceByScope(
+    local.pods,
+    remotePods,
+    (p) =>
+      podInBatteryScope(p, new Set([targetLocalPocId]), localLauncherIdsInPoc, localRsvIdsInPoc, oldAmmoIds)
+  )
+  const mergedTasks = replaceByScope(
     local.tasks,
-    remote.tasks
-      .filter((t) => taskInScope(t, remoteScopePocIds, launcherIds))
-      .map((t) => ({
-        ...t,
-        pocIds: t.pocIds?.map((id) => (id === sourceRemotePocId ? pocId : id)),
-      }))
+    incomingTasksInScope,
+    (t) => taskInScope(t, new Set([targetLocalPocId]), localLauncherIdsInPoc)
   )
   const mergedBocs =
     remotePoc?.bocId && remote.bocs.some((b) => b.id === remotePoc.bocId)

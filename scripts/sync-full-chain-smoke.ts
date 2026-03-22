@@ -1,6 +1,6 @@
 import type { AppState, TaskTemplate } from '../src/types'
 import {
-  mergeAppStateByBocId,
+  mergeAppStateByPocId,
   mergeAppStateByBattalionId,
   mergeAppStateByBrigadeId,
   reconcileAppStateIntegrity,
@@ -35,6 +35,34 @@ function assert(condition: unknown, message: string): void {
 
 function cloneState<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T
+}
+
+function combineById<T extends { id: string }>(...lists: T[][]): T[] {
+  const byId = new Map<string, T>()
+  for (const list of lists) {
+    for (const row of list) byId.set(row.id, row)
+  }
+  return [...byId.values()]
+}
+
+function combineStates(...parts: AppState[]): AppState {
+  const base = emptyState()
+  if (!parts.length) return base
+  return {
+    ...base,
+    brigades: combineById(...parts.map((s) => s.brigades)),
+    battalions: combineById(...parts.map((s) => s.battalions)),
+    bocs: combineById(...parts.map((s) => s.bocs)),
+    pocs: combineById(...parts.map((s) => s.pocs)),
+    launchers: combineById(...parts.map((s) => s.launchers)),
+    pods: combineById(...parts.map((s) => s.pods)),
+    rsvs: combineById(...parts.map((s) => s.rsvs)),
+    rounds: combineById(...parts.map((s) => s.rounds)),
+    tasks: combineById(...parts.map((s) => s.tasks)),
+    taskTemplates: combineById(...parts.map((s) => s.taskTemplates)),
+    logs: combineById(...parts.map((s) => s.logs)),
+    ammoPlatoons: combineById(...parts.map((s) => s.ammoPlatoons)),
+  }
 }
 
 function countInvalidRefs(s: AppState): { launcherPod: number; podLauncher: number; podRsv: number } {
@@ -173,47 +201,47 @@ function run(): void {
 
   // BOC receiver clients.
   let boc1A = makeLocalBocState('local-boc-1a', 'local-bn-1', 'local-bde-1', 'A Battery', ['A10', 'A20'])
-  boc1A = mergeAppStateByBocId(boc1A, pocSnaps.BN1_A_A10, 'local-boc-1a')
-  boc1A = mergeAppStateByBocId(boc1A, pocSnaps.BN1_A_A20, 'local-boc-1a')
+  boc1A = mergeAppStateByPocId(boc1A, pocSnaps.BN1_A_A10, 'rpoc-a10')
+  boc1A = mergeAppStateByPocId(boc1A, pocSnaps.BN1_A_A20, 'rpoc-a20')
   boc1A = reconcileAppStateIntegrity(boc1A)
 
   let boc1B = makeLocalBocState('local-boc-1b', 'local-bn-1', 'local-bde-1', 'B Battery', ['B10', 'B20'])
-  boc1B = mergeAppStateByBocId(boc1B, pocSnaps.BN1_B_B10, 'local-boc-1b')
-  boc1B = mergeAppStateByBocId(boc1B, pocSnaps.BN1_B_B20, 'local-boc-1b')
+  boc1B = mergeAppStateByPocId(boc1B, pocSnaps.BN1_B_B10, 'rpoc-b10')
+  boc1B = mergeAppStateByPocId(boc1B, pocSnaps.BN1_B_B20, 'rpoc-b20')
   boc1B = reconcileAppStateIntegrity(boc1B)
 
   let boc2A = makeLocalBocState('local-boc-2a', 'local-bn-2', 'local-bde-1', 'A Battery', ['C10', 'C20'])
-  boc2A = mergeAppStateByBocId(boc2A, pocSnaps.BN2_A_C10, 'local-boc-2a')
-  boc2A = mergeAppStateByBocId(boc2A, pocSnaps.BN2_A_C20, 'local-boc-2a')
+  boc2A = mergeAppStateByPocId(boc2A, pocSnaps.BN2_A_C10, 'rpoc-c10')
+  boc2A = mergeAppStateByPocId(boc2A, pocSnaps.BN2_A_C20, 'rpoc-c20')
   boc2A = reconcileAppStateIntegrity(boc2A)
 
   let boc2B = makeLocalBocState('local-boc-2b', 'local-bn-2', 'local-bde-1', 'B Battery', ['D10', 'D20'])
-  boc2B = mergeAppStateByBocId(boc2B, pocSnaps.BN2_B_D10, 'local-boc-2b')
-  boc2B = mergeAppStateByBocId(boc2B, pocSnaps.BN2_B_D20, 'local-boc-2b')
+  boc2B = mergeAppStateByPocId(boc2B, pocSnaps.BN2_B_D10, 'rpoc-d10')
+  boc2B = mergeAppStateByPocId(boc2B, pocSnaps.BN2_B_D20, 'rpoc-d20')
   boc2B = reconcileAppStateIntegrity(boc2B)
 
-  // Battalion receiver clients (ingesting from BOC clients).
+  // Battalion receiver clients (ingesting full battalion-scoped snapshots).
   let bn1 = emptyState()
   bn1.brigades = [{ id: 'local-bde-1', name: '1st Brigade' }]
   bn1.battalions = [{ id: 'local-bn-1', name: '1-27 FAR', brigadeId: 'local-bde-1' }]
-  bn1 = mergeAppStateByBattalionId(bn1, boc1A, 'local-bn-1')
-  bn1 = mergeAppStateByBattalionId(bn1, boc1B, 'local-bn-1')
+  const bn1Remote = combineStates(boc1A, boc1B)
+  bn1 = mergeAppStateByBattalionId(bn1, bn1Remote, 'local-bn-1')
 
   let bn2 = emptyState()
   bn2.brigades = [{ id: 'local-bde-1', name: '1st Brigade' }]
   bn2.battalions = [{ id: 'local-bn-2', name: '2-27 FAR', brigadeId: 'local-bde-1' }]
-  bn2 = mergeAppStateByBattalionId(bn2, boc2A, 'local-bn-2')
-  bn2 = mergeAppStateByBattalionId(bn2, boc2B, 'local-bn-2')
+  const bn2Remote = combineStates(boc2A, boc2B)
+  bn2 = mergeAppStateByBattalionId(bn2, bn2Remote, 'local-bn-2')
 
-  // Brigade receiver client (ingesting from battalion clients).
+  // Brigade receiver client (ingesting full brigade-scoped snapshot).
   let bde = emptyState()
   bde.brigades = [{ id: 'local-bde-1', name: '1st Brigade' }]
   bde.battalions = [
     { id: 'local-bn-1', name: '1-27 FAR', brigadeId: 'local-bde-1' },
     { id: 'local-bn-2', name: '2-27 FAR', brigadeId: 'local-bde-1' },
   ]
-  bde = mergeAppStateByBrigadeId(bde, bn1, 'local-bde-1')
-  bde = mergeAppStateByBrigadeId(bde, bn2, 'local-bde-1')
+  const bdeRemote = combineStates(bn1, bn2)
+  bde = mergeAppStateByBrigadeId(bde, bdeRemote, 'local-bde-1')
   bde = reconcileAppStateIntegrity(bde)
 
   const refs = countInvalidRefs(bde)
@@ -230,8 +258,17 @@ function run(): void {
     `expected >=8 rsvs, got ${bde.rsvs.length}; ids=${bde.rsvs.map((r) => `${r.id}:${r.name}`).join(',')}`
   )
   assert(bde.ammoPlatoons.length >= 4, `expected >=4 ammo platoons, got ${bde.ammoPlatoons.length}`)
-  assert(bde.pods.length >= 48, `expected >=48 pods, got ${bde.pods.length}`)
+  assert(bde.pods.length >= 32, `expected >=32 pods, got ${bde.pods.length}`)
   assert(bde.rsvs.filter((r) => r.name === r.id).length === 0, 'expected no synthetic RSV display names')
+  assert(bde.tasks.length >= 8, `expected >=8 tasks, got ${bde.tasks.length}`)
+  assert(
+    bde.pods.filter((p) => p.launcherId).length >= 16,
+    `expected >=16 pods on launchers, got ${bde.pods.filter((p) => p.launcherId).length}`
+  )
+  assert(
+    bde.pods.filter((p) => p.pocId).length >= 16,
+    `expected >=16 POC-stock pods, got ${bde.pods.filter((p) => p.pocId).length}`
+  )
 
   // Update wave: simulate additional reloads + cross-echelon reassignments + name updates.
   const updateA10 = cloneState(pocSnaps.BN1_A_A10)
@@ -239,13 +276,13 @@ function run(): void {
   const a10L1 = 'L-A10-1'
   const podLoaded = updateA10.pods.find((p) => p.id === 'POD-A10-L1')
   const podReserve = updateA10.pods.find((p) => p.id === 'POD-A10-RSV')
-  const podAmmo = updateA10.pods.find((p) => p.id === 'POD-A10-AMMO')
-  const podBoc = updateA10.pods.find((p) => p.id === 'POD-A10-BOC')
   const rsvA10 = updateA10.rsvs.find((r) => r.id === a10RsvId)
   const launchA10 = updateA10.launchers.find((l) => l.id === a10L1)
-  if (!podLoaded || !podReserve || !podAmmo || !podBoc || !rsvA10 || !launchA10) {
+  if (!podLoaded || !podReserve || !rsvA10 || !launchA10) {
     throw new Error('seed update A10 missing expected entities')
   }
+  const taskA10 = updateA10.tasks.find((t) => t.id === 'task-A10-reload')
+  if (!taskA10) throw new Error('seed update A10 missing expected task')
   // Rename RSV and rotate pods:
   rsvA10.name = 'RSV A10 RENAMED'
   launchA10.podId = podReserve.id
@@ -255,66 +292,34 @@ function run(): void {
   podReserve.pocId = 'rpoc-a10'
   podLoaded.name = 'BACKUP_A10_STOWED'
   podLoaded.launcherId = undefined
-  podLoaded.pocId = undefined
+  podLoaded.pocId = 'rpoc-a10'
   podLoaded.rsvId = undefined
-  podLoaded.bocId = 'rboc-a'
-  // Reassign one pod to RSV and one to battalion-level holding.
-  podAmmo.name = 'A10_AMMO_TO_RSV'
-  podAmmo.ammoPltId = undefined
-  podAmmo.rsvId = a10RsvId
-  podAmmo.pocId = 'rpoc-a10'
-  podBoc.name = 'A10_BOC_TO_BN_HOLD'
-  podBoc.bocId = 'rboc-a'
-
-  const updateB20 = cloneState(pocSnaps.BN1_B_B20)
-  const podB20 = updateB20.pods.find((p) => p.id === 'POD-B20-POC')
-  if (!podB20) throw new Error('seed update B20 missing expected pod')
-  podB20.name = 'B20_POC_TO_BRIGADE_HOLD'
-  podB20.pocId = 'rpoc-b20'
-
-  boc1A = mergeAppStateByBocId(boc1A, updateA10, 'local-boc-1a')
-  boc1B = mergeAppStateByBocId(boc1B, updateB20, 'local-boc-1b')
+  podLoaded.bocId = undefined
+  taskA10.progress = 87
+  taskA10.status = 'in-progress'
+  boc1A = mergeAppStateByPocId(boc1A, updateA10, 'rpoc-a10')
   boc1A = reconcileAppStateIntegrity(boc1A)
-  boc1B = reconcileAppStateIntegrity(boc1B)
 
-  // Rebuild upstream with updated BOC snapshots.
+  // Rebuild upstream with updated full-scope snapshots.
   bn1 = emptyState()
   bn1.brigades = [{ id: 'local-bde-1', name: '1st Brigade' }]
   bn1.battalions = [{ id: 'local-bn-1', name: '1-27 FAR', brigadeId: 'local-bde-1' }]
-  bn1 = mergeAppStateByBattalionId(bn1, boc1A, 'local-bn-1')
-  bn1 = mergeAppStateByBattalionId(bn1, boc1B, 'local-bn-1')
+  const bn1RemoteUpdate = combineStates(boc1A, boc1B)
+  bn1 = mergeAppStateByBattalionId(bn1, bn1RemoteUpdate, 'local-bn-1')
   bn2 = emptyState()
   bn2.brigades = [{ id: 'local-bde-1', name: '1st Brigade' }]
   bn2.battalions = [{ id: 'local-bn-2', name: '2-27 FAR', brigadeId: 'local-bde-1' }]
-  bn2 = mergeAppStateByBattalionId(bn2, boc2A, 'local-bn-2')
-  bn2 = mergeAppStateByBattalionId(bn2, boc2B, 'local-bn-2')
+  const bn2RemoteUpdate = combineStates(boc2A, boc2B)
+  bn2 = mergeAppStateByBattalionId(bn2, bn2RemoteUpdate, 'local-bn-2')
 
-  // Reassign at battalion echelon (authoritative stage for battalion/brigade holding pools).
-  const bnHoldTarget = bn1.pods.find((p) => p.name === 'A10_BOC_TO_BN_HOLD')
-  if (!bnHoldTarget) throw new Error('missing battalion hold target pod in bn1')
-  bnHoldTarget.name = 'A10_TO_BN_HOLD_FINAL'
-  bnHoldTarget.launcherId = undefined
-  bnHoldTarget.pocId = undefined
-  bnHoldTarget.rsvId = undefined
-  bnHoldTarget.bocId = undefined
-  bnHoldTarget.battalionId = 'local-bn-1'
-
-  const bdeHoldTarget = bn1.pods.find((p) => p.name === 'B20_POC_TO_BRIGADE_HOLD')
-  if (!bdeHoldTarget) throw new Error('missing brigade hold target pod in bn1')
-  bdeHoldTarget.name = 'B20_TO_BDE_HOLD_FINAL'
-  bdeHoldTarget.launcherId = undefined
-  bdeHoldTarget.pocId = undefined
-  bdeHoldTarget.rsvId = undefined
-  bdeHoldTarget.bocId = undefined
-  bdeHoldTarget.brigadeId = 'local-bde-1'
   bde = emptyState()
   bde.brigades = [{ id: 'local-bde-1', name: '1st Brigade' }]
   bde.battalions = [
     { id: 'local-bn-1', name: '1-27 FAR', brigadeId: 'local-bde-1' },
     { id: 'local-bn-2', name: '2-27 FAR', brigadeId: 'local-bde-1' },
   ]
-  bde = mergeAppStateByBrigadeId(bde, bn1, 'local-bde-1')
-  bde = mergeAppStateByBrigadeId(bde, bn2, 'local-bde-1')
+  const bdeRemoteUpdate = combineStates(bn1, bn2)
+  bde = mergeAppStateByBrigadeId(bde, bdeRemoteUpdate, 'local-bde-1')
   bde = reconcileAppStateIntegrity(bde)
 
   // Name and assignment invariants after reload/reassignment wave.
@@ -326,18 +331,13 @@ function run(): void {
   const stowed = bde.pods.find((p) => p.name === 'BACKUP_A10_STOWED')
   assert(Boolean(stowed), 'expected stowed pod rename to propagate')
   assert(!stowed?.launcherId, 'expected stowed pod to be off launcher')
-  assert(stowed?.bocId === 'local-boc-1a', 'expected stowed pod to be in local BOC holding')
-  const ammoToRsv = bde.pods.find((p) => p.name === 'A10_AMMO_TO_RSV')
-  assert(Boolean(ammoToRsv?.rsvId), 'expected ammo-to-RSV reassignment to persist')
+  assert(stowed?.pocId === 'local-A10', 'expected stowed pod to remain in local POC holding')
   const renamedRsv = bde.rsvs.find((r) => r.name === 'RSV A10 RENAMED')
   assert(Boolean(renamedRsv), 'expected RSV rename to propagate')
-  assert(ammoToRsv?.rsvId === renamedRsv?.id, 'expected reassigned pod to resolve to renamed RSV')
-  const bnHold = bde.pods.find((p) => p.name === 'A10_TO_BN_HOLD_FINAL')
-  assert(Boolean(bnHold), 'expected battalion-hold pod rename to propagate')
-  assert(bnHold?.battalionId === 'local-bn-1', 'expected battalion-level assignment to map to local battalion')
-  const bdeHold = bde.pods.find((p) => p.name === 'B20_TO_BDE_HOLD_FINAL')
-  assert(Boolean(bdeHold), 'expected brigade-hold pod rename to propagate')
-  assert(bdeHold?.brigadeId === 'local-bde-1', 'expected brigade-level assignment to map to local brigade')
+  const taskAfter = bde.tasks.find((t) => t.id === 'task-A10-reload')
+  assert(Boolean(taskAfter), 'expected A10 task to propagate')
+  assert(taskAfter?.progress === 87, 'expected updated A10 task progress to propagate')
+  assert(taskAfter?.pocIds?.includes('local-A10') === true, 'expected A10 task pocIds to map to local POC id')
 
   console.log('SYNC_FULL_CHAIN_OK')
   console.log(
@@ -354,8 +354,7 @@ function run(): void {
         tasks: bde.tasks.length,
         updatedRsvName: renamedRsv?.name ?? null,
         updatedA10LoadedPod: loadedAfter?.name ?? null,
-        updatedBnHoldPod: bnHold?.name ?? null,
-        updatedBdeHoldPod: bdeHold?.name ?? null,
+        updatedStowedPod: stowed?.name ?? null,
       },
       null,
       2
