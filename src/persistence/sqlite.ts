@@ -102,6 +102,9 @@ function runMigrations(database: Database): void {
   if (!hasTableColumn(database, 'network_roster', 'auto_accept_sync')) {
     database.run('ALTER TABLE network_roster ADD COLUMN auto_accept_sync INTEGER NOT NULL DEFAULT 0')
   }
+  if (!hasTableColumn(database, 'network_roster', 'station_offline_since_ms')) {
+    database.run('ALTER TABLE network_roster ADD COLUMN station_offline_since_ms INTEGER')
+  }
 
   const v2 = database.exec('SELECT version FROM schema_migrations WHERE version = 2')
   if (!v2.length || !v2[0].values.length) {
@@ -199,7 +202,11 @@ export function clearInitialSetupFlagInDb(): void {
   scheduleFlush()
 }
 
-export function saveAppStateToDb(state: AppState): void {
+export function saveAppStateToDb(
+  state: AppState,
+  options?: { /** Set sync counter exactly (e.g. after applying ingest v46); default is +1 per save. */
+    stateVersion?: number }
+): void {
   const database = ensureDb()
   const json = serializeState(state)
   database.run('BEGIN')
@@ -208,7 +215,13 @@ export function saveAppStateToDb(state: AppState): void {
       json,
       Date.now(),
     ])
-    database.run('UPDATE sync_meta SET state_version = state_version + 1 WHERE id = 1')
+    if (options?.stateVersion != null) {
+      database.run('UPDATE sync_meta SET state_version = ? WHERE id = 1', [
+        Math.max(1, Math.floor(options.stateVersion)),
+      ])
+    } else {
+      database.run('UPDATE sync_meta SET state_version = state_version + 1 WHERE id = 1')
+    }
     database.run('COMMIT')
   } catch (e) {
     database.run('ROLLBACK')
@@ -365,13 +378,15 @@ export interface NetworkRosterRow {
   peerUnitId: string | null
   syncAlertsEnabled: boolean
   autoAcceptSync: boolean
+  /** When “tab offline” yellow started; after ~3 min we show red (see `rosterPresenceEscalation`). */
+  stationOfflineSinceMs: number | null
 }
 
 export function listNetworkRoster(): NetworkRosterRow[] {
   const r = ensureDb().exec(
     `SELECT id, display_name, echelon_role, parent_unit_id, host, port, use_tls, bearer,
             status, last_seen_ms, last_error, sort_order,
-            peer_unit_id, sync_alerts_enabled, auto_accept_sync
+            peer_unit_id, sync_alerts_enabled, auto_accept_sync, station_offline_since_ms
      FROM network_roster ORDER BY sort_order ASC, display_name ASC`
   )
   if (!r.length) return []
@@ -391,6 +406,7 @@ export function listNetworkRoster(): NetworkRosterRow[] {
     peerUnitId: row[12] != null ? String(row[12]) : null,
     syncAlertsEnabled: row[13] != null ? Number(row[13]) === 1 : true,
     autoAcceptSync: row[14] != null ? Number(row[14]) === 1 : false,
+    stationOfflineSinceMs: row[15] != null ? Number(row[15]) : null,
   }))
 }
 
@@ -398,8 +414,8 @@ export function upsertNetworkRosterRow(row: NetworkRosterRow): void {
   ensureDb().run(
     `INSERT OR REPLACE INTO network_roster
      (id, display_name, echelon_role, parent_unit_id, host, port, use_tls, bearer, status, last_seen_ms, last_error, sort_order,
-      peer_unit_id, sync_alerts_enabled, auto_accept_sync)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      peer_unit_id, sync_alerts_enabled, auto_accept_sync, station_offline_since_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       row.id,
       row.displayName,
@@ -416,6 +432,7 @@ export function upsertNetworkRosterRow(row: NetworkRosterRow): void {
       row.peerUnitId,
       row.syncAlertsEnabled ? 1 : 0,
       row.autoAcceptSync ? 1 : 0,
+      row.stationOfflineSinceMs,
     ]
   )
   scheduleFlush()
@@ -482,17 +499,13 @@ export function removeSyncOutboxRow(id: number): void {
 }
 
 /**
- * Replace operational DB from full snapshot JSON (sync / ingest).
- * Strips any remote `currentUserRole` and restores `preservedViewRole` when that unit still exists (per-device UX).
+ * Parse snapshot JSON to {@link AppState} (sync / ingest). Does not persist — caller uses {@link saveAppStateToDb}.
  */
 export function applySnapshotJson(json: string, preservedViewRole?: CurrentUserRole): AppState {
   const raw = deserializeState(json)
   const withoutRemoteRole: AppState = { ...raw, currentUserRole: undefined }
   const normalized = normalizeLoadedAppState(withoutRemoteRole)
-  const final = mergePreservedViewRoleAfterSync(normalized, preservedViewRole)
-  saveAppStateToDb(final)
-  void flushPersistenceNow()
-  return final
+  return mergePreservedViewRoleAfterSync(normalized, preservedViewRole)
 }
 
 export function clearAllPersistence(): void {

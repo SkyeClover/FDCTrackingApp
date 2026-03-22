@@ -153,9 +153,10 @@ export function SyncInboxBanner() {
       try {
         const r = await fetchIngestStatus(meta, origin)
         if (r.ok && r.snapshotJson) {
-          const ok = applySnapshotFromJson(r.snapshotJson)
+          const appliedSv = r.stateVersion ?? ingestSv
+          const ok = applySnapshotFromJson(r.snapshotJson, appliedSv)
           if (ok) {
-            updateSyncMeta({ lastAppliedIngestStateVersion: ingestSv })
+            updateSyncMeta({ lastAppliedIngestStateVersion: appliedSv })
             appendAuditLog('sync', 'Auto-accepted ingest snapshot', `${fromUid ?? '?'} v${ingestSv}`)
             const style = parseSyncAlertStyle(meta.syncAlertStyleJson)
             setBanner({
@@ -217,10 +218,11 @@ export function SyncInboxBanner() {
         scheduleHideNotice(8000)
         return
       }
-      const ok = applySnapshotFromJson(r.snapshotJson)
+      const appliedSv = r.stateVersion ?? banner.ingestSv
+      const ok = applySnapshotFromJson(r.snapshotJson, appliedSv)
       if (ok) {
-        updateSyncMeta({ lastAppliedIngestStateVersion: banner.ingestSv })
-        appendAuditLog('sync', 'Accepted ingest snapshot from banner', String(banner.ingestSv))
+        updateSyncMeta({ lastAppliedIngestStateVersion: appliedSv })
+        appendAuditLog('sync', 'Accepted ingest snapshot from banner', String(appliedSv))
         const style = parseSyncAlertStyle(meta.syncAlertStyleJson)
         setBanner({
           kind: 'notice',

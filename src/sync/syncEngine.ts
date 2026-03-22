@@ -9,6 +9,10 @@ import {
 } from '../persistence/sqlite'
 import { fetchPeerHealth, pushSnapshotToPeer } from './peerClient'
 import { isSyncSharedSecretConfigured } from './syncGuards'
+import {
+  applyStationOfflineEscalation,
+  STATION_OFFLINE_RED_AFTER_MS,
+} from './rosterPresenceEscalation'
 
 export interface SyncRunSummary {
   targets: { row: NetworkRosterRow; result: string; path: string }[]
@@ -17,6 +21,14 @@ export interface SyncRunSummary {
 
 function canUseSkip(meta: ReturnType<typeof getSyncMeta>): boolean {
   return meta.skipEchelonEnabled && meta.skipEchelonVerified
+}
+
+function tabDownMessage(health: Awaited<ReturnType<typeof fetchPeerHealth>>): string {
+  return health.browserOfflineKind === 'clean'
+    ? 'Walker Track tab signed off (clean)'
+    : health.browserOfflineKind === 'stale'
+      ? 'no tab heartbeat (unclean)'
+      : 'Walker Track tab offline'
 }
 
 /**
@@ -43,39 +55,30 @@ export async function runSnapshotPush(state: AppState, forceLabel: string): Prom
       targets.push({ row, result: 'skipped (no host)', path: row.displayName })
       continue
     }
+
     const health = await fetchPeerHealth(row)
     const tabDown =
       health.transportOk && health.stationSessionTracked && !health.browserPresent
-    const rosterStatus = !health.transportOk
-      ? 'red'
-      : health.snapshotUnitMismatch || tabDown
-        ? 'yellow'
-        : 'green'
-    const stationMsg = !health.transportOk
-      ? 'ingest unreachable'
-      : health.snapshotUnitMismatch
-        ? 'snapshot fromUnitId ≠ Peer unit ID on roster'
-        : tabDown
-          ? health.browserOfflineKind === 'clean'
-            ? 'Walker Track tab signed off (clean)'
-            : health.browserOfflineKind === 'stale'
-              ? 'no tab heartbeat (unclean)'
-              : 'Walker Track tab offline'
-          : !health.stationSessionTracked && health.transportOk
-            ? 'ingest up — set Peer unit ID or update peer server for tab presence'
-            : null
-    upsertNetworkRosterRow({
-      ...row,
-      status: rosterStatus,
-      lastSeenMs: Date.now(),
-      lastError: stationMsg,
-    })
+    const stationOfflineYellow = tabDown
 
     if (!health.transportOk && skipAllowed) {
+      const esc = applyStationOfflineEscalation({
+        candidateStatus: 'red',
+        stationOfflineYellow: false,
+        prevOfflineSinceMs: row.stationOfflineSinceMs,
+      })
+      upsertNetworkRosterRow({
+        ...row,
+        status: esc.status,
+        stationOfflineSinceMs: esc.stationOfflineSinceMs,
+        lastSeenMs: Date.now(),
+        lastError: 'ingest unreachable',
+      })
       targets.push({ row, result: 'skipped (offline, skip mode — try next)', path: `${row.host}:${row.port}` })
       appendAuditLog('sync', `skip hop ${row.id}`, 'offline with skip enabled')
       continue
     }
+
     if (!health.transportOk && !skipAllowed) {
       appendAuditLog(
         'sync',
@@ -86,12 +89,51 @@ export async function runSnapshotPush(state: AppState, forceLabel: string): Prom
 
     const pr = await pushSnapshotToPeer(row, meta, state, sv)
     const ok = pr.ok
+
+    let candidate: 'green' | 'yellow' | 'red'
+    let stationMsg: string | null
+
+    if (!health.transportOk) {
+      candidate = 'red'
+      stationMsg = 'ingest unreachable'
+    } else if (!ok) {
+      candidate = 'yellow'
+      stationMsg = pr.detail ?? 'push failed'
+    } else if (health.snapshotUnitMismatch || tabDown) {
+      candidate = 'yellow'
+      stationMsg = health.snapshotUnitMismatch
+        ? 'snapshot fromUnitId ≠ Peer unit ID on roster'
+        : tabDownMessage(health)
+    } else {
+      candidate = 'green'
+      stationMsg = null
+    }
+
+    const esc = applyStationOfflineEscalation({
+      candidateStatus: candidate,
+      stationOfflineYellow,
+      prevOfflineSinceMs: row.stationOfflineSinceMs,
+    })
+
+    let lastError = stationMsg
+    if (
+      esc.status === 'red' &&
+      candidate === 'yellow' &&
+      stationOfflineYellow &&
+      health.transportOk
+    ) {
+      const mins = STATION_OFFLINE_RED_AFTER_MS / 60_000
+      lastError = `${stationMsg ?? 'Walker Track station offline'} — no recovery in ${mins}+ min`
+    }
+
     upsertNetworkRosterRow({
       ...row,
-      status: ok ? (tabDown ? 'yellow' : 'green') : 'yellow',
+      status: esc.status,
+      stationOfflineSinceMs: esc.stationOfflineSinceMs,
       lastSeenMs: Date.now(),
-      lastError: ok ? (tabDown ? stationMsg : null) : pr.detail ?? 'push failed',
+      lastError,
     })
+
     targets.push({
       row,
       result: ok ? `ok ack=${pr.ackVersion ?? '?'}` : (pr.detail ?? 'failed'),

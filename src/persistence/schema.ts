@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS network_roster (
   sort_order INTEGER DEFAULT 0,
   peer_unit_id TEXT,
   sync_alerts_enabled INTEGER NOT NULL DEFAULT 1,
-  auto_accept_sync INTEGER NOT NULL DEFAULT 0
+  auto_accept_sync INTEGER NOT NULL DEFAULT 0,
+  station_offline_since_ms INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS audit_log (

@@ -1,10 +1,42 @@
-import { AppState } from '../types'
+import type { AppState, TaskTemplate } from '../types'
 import { DEFAULT_ROUND_TYPES } from '../constants/roundTypes'
 
 export const STORAGE_KEY = 'fdc-tracker-state'
 /** Persisted when the user finishes first-run setup or when existing data is detected (migration). */
 export const INITIAL_SETUP_KEY = 'fdc-initial-setup-done'
 export const APP_VERSION = '1.1.12'
+
+/** Default task templates — reused by {@link getDefaultState} and legacy snapshot loads. */
+const DEFAULT_TASK_TEMPLATES: TaskTemplate[] = [
+  {
+    id: 'reload-default',
+    name: 'Reload',
+    description: 'Reload launcher with fresh rounds',
+    duration: 900,
+    type: 'reload',
+  },
+  {
+    id: 'fire-default',
+    name: 'Fire Mission',
+    description: 'Execute fire mission',
+    duration: 120,
+    type: 'fire',
+  },
+  {
+    id: 'maintenance-default',
+    name: 'Maintenance',
+    description: 'Perform maintenance on launcher',
+    duration: 1800,
+    type: 'maintenance',
+  },
+  {
+    id: 'jumping-default',
+    name: 'Jumping',
+    description: 'Jump to new location',
+    duration: 2700,
+    type: 'jumping',
+  },
+]
 
 /** True if this browser has completed onboarding or already had unit data saved. */
 export function readInitialSetupCompleteFromStorage(): boolean {
@@ -121,12 +153,22 @@ export function deserializeState(json: string): AppState {
     }
   })
   
+  const taskTemplates =
+    Array.isArray(parsed.taskTemplates) && parsed.taskTemplates.length > 0
+      ? parsed.taskTemplates
+      : DEFAULT_TASK_TEMPLATES
+
   return {
     ...parsed,
     brigades: parsed.brigades || [],
     battalions: parsed.battalions || [],
+    bocs: parsed.bocs || [],
+    pocs: parsed.pocs || [],
     pods: migratedPods,
     rsvs: parsed.rsvs || [], // Ensure rsvs array exists
+    rounds: parsed.rounds || [],
+    taskTemplates,
+    version: typeof parsed.version === 'string' ? parsed.version : APP_VERSION,
     roundTypes: mergedRoundTypes, // Ensure roundTypes exist
     launchers: parsed.launchers?.map((launcher: any) => ({
       ...launcher,
@@ -219,36 +261,7 @@ export function getDefaultState(): AppState {
     rsvs: [],
     rounds: [],
     tasks: [],
-    taskTemplates: [
-      {
-        id: 'reload-default',
-        name: 'Reload',
-        description: 'Reload launcher with fresh rounds',
-        duration: 900, // 15 minutes
-        type: 'reload',
-      },
-      {
-        id: 'fire-default',
-        name: 'Fire Mission',
-        description: 'Execute fire mission',
-        duration: 120, // 2 minutes
-        type: 'fire',
-      },
-      {
-        id: 'maintenance-default',
-        name: 'Maintenance',
-        description: 'Perform maintenance on launcher',
-        duration: 1800, // 30 minutes
-        type: 'maintenance',
-      },
-      {
-        id: 'jumping-default',
-        name: 'Jumping',
-        description: 'Jump to new location',
-        duration: 2700, // 45 minutes
-        type: 'jumping',
-      },
-    ],
+    taskTemplates: DEFAULT_TASK_TEMPLATES.map((t) => ({ ...t })),
     logs: [],
     roundTypes: { ...DEFAULT_ROUND_TYPES },
     version: APP_VERSION,

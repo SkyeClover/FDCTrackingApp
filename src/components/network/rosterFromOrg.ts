@@ -54,6 +54,7 @@ export function ensureBocPocRosterFromOrg(
       peerUnitId: null,
       syncAlertsEnabled: true,
       autoAcceptSync: false,
+      stationOfflineSinceMs: null,
     }
     upsertNetworkRosterRow(row)
     byRole.set(role, row)

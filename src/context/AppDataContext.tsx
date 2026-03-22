@@ -9,6 +9,7 @@ import { normalizeLoadedAppState } from '../utils/normalizeAppState'
 import {
   applySnapshotJson,
   saveAppStateToDb,
+  flushPersistenceNow,
   writeInitialSetupCompleteToDb,
   clearInitialSetupFlagInDb,
   clearAllPersistence,
@@ -127,8 +128,8 @@ interface AppDataContextType {
   assignAmmoPltToBOC: (bocId: string) => void
   /** Full app state for sync / export (uses latest ref). */
   getStateSnapshot: () => AppState
-  /** Replace local DB + React state from snapshot JSON (e.g. ingest pull). */
-  applySnapshotFromJson: (json: string) => boolean
+  /** Replace local DB + React state from snapshot JSON (e.g. ingest pull). Pass ingest `stateVersion` so Network “Data version” matches the snapshot you applied. */
+  applySnapshotFromJson: (json: string, ingestStateVersion?: number) => boolean
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined)
@@ -162,8 +163,10 @@ export function AppDataProvider({
   
   // Store intervals to cleanup
   const intervalsRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
+  /** After explicit saveAppStateToDb (import / ingest), skip one debounced autosave to avoid double state_version bumps. */
+  const skipNextStateAutosaveRef = useRef(false)
   const stateRef = useRef(state)
-  
+
   // Keep stateRef in sync
   useEffect(() => {
     stateRef.current = state
@@ -311,6 +314,10 @@ export function AppDataProvider({
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       try {
+        if (skipNextStateAutosaveRef.current) {
+          skipNextStateAutosaveRef.current = false
+          return
+        }
         saveAppStateToDb(state)
       } catch (error) {
         console.error('Auto-save failed:', error)
@@ -2339,8 +2346,9 @@ export function AppDataProvider({
       try {
         const loadedState = await importFromFile(file)
         const normalized = normalizeLoadedAppState(loadedState)
-        setState(normalized)
+        skipNextStateAutosaveRef.current = true
         saveAppStateToDb(normalized)
+        setState(normalized)
         writeInitialSetupCompleteToDb()
         setInitialSetupComplete(true)
         addLog({ type: 'success', message: 'Data imported from file successfully' })
@@ -2354,11 +2362,16 @@ export function AppDataProvider({
   )
 
   const applySnapshotFromJson = useCallback(
-    (json: string): boolean => {
+    (json: string, ingestStateVersion?: number): boolean => {
       try {
         const s = applySnapshotJson(json, stateRef.current.currentUserRole)
+        skipNextStateAutosaveRef.current = true
+        saveAppStateToDb(
+          s,
+          ingestStateVersion != null ? { stateVersion: ingestStateVersion } : undefined
+        )
         setState(s)
-        saveAppStateToDb(s)
+        void flushPersistenceNow()
         writeInitialSetupCompleteToDb()
         setInitialSetupComplete(true)
         addLog({ type: 'success', message: 'Snapshot applied (ingest / sync)' })

@@ -12,6 +12,7 @@ import {
   upsertNetworkRosterRow,
 } from '../../persistence/sqlite'
 import {
+  fetchIngestHealth,
   fetchIngestStatus,
   fetchPeerHealth,
   notifyUpstreamOffline,
@@ -22,6 +23,10 @@ import {
 } from '../../sync/peerClient'
 import { isSyncSharedSecretConfigured } from '../../sync/syncGuards'
 import { runSnapshotPush } from '../../sync/syncEngine'
+import {
+  applyStationOfflineEscalation,
+  STATION_OFFLINE_RED_AFTER_MS,
+} from '../../sync/rosterPresenceEscalation'
 
 export function SyncControlSection({
   isMobile: _isMobile,
@@ -45,6 +50,8 @@ export function SyncControlSection({
   const [syncOutputOpen, setSyncOutputOpen] = useState(true)
   const [auditLogOpen, setAuditLogOpen] = useState(true)
   const [auditTick, setAuditTick] = useState(0)
+  /** Snapshot version currently stored at this origin’s ingest (GET /fdc/v1/health). */
+  const [ingestSvOnThisSite, setIngestSvOnThisSite] = useState<number | null>(null)
   const autoBusyRef = useRef(false)
 
   const auditEntries = useMemo(() => listAuditLog(200), [auditTick])
@@ -74,6 +81,26 @@ export function SyncControlSection({
     }, 5000)
     return () => clearInterval(id)
   }, [refreshMeta])
+
+  useEffect(() => {
+    if (!secretOk) {
+      setIngestSvOnThisSite(null)
+      return
+    }
+    let cancelled = false
+    const tick = async () => {
+      const h = await fetchIngestHealth(window.location.origin, meta.peerListenPort)
+      if (cancelled || !h.ok) return
+      const n = Number(h.stateVersion)
+      if (Number.isFinite(n) && n > 0) setIngestSvOnThisSite(n)
+    }
+    void tick()
+    const id = window.setInterval(() => void tick(), 22_000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [secretOk, meta.peerListenPort])
 
   /** Automatic background push (same as manual snapshot push; gated by DB + secret + roster). */
   useEffect(() => {
@@ -128,9 +155,15 @@ export function SyncControlSection({
         const origin = peerBaseUrl(row) ?? row.displayName
         if (!h.transportOk) {
           lines.push(`${row.displayName}: FAIL ingest unreachable → ${origin}`)
+          const esc = applyStationOfflineEscalation({
+            candidateStatus: 'red',
+            stationOfflineYellow: false,
+            prevOfflineSinceMs: row.stationOfflineSinceMs,
+          })
           upsertNetworkRosterRow({
             ...row,
-            status: 'red',
+            status: esc.status,
+            stationOfflineSinceMs: esc.stationOfflineSinceMs,
             lastSeenMs: Date.now(),
             lastError: 'ingest unreachable',
           })
@@ -140,17 +173,17 @@ export function SyncControlSection({
         const tracked = h.stationSessionTracked
         const tabMissing = tracked && !h.browserPresent
         let line: string
-        let rosterStatus: string
+        let candidate: 'green' | 'yellow' | 'red'
         let lastErr: string | null
         if (!r.ok) {
           line = `FAIL signed ping: ${r.detail ?? 'error'}`
-          rosterStatus = 'red'
+          candidate = 'red'
           lastErr = r.detail ?? 'ping failed'
         } else if (!tracked) {
           line = row.peerUnitId?.trim()
             ? `WARN crypto OK — ingest didn’t return per-unit tab presence (unexpected for Vercel / current peer server)`
             : `WARN set “Peer unit ID” on this row (must match their Network → Local unit ID) so the ingest can report that station’s tab`
-          rosterStatus = 'yellow'
+          candidate = 'yellow'
           lastErr = 'ingest has no per-unit session tracking'
         } else if (tabMissing) {
           const kind =
@@ -160,23 +193,39 @@ export function SyncControlSection({
                 ? 'no tab heartbeat (unclean)'
                 : 'tab offline'
           line = `FAIL station closed (${kind}) — ${r.detail ?? 'pong'}`
-          rosterStatus = 'yellow'
+          candidate = 'yellow'
           lastErr = `Walker Track tab not present (${kind})`
         } else if (h.snapshotUnitMismatch) {
           line = `WARN last snapshot on their ingest is from a different Local unit ID than this row’s Peer unit ID — ${r.detail ?? 'pong'}`
-          rosterStatus = 'yellow'
+          candidate = 'yellow'
           lastErr = 'snapshot fromUnitId ≠ Peer unit ID'
         } else {
           line = `OK Walker Track tab up — ${r.detail ?? 'pong'}`
-          rosterStatus = 'green'
+          candidate = 'green'
           lastErr = null
+        }
+        const esc = applyStationOfflineEscalation({
+          candidateStatus: candidate,
+          stationOfflineYellow: tabMissing,
+          prevOfflineSinceMs: row.stationOfflineSinceMs,
+        })
+        let displayErr = lastErr
+        if (
+          esc.status === 'red' &&
+          candidate === 'yellow' &&
+          tabMissing &&
+          h.transportOk
+        ) {
+          const mins = STATION_OFFLINE_RED_AFTER_MS / 60_000
+          displayErr = `${lastErr ?? 'Walker Track station offline'} — no recovery in ${mins}+ min`
         }
         lines.push(`${row.displayName}: ${line} → ${origin}`)
         upsertNetworkRosterRow({
           ...row,
-          status: rosterStatus,
+          status: esc.status,
+          stationOfflineSinceMs: esc.stationOfflineSinceMs,
           lastSeenMs: Date.now(),
-          lastError: lastErr,
+          lastError: displayErr,
         })
       }
       setLastPath(
@@ -253,10 +302,12 @@ export function SyncControlSection({
         appendAuditLog('sync', 'Pull ingest failed', msg)
         return
       }
-      const ok = applySnapshotFromJson(r.snapshotJson)
+      const pulledSv = r.stateVersion != null ? Number(r.stateVersion) : undefined
+      const ok = applySnapshotFromJson(r.snapshotJson, pulledSv)
       if (ok) {
-        if (r.stateVersion != null) {
-          updateSyncMeta({ lastAppliedIngestStateVersion: r.stateVersion })
+        if (pulledSv != null && Number.isFinite(pulledSv)) {
+          updateSyncMeta({ lastAppliedIngestStateVersion: pulledSv })
+          setIngestSvOnThisSite(pulledSv)
         }
         appendAuditLog('sync', 'Pulled snapshot from ingest', window.location.origin)
         refreshMeta()
@@ -568,8 +619,26 @@ export function SyncControlSection({
         >
           {cleanDisconnectBusy ? 'Signing off…' : 'Clean disconnect (notify upstream)'}
         </button>
-        <span style={{ alignSelf: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+        <span
+          style={{
+            alignSelf: 'center',
+            color: 'var(--text-secondary)',
+            fontSize: '0.85rem',
+            lineHeight: 1.35,
+          }}
+          title="Local counter in your DB. After you pull or accept an ingest snapshot, it is set to that snapshot’s version so it matches what was pushed."
+        >
           Data version: <strong>{sv}</strong>
+          {ingestSvOnThisSite != null ? (
+            <span style={{ marginLeft: '0.45rem', opacity: 0.92 }}>
+              · This site’s ingest: <strong>{ingestSvOnThisSite}</strong>
+              {ingestSvOnThisSite > sv
+                ? ' (newer — pull or accept prompt)'
+                : ingestSvOnThisSite < sv
+                  ? ' (your DB is ahead)'
+                  : ''}
+            </span>
+          ) : null}
         </span>
       </div>
       <p style={{ margin: '0 0 0.45rem', color: 'var(--text-secondary)', fontSize: '0.72rem', lineHeight: 1.35 }}>

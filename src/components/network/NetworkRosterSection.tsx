@@ -116,6 +116,7 @@ function NetworkRosterSectionInner({
       peerUnitId: null,
       syncAlertsEnabled: true,
       autoAcceptSync: false,
+      stationOfflineSinceMs: null,
     }
     upsertNetworkRosterRow(row)
     appendAuditLog('network', 'Roster row added', id)

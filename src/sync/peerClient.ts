@@ -210,10 +210,11 @@ async function fetchIngestStatusAtBase(
     if (typeof j.snapshotJson !== 'string' || j.snapshotJson.length === 0) {
       return { ok: false, detail: 'No snapshot in ingest yet (nothing pushed to this URL).' }
     }
+    const sv = Number(j.stateVersion)
     return {
       ok: true,
       snapshotJson: j.snapshotJson,
-      stateVersion: typeof j.stateVersion === 'number' ? j.stateVersion : undefined,
+      stateVersion: Number.isFinite(sv) && sv > 0 ? sv : undefined,
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
