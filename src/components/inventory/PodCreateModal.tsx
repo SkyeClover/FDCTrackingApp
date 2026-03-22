@@ -141,6 +141,7 @@ export default function PodCreateModal({ isOpen, onClose }: Props) {
   return (
     <div
       data-guide="pod-create-modal"
+      className="fdc-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -154,13 +155,14 @@ export default function PodCreateModal({ isOpen, onClose }: Props) {
       onClick={onClose}
     >
       <div
+        className="touch-kbd-scroll"
         style={{
           backgroundColor: 'var(--bg-secondary)',
           borderRadius: '10px',
           border: '1px solid var(--border)',
           maxWidth: '480px',
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: 'min(90vh, 100%)',
           overflow: 'auto',
           boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
         }}

@@ -1,10 +1,36 @@
 import { ReactNode, useEffect, useState } from 'react'
-import { initPersistence, loadAppStateFromDb, readInitialSetupCompleteFromDb } from './sqlite'
+import {
+  flushPersistenceNow,
+  initPersistence,
+  loadAppStateFromDb,
+  readInitialSetupCompleteFromDb,
+} from './sqlite'
 import { getDefaultState } from '../utils/saveLoad'
 import { readInitialSetupCompleteFromStorage } from '../utils/saveLoad'
 import { normalizeLoadedAppState } from '../utils/normalizeAppState'
 import type { AppState } from '../types'
 import { AppDataProvider } from '../context/AppDataContext'
+
+/** Flush SQLite → IndexedDB when the tab hides or the user closes the browser (best-effort). */
+function PersistenceUnloadFlush() {
+  useEffect(() => {
+    const flush = () => {
+      void flushPersistenceNow()
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('beforeunload', flush)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('beforeunload', flush)
+    }
+  }, [])
+  return null
+}
 
 interface PersistenceRootProps {
   children: ReactNode
@@ -50,7 +76,7 @@ export function PersistenceRoot({ children, updateProgress, removeProgress }: Pe
       <div style={{ padding: '2rem', fontFamily: 'system-ui', maxWidth: '40rem' }}>
         <h1>Storage failed</h1>
         <p>{error}</p>
-        <p style={{ opacity: 0.8 }}>Try another browser or enable site data / IndexedDB.</p>
+        <p style={{ opacity: 0.8 }}>Try another browser, or allow this site to save data in your browser settings.</p>
       </div>
     )
   }
@@ -79,6 +105,7 @@ export function PersistenceRoot({ children, updateProgress, removeProgress }: Pe
       updateProgress={updateProgress}
       removeProgress={removeProgress}
     >
+      <PersistenceUnloadFlush />
       {children}
     </AppDataProvider>
   )

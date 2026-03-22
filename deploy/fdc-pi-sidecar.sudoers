@@ -1,0 +1,6 @@
+# Install on the Pi with: sudo install -m 440 fdc-pi-sidecar.sudoers /etc/sudoers.d/fdc-pi-sidecar
+# Replace walker-ranger and service name if needed. Use visudo to validate.
+walker-ranger ALL=(ALL) NOPASSWD: /bin/systemctl restart fdc-tracker.service
+walker-ranger ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart fdc-tracker.service
+walker-ranger ALL=(ALL) NOPASSWD: /sbin/shutdown
+walker-ranger ALL=(ALL) NOPASSWD: /usr/sbin/shutdown

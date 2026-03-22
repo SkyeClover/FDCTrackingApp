@@ -1,5 +1,5 @@
 /**
- * Vercel serverless: same contract as fdc-peer-server.mjs (GET/POST /fdc/v1/*).
+ * Vercel serverless: same contract as fdc-peer-server.mjs (GET/POST /fdc/v1/*, incl. /ping).
  * Rewrites in vercel.json map /fdc/v1/* → /api/fdc?route=*
  *
  * Storage (first match wins):
@@ -32,7 +32,9 @@ if (!process.env.REDIS_URL) {
   }
 }
 
-const SECRET = process.env.FDC_SYNC_SECRET || ''
+const SECRET = (process.env.FDC_SYNC_SECRET || '')
+  .trim()
+  .replace(/^\uFEFF/, '')
 
 function hasKvEnv() {
   return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
@@ -172,15 +174,17 @@ function sendJson(res, status, obj, extra = {}) {
 
 function readBody(req, maxBytes = 6 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
-    let body = ''
+    const chunks = []
+    let total = 0
     req.on('data', (c) => {
-      body += c
-      if (body.length > maxBytes) {
+      chunks.push(c)
+      total += c.length
+      if (total > maxBytes) {
         req.destroy()
         reject(new Error('payload_too_large'))
       }
     })
-    req.on('end', () => resolve(body))
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     req.on('error', reject)
   })
 }
@@ -202,6 +206,8 @@ export default async function handler(req, res) {
       service: 'fdc-peer',
       stateVersion: last.stateVersion || 0,
       fromUnitId: last.fromUnitId ?? null,
+      signatureRequired: Boolean(SECRET),
+      secretCharCount: SECRET.length,
     })
     return
   }
@@ -220,6 +226,37 @@ export default async function handler(req, res) {
       receivedAt: last.receivedAt,
       snapshotJson: last.snapshotJson,
     })
+    return
+  }
+
+  if (req.method === 'POST' && route === 'ping') {
+    let body
+    try {
+      body = await readBody(req, 65536)
+    } catch (e) {
+      sendJson(res, 413, { ok: false, error: e instanceof Error ? e.message : 'too_large' })
+      return
+    }
+    const sig = req.headers['x-fdc-signature']
+    if (!verifyPostSig(body, sig)) {
+      sendJson(res, 401, { ok: false, error: 'bad_signature' })
+      return
+    }
+    try {
+      const msg = JSON.parse(body || '{}')
+      if (msg.kind !== 'ping') {
+        sendJson(res, 400, { ok: false, error: 'expected_kind_ping' })
+        return
+      }
+      sendJson(res, 200, {
+        ok: true,
+        pong: true,
+        receivedAt: Date.now(),
+        note: 'no snapshot stored',
+      })
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'parse_error' })
+    }
     return
   }
 

@@ -486,6 +486,7 @@ export default function Management() {
         {/* RSV Creation Modal */}
         {showRSVForm && (
           <div
+            className="fdc-modal-overlay"
             style={{
               position: 'fixed',
               top: 0,

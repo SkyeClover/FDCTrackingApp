@@ -35,17 +35,13 @@ dist-ssr
 .vercel
 .deploy-trigger
 
-# Pi setup (excluded from repo)
-pi-setup/
-public/api/
-
 # Test files
 test-db.json
 
 # Local peer server last received snapshot (dev)
 .fdc-peer-last.json
 
-# Local-only helper scripts (optional; remove this line to track)
+# Local-only (upload scripts, PuTTY binaries — never commit secrets)
 /tools/
 
 # OS / tooling noise

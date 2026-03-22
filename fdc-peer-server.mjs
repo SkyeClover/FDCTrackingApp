@@ -4,6 +4,7 @@
  * Default: http://0.0.0.0:8787
  *
  * POST /fdc/v1/push — JSON body { kind, fromUnitId, stateVersion, snapshotJson }
+ * POST /fdc/v1/ping — JSON body { kind: "ping" } — signed; does not store a snapshot
  * Header X-FDC-Signature: hex HMAC-SHA256 of raw body when FDC_SYNC_SECRET is set.
  */
 import http from 'http'
@@ -15,7 +16,10 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.FDC_PEER_PORT || process.env.PORT || 8787)
 const HOST = process.env.FDC_PEER_HOST || '0.0.0.0'
-const SECRET = process.env.FDC_SYNC_SECRET || ''
+/** Match browser: trim + strip BOM so env files / copy-paste don’t break HMAC */
+const SECRET = (process.env.FDC_SYNC_SECRET || '')
+  .trim()
+  .replace(/^\uFEFF/, '')
 
 const storePath = path.join(process.cwd(), '.fdc-peer-last.json')
 
@@ -98,6 +102,9 @@ const server = http.createServer((req, res) => {
       service: 'fdc-peer',
       stateVersion: last.stateVersion,
       fromUnitId: last.fromUnitId,
+      signatureRequired: Boolean(SECRET),
+      /** Non-zero = secret loaded (length only; value never exposed) */
+      secretCharCount: SECRET.length,
     })
     return
   }
@@ -118,13 +125,50 @@ const server = http.createServer((req, res) => {
     return
   }
 
-  if (req.method === 'POST' && url.pathname === '/fdc/v1/push') {
-    let body = ''
+  if (req.method === 'POST' && url.pathname === '/fdc/v1/ping') {
+    const chunks = []
+    let total = 0
     req.on('data', (c) => {
-      body += c
-      if (body.length > 50 * 1024 * 1024) req.destroy()
+      chunks.push(c)
+      total += c.length
+      if (total > 65536) req.destroy()
     })
     req.on('end', () => {
+      const body = Buffer.concat(chunks).toString('utf8')
+      const sig = req.headers['x-fdc-signature']
+      if (!verifySig(body, sig)) {
+        sendJson(res, 401, { ok: false, error: 'bad_signature' })
+        return
+      }
+      try {
+        const msg = JSON.parse(body || '{}')
+        if (msg.kind !== 'ping') {
+          sendJson(res, 400, { ok: false, error: 'expected_kind_ping' })
+          return
+        }
+        sendJson(res, 200, {
+          ok: true,
+          pong: true,
+          receivedAt: Date.now(),
+          note: 'no snapshot stored',
+        })
+      } catch {
+        sendJson(res, 400, { ok: false, error: 'parse_error' })
+      }
+    })
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/fdc/v1/push') {
+    const chunks = []
+    let total = 0
+    req.on('data', (c) => {
+      chunks.push(c)
+      total += c.length
+      if (total > 50 * 1024 * 1024) req.destroy()
+    })
+    req.on('end', () => {
+      const body = Buffer.concat(chunks).toString('utf8')
       const sig = req.headers['x-fdc-signature']
       if (!verifySig(body, sig)) {
         sendJson(res, 401, { ok: false, error: 'bad_signature' })
@@ -161,6 +205,8 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`Walker Track peer server http://${HOST}:${PORT}`)
   console.log('  GET  /fdc/v1/health')
+  console.log('  POST /fdc/v1/ping')
   console.log('  POST /fdc/v1/push')
   if (!SECRET) console.warn('  WARNING: FDC_SYNC_SECRET not set — signatures not required')
+  else console.log(`  FDC_SYNC_SECRET: loaded (${SECRET.length} chars, must match app Network → Shared secret)`)
 })

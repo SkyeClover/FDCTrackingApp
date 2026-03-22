@@ -90,7 +90,7 @@ export default function SystemInfo() {
         setInfo(null)
       } else {
         setError(
-          `No endpoint (${msg}). Optional: \`npm run dev:full\` or \`npm run device-agent\` (3940), Pi :3001, or pi-proxy with VITE_USE_PI_PROXY_SYSTEM_INFO.`
+          `I couldn’t load hardware stats (${msg}). On your Pi that’s usually the little local helper; everything else still works.`
         )
       }
       setLoading(false)
@@ -181,10 +181,9 @@ export default function SystemInfo() {
       <PageShell title="System information" isMobile={safeIsMobile}>
         <div style={{ maxWidth: '520px', margin: '0 auto' }}>
           <p style={{ color: 'var(--text-secondary)', lineHeight: 1.45, fontSize: '0.9rem', margin: 0 }}>
-            <strong style={{ color: 'var(--text-primary)' }}>Hosted deployment</strong> — Detailed CPU, memory, and disk
-            stats come from a small service on your machine (device agent) or Pi. Browsers cannot start that for you, and a
-            public site like Vercel cannot reach <code>localhost</code> on your PC. Use the app on{' '}
-            <code>localhost</code> with <code>npm run dev:full</code> when you need this page.
+            <strong style={{ color: 'var(--text-primary)' }}>When I’m on a public website</strong> — I can’t reach the tiny
+            helper that lives on your Pi or PC, so this page stays empty. Open me on your LAN or straight on the kiosk when
+            you want temps and disk use here.
           </p>
         </div>
       </PageShell>

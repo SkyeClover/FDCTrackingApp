@@ -20,6 +20,10 @@
       "destination": "/api/fdc?route=push"
     },
     {
+      "source": "/fdc/v1/ping",
+      "destination": "/api/fdc?route=ping"
+    },
+    {
       "source": "/fdc/v1/status",
       "destination": "/api/fdc?route=status"
     },

@@ -69,6 +69,7 @@ export default function ReloadModal({
 
   return (
     <div
+      className="fdc-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -86,14 +87,15 @@ export default function ReloadModal({
     >
       <div
         ref={modalContentRef}
+        className="touch-kbd-scroll"
         style={{
           backgroundColor: 'var(--bg-primary)',
           borderRadius: isMobile ? '0' : '12px',
           padding: isMobile ? '1rem' : '2rem',
           maxWidth: isMobile ? '100%' : '600px',
           width: '100%',
-          maxHeight: isMobile ? '100vh' : '90vh',
-          height: isMobile ? '100vh' : 'auto',
+          maxHeight: isMobile ? '100%' : '90vh',
+          height: isMobile ? '100%' : 'auto',
           overflow: 'auto',
           border: isMobile ? 'none' : '2px solid var(--border)',
           display: 'flex',

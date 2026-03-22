@@ -1,9 +1,10 @@
 const enc = new TextEncoder()
 
 export async function hmacSha256Hex(secret: string, message: string): Promise<string> {
+  const keyMaterial = secret.trim().replace(/^\uFEFF/, '')
   const key = await crypto.subtle.importKey(
     'raw',
-    enc.encode(secret),
+    enc.encode(keyMaterial),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']

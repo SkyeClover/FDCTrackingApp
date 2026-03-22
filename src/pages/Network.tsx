@@ -64,7 +64,7 @@ export default function Network() {
         lastInfoJsonRef.current = null
       } else {
         setError(
-          `No local agent (${msg}). Optional: \`npm run dev:full\` or \`npm run device-agent\` (3940), or Pi :3001.`
+          `I couldn’t read this device’s network details (${msg}). On your Pi kiosk, make sure the small local helper is running; otherwise I’m fine without it.`
         )
       }
       setLoading(false)
@@ -144,9 +144,9 @@ export default function Network() {
             lineHeight: 1.4,
           }}
         >
-          <strong style={{ color: 'var(--text-primary)' }}>Hosted deployment</strong> — Local host/MAC info is only
-          available when you open the app from this machine (localhost) with the device agent or Pi. Vercel cannot auto-start
-          an agent on your PC (browser security).
+          <strong style={{ color: 'var(--text-primary)' }}>When I’m opened from a regular website</strong> — I can’t see your
+          PC’s network card from here; that only works when you run me on your own machine or kiosk (browsers keep sites
+          from poking around your LAN).
         </p>
       )}
 

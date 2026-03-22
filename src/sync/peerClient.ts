@@ -11,7 +11,7 @@ export interface PushResult {
   ackVersion?: number
 }
 
-/** Public base URL for a roster row (omits :443 / :80 for cleaner Vercel URLs). */
+/** Public base URL for a roster row (omits default HTTPS/HTTP ports when building URLs). */
 export function peerBaseUrl(row: NetworkRosterRow): string | null {
   if (!row.host || row.port == null) return null
   const scheme = row.useTls ? 'https' : 'http'
@@ -27,6 +27,64 @@ function baseUrl(row: NetworkRosterRow): string | null {
 /**
  * POST full snapshot to a peer’s FDC ingest API (see fdc-peer-server.mjs).
  */
+/** Signed “are you up?” — does not write a snapshot on the peer. */
+export async function sendPeerPing(
+  row: NetworkRosterRow,
+  meta: SyncMetaRow
+): Promise<{ ok: boolean; path: string; detail?: string; latencyMs?: number }> {
+  if (!meta.syncSharedSecret?.trim()) {
+    return { ok: false, path: row.displayName, detail: 'Shared secret not set (Network → Sync).' }
+  }
+  const base = baseUrl(row)
+  if (!base) {
+    return { ok: false, path: row.displayName, detail: 'Missing host/port' }
+  }
+  if (row.bearer !== 'ip') {
+    return {
+      ok: false,
+      path: `${base}/fdc/v1/ping`,
+      detail: `Bearer "${row.bearer}" not supported (use IP/LAN).`,
+    }
+  }
+
+  const path = `${base}/fdc/v1/ping`
+  const body = JSON.stringify({ kind: 'ping' as const })
+  const secret = meta.syncSharedSecret || ''
+  const sig = secret ? await hmacSha256Hex(secret, body) : ''
+
+  const t0 = performance.now()
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (sig) headers['X-FDC-Signature'] = sig
+
+    const res = await fetch(path, {
+      method: 'POST',
+      headers,
+      body,
+      credentials: 'omit',
+    })
+    const text = await res.text()
+    const latencyMs = Math.round(performance.now() - t0)
+    if (!res.ok) {
+      return { ok: false, path, detail: text.slice(0, 200), latencyMs }
+    }
+    try {
+      const j = JSON.parse(text) as { pong?: boolean }
+      if (!j.pong) return { ok: false, path, detail: 'Unexpected response', latencyMs }
+    } catch {
+      return { ok: false, path, detail: 'Invalid JSON response', latencyMs }
+    }
+    return { ok: true, path, detail: `pong (${latencyMs} ms)`, latencyMs }
+  } catch (e) {
+    return {
+      ok: false,
+      path,
+      detail: e instanceof Error ? e.message : String(e),
+      latencyMs: Math.round(performance.now() - t0),
+    }
+  }
+}
+
 export async function pushSnapshotToPeer(
   row: NetworkRosterRow,
   meta: SyncMetaRow,
@@ -95,7 +153,7 @@ export async function pushSnapshotToPeer(
 
 /**
  * GET /fdc/v1/status — last stored snapshot (requires HMAC when sync secret is set on server).
- * `base` is origin-like, e.g. https://my-app.vercel.app or http://192.168.1.5:8787
+ * `base` is origin-like, e.g. https://your-hosted-site.example or http://192.168.1.5:8787
  */
 export async function fetchIngestStatus(
   meta: SyncMetaRow,

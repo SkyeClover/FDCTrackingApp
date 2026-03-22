@@ -233,7 +233,7 @@ export interface SyncMetaRow {
   peerListenPort: number
   /** When set, sync / UX can prefer Management tree for parent chain (see Network roster). */
   autoRollupFromOrg: boolean
-  /** Last ingest snapshot stateVersion we applied locally (this deployment’s /fdc/v1 ingest). */
+  /** Last ingest snapshot stateVersion we applied from this site’s stored copy. */
   lastAppliedIngestStateVersion: number
   /** Ingest stateVersion user dismissed without applying (hide banner until a newer push). */
   dismissedIngestStateVersion: number
@@ -294,6 +294,9 @@ export function updateSyncMeta(partial: Partial<Omit<SyncMetaRow, 'stateVersion'
   const next = {
     ...cur,
     ...partial,
+  }
+  if (partial.syncSharedSecret !== undefined) {
+    next.syncSharedSecret = String(partial.syncSharedSecret).trim().replace(/^\uFEFF/, '')
   }
   ensureDb().run(
     `UPDATE sync_meta SET

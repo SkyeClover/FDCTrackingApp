@@ -31,7 +31,7 @@ function AppContentWithData() {
     <NavigationProvider navigateTo={setCurrentPage}>
       <SyncInboxBanner />
       {isMobile ? (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minHeight: 0 }}>
           <MobileNav currentPage={currentPage} onPageChange={setCurrentPage} />
           <main
             style={{
@@ -43,6 +43,8 @@ function AppContentWithData() {
               overflowX: 'hidden',
               padding: isMobile ? '0.75rem' : '1rem',
               paddingTop: isMobile ? 'calc(56px + 0.75rem)' : 'calc(56px + 1rem)',
+              paddingBottom: `calc(${isMobile ? '0.75rem' : '1rem'} + var(--keyboard-bottom-inset, 0px))`,
+              scrollPaddingBottom: 'calc(var(--keyboard-bottom-inset, 0px) + 24px)',
               width: '100%',
               maxWidth: '100vw',
               boxSizing: 'border-box',
@@ -50,7 +52,6 @@ function AppContentWithData() {
               WebkitOverflowScrolling: 'touch',
               willChange: 'scroll-position',
               touchAction: 'pan-y pan-x',
-              userSelect: 'none',
               overscrollBehavior: 'contain',
               scrollBehavior: 'smooth',
               transform: 'translateZ(0)',
@@ -72,7 +73,7 @@ function AppContentWithData() {
           </main>
         </div>
       ) : (
-        <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
+        <div style={{ display: 'flex', height: '100%', width: '100%', minHeight: 0 }}>
           <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
           <main
             style={{
@@ -83,10 +84,11 @@ function AppContentWithData() {
               overflowY: 'auto',
               overflowX: 'hidden',
               padding: '2rem',
+              paddingBottom: 'calc(2rem + var(--keyboard-bottom-inset, 0px))',
+              scrollPaddingBottom: 'calc(var(--keyboard-bottom-inset, 0px) + 24px)',
               WebkitOverflowScrolling: 'touch',
               willChange: 'scroll-position',
               touchAction: 'pan-y pan-x',
-              userSelect: 'none',
               overscrollBehavior: 'contain',
               scrollBehavior: 'smooth',
               transform: 'translateZ(0)',

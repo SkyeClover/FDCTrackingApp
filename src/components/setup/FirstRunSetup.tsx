@@ -94,6 +94,7 @@ export default function FirstRunSetup() {
 
   return (
     <div
+      className="fdc-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,

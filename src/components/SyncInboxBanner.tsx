@@ -106,7 +106,7 @@ export function SyncInboxBanner() {
             const style = parseSyncAlertStyle(meta.syncAlertStyleJson)
             setBanner({
               kind: 'notice',
-              message: `Snapshot from ${fromUid ?? 'peer'} (v${ingestSv}) applied automatically.`,
+              message: `I pulled in data from ${fromUid ?? 'that unit'} — you’re up to date.`,
             })
             scheduleHideNotice(style.durationMs)
           }
@@ -122,7 +122,7 @@ export function SyncInboxBanner() {
     const label = match.displayName || (fromUid ? `Unit ${fromUid}` : 'Peer')
     setBanner({
       kind: 'pending',
-      message: `Incoming sync (v${ingestSv}) from ${label}.`,
+      message: `New data waiting (v${ingestSv}) from ${label}. Want me to apply it?`,
       ingestSv,
       fromUnitId: fromUid,
     })
@@ -152,7 +152,7 @@ export function SyncInboxBanner() {
         const style = parseSyncAlertStyle(meta.syncAlertStyleJson)
         setBanner({
           kind: 'notice',
-          message: `Snapshot v${banner.ingestSv} applied.`,
+          message: `Done — I’m on v${banner.ingestSv} now.`,
         })
         scheduleHideNotice(style.durationMs)
       }

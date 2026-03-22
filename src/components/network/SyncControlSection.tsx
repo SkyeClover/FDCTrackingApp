@@ -10,7 +10,7 @@ import {
   listNetworkRoster,
   updateSyncMeta,
 } from '../../persistence/sqlite'
-import { fetchIngestStatus } from '../../sync/peerClient'
+import { fetchIngestStatus, peerBaseUrl, sendPeerPing } from '../../sync/peerClient'
 import { isSyncSharedSecretConfigured } from '../../sync/syncGuards'
 import { runSnapshotPush } from '../../sync/syncEngine'
 
@@ -26,6 +26,7 @@ export function SyncControlSection({
   const [sv, setSv] = useState(getStateVersion)
   const [busy, setBusy] = useState(false)
   const [pullBusy, setPullBusy] = useState(false)
+  const [pingBusy, setPingBusy] = useState(false)
   const [lastPath, setLastPath] = useState<string>('')
   const [lastLog, setLastLog] = useState<string>('')
   const [showSkipConfirm, setShowSkipConfirm] = useState(false)
@@ -83,9 +84,49 @@ export function SyncControlSection({
     return () => clearInterval(t)
   }, [getStateSnapshot, onSyncDone, refreshMeta, meta.autoPushEnabled])
 
+  const doPingPeers = useCallback(async () => {
+    if (!isSyncSharedSecretConfigured(getSyncMeta())) {
+      setLastPath('Set your shared passphrase before I can send a test message.')
+      setLastLog(new Date().toLocaleTimeString())
+      setSyncOutputOpen(true)
+      return
+    }
+    setPingBusy(true)
+    setLastPath('')
+    try {
+      const m = getSyncMeta()
+      const peers = listNetworkRoster().filter((r) => r.host && r.port != null && r.bearer === 'ip')
+      if (peers.length === 0) {
+        setLastPath('No roster rows with host, port, and IP/LAN bearer to ping.')
+        setLastLog(new Date().toLocaleTimeString())
+        setSyncOutputOpen(true)
+        return
+      }
+      const lines: string[] = []
+      for (const row of peers) {
+        const r = await sendPeerPing(row, m)
+        const origin = peerBaseUrl(row) ?? row.displayName
+        lines.push(
+          `${row.displayName}: ${r.ok ? `OK ${r.detail ?? 'pong'}` : `FAIL ${r.detail ?? 'error'}`} → ${origin}`
+        )
+      }
+      setLastPath(['Test message (quick ping — not a full data copy):', ...lines].join('\n'))
+      setLastLog(new Date().toLocaleTimeString())
+      setSyncOutputOpen(true)
+      appendAuditLog(
+        'sync',
+        'Ping test',
+        lines.slice(0, 8).join(' · ') + (lines.length > 8 ? ` … +${lines.length - 8}` : '')
+      )
+      setAuditTick((t) => t + 1)
+    } finally {
+      setPingBusy(false)
+    }
+  }, [])
+
   const doForce = useCallback(async () => {
     if (!isSyncSharedSecretConfigured(getSyncMeta())) {
-      setLastPath('Set Shared secret (for sync HMAC) before pushing. It must match FDC_SYNC_SECRET on the server.')
+      setLastPath('Set your shared passphrase before pushing — it has to match what you typed on the other machines.')
       setLastLog(new Date().toLocaleTimeString())
       setSyncOutputOpen(true)
       return
@@ -113,14 +154,14 @@ export function SyncControlSection({
 
   const pullFromThisSiteIngest = useCallback(async () => {
     if (!isSyncSharedSecretConfigured(getSyncMeta())) {
-      setLastPath('Set Shared secret (for sync HMAC) before pulling. It must match FDC_SYNC_SECRET on the server.')
+      setLastPath('Set your shared passphrase before pulling — same one you use on the copy you’re pulling from.')
       setLastLog(new Date().toLocaleTimeString())
       setSyncOutputOpen(true)
       return
     }
     if (
       !confirm(
-        'Replace all local data on this device with the last snapshot stored on this deployment’s ingest (GET /fdc/v1/status)?'
+        'Replace everything on this device with the last copy this website received? You can’t undo that.'
       )
     ) {
       return
@@ -179,7 +220,8 @@ export function SyncControlSection({
     >
       <h2 style={{ margin: '0 0 0.3rem', fontSize: '0.98rem' }}>Sync &amp; identity</h2>
       <p style={{ margin: '0 0 0.45rem', color: 'var(--text-secondary)', fontSize: '0.78rem', lineHeight: 1.38 }}>
-        Log below shows paths after each run. Roster order; skip-echelon only when enabled and verified here.
+        I keep a log below after each run so you can see what happened. Peers run in roster order; skip-echelon only when
+        you’ve turned it on and confirmed here.
       </p>
 
       <div
@@ -205,14 +247,14 @@ export function SyncControlSection({
               type={showSharedSecret ? 'text' : 'password'}
               value={meta.syncSharedSecret}
               onChange={(e) => saveMeta({ syncSharedSecret: e.target.value })}
-              placeholder="Same secret on all peers + FDC_SYNC_SECRET"
+              placeholder="Same phrase on my Pi, laptop, and any other copy"
               autoComplete="off"
               style={{ flex: 1, minWidth: 0 }}
             />
             <button
               type="button"
-              title={showSharedSecret ? 'Hide secret' : 'Show secret'}
-              aria-label={showSharedSecret ? 'Hide shared secret' : 'Show shared secret'}
+              title={showSharedSecret ? 'Hide passphrase' : 'Show passphrase'}
+              aria-label={showSharedSecret ? 'Hide shared passphrase' : 'Show shared passphrase'}
               aria-pressed={showSharedSecret}
               onClick={() => setShowSharedSecret((v) => !v)}
               style={{
@@ -233,8 +275,9 @@ export function SyncControlSection({
             </button>
           </div>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400, lineHeight: 1.35 }}>
-            Same value on every device and ingest (Pi, Vercel, etc.): the app signs with HMAC; servers use{' '}
-            <code style={{ fontSize: '0.7em' }}>FDC_SYNC_SECRET</code> for <code style={{ fontSize: '0.7em' }}>fdc-peer-server.mjs</code> or Vercel.
+            I use this exact text on every device and on whatever box is receiving sync (your Pi, another install, etc.).
+            Extra spaces at the ends get trimmed. If something complains about a bad signature, it’s almost always a typo
+            or a different phrase — compare carefully, character for character.
           </span>
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem' }}>
@@ -243,7 +286,7 @@ export function SyncControlSection({
             type="number"
             value={meta.peerListenPort}
             onChange={(e) => saveMeta({ peerListenPort: parseInt(e.target.value, 10) || 8787 })}
-            className="input-no-spinner"
+            className="touch-stepper"
           />
         </label>
         <label
@@ -264,9 +307,9 @@ export function SyncControlSection({
             Auto-push snapshot
           </span>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400, lineHeight: 1.4 }}>
-            When enabled, periodically pushes the current database to all roster peers with host/port (~every 90s), only if
-            Shared secret is set and at least one peer is configured. Turn off to push only with &quot;Force push
-            snapshot&quot;.
+            When this is on, I’ll push my data to everyone in the roster who has a host and port about every 90 seconds —
+            but only if you’ve set the shared passphrase and there’s at least one peer. Turn it off if you only want to push
+            when you tap “Force push snapshot”.
           </span>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', marginTop: '1.1rem' }}>
@@ -286,7 +329,7 @@ export function SyncControlSection({
             value={meta.maxSkipHops}
             onChange={(e) => saveMeta({ maxSkipHops: Math.min(5, Math.max(1, parseInt(e.target.value, 10) || 1)) })}
             style={{ width: '3.25rem' }}
-            className="input-no-spinner"
+            className="touch-stepper"
           />
         </div>
       </div>
@@ -314,15 +357,15 @@ export function SyncControlSection({
 
       {!secretOk ? (
         <p style={{ margin: '0 0 0.5rem', color: 'var(--warning)', fontSize: '0.78rem', lineHeight: 1.4 }}>
-          Enter a <strong>Shared secret</strong> above before any sync runs (auto push, force push, or pull). Match{' '}
-          <code style={{ fontSize: '0.7rem' }}>FDC_SYNC_SECRET</code> on Vercel / peer servers.
+          Add your <strong>shared passphrase</strong> up there before I can sync — auto push, force push, and pull all need
+          it, and it has to match what you set on the other side.
         </p>
       ) : null}
 
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.5rem' }}>
         <button
           type="button"
-          disabled={busy || pullBusy || !secretOk}
+          disabled={busy || pullBusy || pingBusy || !secretOk}
           onClick={() => void doForce()}
           style={{
             padding: '0.5rem 1rem',
@@ -330,7 +373,7 @@ export function SyncControlSection({
             color: '#fff',
             border: 'none',
             borderRadius: '6px',
-            cursor: busy || pullBusy || !secretOk ? 'not-allowed' : 'pointer',
+            cursor: busy || pullBusy || pingBusy || !secretOk ? 'not-allowed' : 'pointer',
             opacity: !secretOk ? 0.55 : 1,
           }}
         >
@@ -338,28 +381,44 @@ export function SyncControlSection({
         </button>
         <button
           type="button"
-          disabled={busy || pullBusy || !secretOk}
+          disabled={busy || pullBusy || pingBusy || !secretOk}
           onClick={() => void pullFromThisSiteIngest()}
-          title="Fetches last pushed snapshot from this origin’s /fdc/v1/status (Vercel serverless or local peer server)."
+          title="Pull the last snapshot this website already has stored — handy when I’m on the same URL you pushed to."
           style={{
             padding: '0.5rem 1rem',
             background: 'var(--bg-tertiary)',
             color: 'var(--text-primary)',
             border: '1px solid var(--border)',
             borderRadius: '6px',
-            cursor: busy || pullBusy || !secretOk ? 'not-allowed' : 'pointer',
+            cursor: busy || pullBusy || pingBusy || !secretOk ? 'not-allowed' : 'pointer',
             opacity: !secretOk ? 0.55 : 1,
           }}
         >
           {pullBusy ? 'Pulling…' : 'Pull snapshot (this site ingest)'}
         </button>
+        <button
+          type="button"
+          disabled={busy || pullBusy || pingBusy || !secretOk}
+          onClick={() => void doPingPeers()}
+          title="Send a quick hello to each LAN peer in the roster — doesn’t copy your full data."
+          style={{
+            padding: '0.5rem 1rem',
+            background: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            cursor: busy || pullBusy || pingBusy || !secretOk ? 'not-allowed' : 'pointer',
+            opacity: !secretOk ? 0.55 : 1,
+          }}
+        >
+          {pingBusy ? 'Pinging…' : 'Send test message'}
+        </button>
         <span style={{ alignSelf: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-          DB stateVersion: <strong>{sv}</strong>
+          Data version: <strong>{sv}</strong>
         </span>
       </div>
       <p style={{ margin: '0 0 0.45rem', color: 'var(--text-secondary)', fontSize: '0.72rem', lineHeight: 1.35 }}>
-        Cross-internet: add the other deployment as a roster row (host e.g. <code style={{ fontSize: '0.7rem' }}>their-app.vercel.app</code>, port{' '}
-        <code style={{ fontSize: '0.7rem' }}>443</code>, TLS on, shared secret matches Vercel <code style={{ fontSize: '0.7rem' }}>FDC_SYNC_SECRET</code>). Receiver on the same URL uses pull; see docs.
+        Over the internet: add the other site as a roster row (its hostname, port <code style={{ fontSize: '0.7rem' }}>443</code>, TLS on), and use the same shared passphrase there. If you’re on that same site, you can pull what was last saved there.
       </p>
 
       {(lastPath || lastLog) && (
@@ -407,7 +466,7 @@ export function SyncControlSection({
             </button>
             <button
               type="button"
-              title="Clear this output"
+              title="Clear this log"
               onClick={() => {
                 setLastPath('')
                 setLastLog('')
@@ -491,7 +550,7 @@ export function SyncControlSection({
           </button>
           <button
             type="button"
-            title="Clear stored sync/network log"
+            title="Clear my sync & network log"
             onClick={() => {
               clearAuditLog()
               setAuditTick((t) => t + 1)

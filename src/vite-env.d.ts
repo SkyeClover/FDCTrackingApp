@@ -8,6 +8,7 @@ declare module '*?url' {
 interface ImportMetaEnv {
   readonly VITE_AUTH_USERNAME?: string
   readonly VITE_AUTH_PASSWORD?: string
-  // Add other env variables here as needed
+  readonly VITE_KIOSK_SIDECAR_ORIGIN?: string
+  readonly VITE_DEVICE_AGENT_ORIGIN?: string
 }
 

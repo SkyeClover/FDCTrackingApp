@@ -191,6 +191,7 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
   return (
     <div
       data-guide="create-unit-modal"
+      className="fdc-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -204,13 +205,14 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
       onClick={resetClose}
     >
       <div
+        className="touch-kbd-scroll"
         style={{
           backgroundColor: 'var(--bg-secondary)',
           borderRadius: '10px',
           border: '1px solid var(--border)',
           maxWidth: '440px',
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: 'min(90vh, 100%)',
           overflow: 'auto',
           boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
         }}

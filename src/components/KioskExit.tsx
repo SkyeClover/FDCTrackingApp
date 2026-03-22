@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getKioskSidecarOrigin } from '../lib/kioskSidecar'
 
 interface KioskExitProps {
   onExit: () => void
@@ -74,7 +75,7 @@ export default function KioskExit({ onExit }: KioskExitProps) {
   const handleExit = async () => {
     try {
       // Call the exit handler endpoint to launch terminal
-      const response = await fetch('http://localhost:3001/exit', {
+      const response = await fetch(`${getKioskSidecarOrigin()}/exit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

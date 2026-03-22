@@ -141,6 +141,7 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
 
   return (
     <div
+      className="fdc-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -157,6 +158,7 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
     >
       <div
         ref={modalContentRef}
+        className="touch-kbd-scroll"
         style={{
           backgroundColor: 'var(--bg-secondary)',
           border: isMobile ? 'none' : '1px solid var(--border)',
@@ -164,8 +166,8 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
           padding: isMobile ? '1rem' : isTablet ? '2.5rem' : '2rem',
           maxWidth: isMobile ? '100%' : isTablet ? '90vw' : '600px',
           width: isMobile ? '100%' : '90%',
-          maxHeight: isMobile ? '100vh' : isTablet ? '95vh' : '80vh',
-          height: isMobile ? '100vh' : 'auto',
+          maxHeight: isMobile ? '100%' : isTablet ? '95vh' : '80vh',
+          height: isMobile ? '100%' : 'auto',
           overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',

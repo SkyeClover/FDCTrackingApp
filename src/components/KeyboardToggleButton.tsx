@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getKioskSidecarOrigin } from '../lib/kioskSidecar'
 
 interface KeyboardToggleButtonProps {
   onToggle: () => void
@@ -14,7 +15,7 @@ export default function KeyboardToggleButton({ onToggle, isVisible }: KeyboardTo
     
     try {
       // Call backend API to toggle system keyboard (Onboard) when running on Pi
-      const response = await fetch('http://localhost:3001/keyboard-toggle', {
+      const response = await fetch(`${getKioskSidecarOrigin()}/keyboard-toggle`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,8 +63,9 @@ export default function KeyboardToggleButton({ onToggle, isVisible }: KeyboardTo
       onMouseLeave={() => setIsPressed(false)}
       style={{
         position: 'fixed',
-        bottom: isVisible ? '380px' : '20px', // Move up when keyboard is visible (keyboard is ~350px tall)
-        right: '20px',
+        /* Sit just above the on-screen keyboard; --keyboard-bottom-inset set by SimpleKeyboard */
+        bottom: 'calc(16px + var(--keyboard-bottom-inset, 0px))',
+        right: 'max(16px, env(safe-area-inset-right, 0px))',
         width: '70px',
         height: '70px',
         borderRadius: '50%',
@@ -88,7 +90,7 @@ export default function KeyboardToggleButton({ onToggle, isVisible }: KeyboardTo
         opacity: 1, // Ensure it's fully visible
         visibility: 'visible', // Ensure it's visible
       }}
-      title={isVisible ? 'Hide Keyboard' : 'Show Keyboard'}
+      title={isVisible ? 'Hide my keyboard' : 'Show my keyboard'}
     >
       ⌨️
     </button>

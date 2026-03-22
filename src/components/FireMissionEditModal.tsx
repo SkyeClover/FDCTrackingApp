@@ -125,6 +125,7 @@ export default function FireMissionEditModal({
 
   return (
     <div
+      className="fdc-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -141,6 +142,7 @@ export default function FireMissionEditModal({
     >
       <div
         ref={modalContentRef}
+        className="touch-kbd-scroll"
         style={{
           backgroundColor: 'var(--bg-secondary)',
           border: isMobile ? 'none' : '1px solid var(--border)',
@@ -148,8 +150,8 @@ export default function FireMissionEditModal({
           padding: isMobile ? '1rem' : '2rem',
           maxWidth: isMobile ? '100%' : '500px',
           width: isMobile ? '100%' : '90%',
-          maxHeight: isMobile ? '100vh' : '80vh',
-          height: isMobile ? '100vh' : 'auto',
+          maxHeight: isMobile ? '100%' : '80vh',
+          height: isMobile ? '100%' : 'auto',
           overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',

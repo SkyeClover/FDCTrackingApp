@@ -148,6 +148,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
 
   return (
     <div
+      className="fdc-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -165,6 +166,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
     >
       <div
         ref={modalContentRef}
+        className="touch-kbd-scroll"
         style={{
           backgroundColor: 'var(--bg-primary)',
           borderRadius: isMobile ? '0' : '12px',
@@ -172,9 +174,9 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
           maxWidth: isMobile ? '100%' : '900px',
           minWidth: isMobile ? '0' : '400px',
           width: '100%',
-          maxHeight: isMobile ? '100vh' : '90vh',
+          maxHeight: isMobile ? '100%' : '90vh',
           minHeight: isMobile ? '0' : '200px',
-          height: isMobile ? '100vh' : 'auto',
+          height: isMobile ? '100%' : 'auto',
           overflow: 'auto',
           border: isMobile ? 'none' : '2px solid var(--border)',
           boxShadow: isMobile ? 'none' : '0 4px 20px rgba(0, 0, 0, 0.3)',

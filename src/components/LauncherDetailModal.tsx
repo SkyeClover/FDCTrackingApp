@@ -160,6 +160,7 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose, re
 
   return (
     <div
+      className="fdc-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -177,14 +178,15 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose, re
     >
       <div
         ref={modalContentRef}
+        className="touch-kbd-scroll"
         style={{
           backgroundColor: 'var(--bg-primary)',
           borderRadius: isMobile ? '0' : '12px',
           padding: isMobile ? '1rem' : isTablet ? '2.5rem' : '2rem',
           maxWidth: isMobile ? '100%' : isTablet ? '95vw' : '900px',
           width: '100%',
-          maxHeight: isMobile ? '100vh' : isTablet ? '95vh' : '90vh',
-          height: isMobile ? '100vh' : 'auto',
+          maxHeight: isMobile ? '100%' : isTablet ? '95vh' : '90vh',
+          height: isMobile ? '100%' : 'auto',
           overflow: 'auto',
           border: isMobile ? 'none' : '2px solid var(--border)',
           boxShadow: isMobile ? 'none' : '0 4px 20px rgba(0, 0, 0, 0.3)',

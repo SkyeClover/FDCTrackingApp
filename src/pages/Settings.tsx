@@ -7,6 +7,7 @@ import { formatRoleDisplay } from '../constants/roles'
 import PageShell from '../components/layout/PageShell'
 import { SyncAlertSettings } from '../components/settings/SyncAlertSettings'
 import { APP_VERSION } from '../utils/saveLoad'
+import { getKioskSidecarOrigin } from '../lib/kioskSidecar'
 
 export default function Settings() {
   const isMobile = useIsMobile()
@@ -530,27 +531,27 @@ export default function Settings() {
                     marginBottom: '0.5rem',
                   }}
                 >
-                  Restart the application service on the Raspberry Pi. Only available when running on Pi with the local service.
+                  When I’m on the Pi, this restarts my app service. Needs the little local helper running.
                 </p>
                 <button
                   onClick={async () => {
-                    if (!confirm('Are you sure you want to restart the app? This will temporarily disconnect the app.')) {
+                    if (!confirm('Restart the app? I’ll blink offline for a moment.')) {
                       return
                     }
                     try {
-                      const response = await fetch('http://localhost:3001/restart-app', {
+                      const response = await fetch(`${getKioskSidecarOrigin()}/restart-app`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                       })
                       const data = await response.json()
                       if (data.success) {
-                        alert('App restart initiated. The app will reload in a few seconds.')
+                        alert('On it — I should come back in a few seconds.')
                         setTimeout(() => window.location.reload(), 3000)
                       } else {
                         alert('Failed to restart app: ' + (data.error || 'Unknown error'))
                       }
                     } catch {
-                      alert('Restart service is not available. Run the app on the Pi with the local service for this feature.')
+                      alert('That only works on the Pi when my local helper is running — you’re probably fine without it.')
                     }
                   }}
                   style={{
@@ -583,25 +584,25 @@ export default function Settings() {
                     marginBottom: '0.5rem',
                   }}
                 >
-                  Restart the Raspberry Pi. Only available when running on Pi with the local service.
+                  Full Pi reboot — needs the little local helper on the kiosk.
                 </p>
                 <button
                   onClick={async () => {
-                    if (!confirm('Are you sure you want to restart the Raspberry Pi? This will shut down the entire system.')) return
-                    if (!confirm('This will restart the Pi. Are you absolutely sure?')) return
+                    if (!confirm('Restart the whole Pi? Everything on it will go down briefly.')) return
+                    if (!confirm('Last check — really reboot the Pi?')) return
                     try {
-                      const response = await fetch('http://localhost:3001/restart-pi', {
+                      const response = await fetch(`${getKioskSidecarOrigin()}/restart-pi`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                       })
                       const data = await response.json()
                       if (data.success) {
-                        alert('Pi restart initiated. The system will restart in a few seconds.')
+                        alert('Rebooting — see you in a bit.')
                       } else {
-                        alert('Failed to restart Pi: ' + (data.error || 'Unknown error'))
+                        alert('Couldn’t reboot the Pi: ' + (data.error || 'something went wrong'))
                       }
                     } catch {
-                      alert('Restart service is not available. Run the app on the Pi with the local service for this feature.')
+                      alert('That only works on the Pi when my local helper is running — you’re probably fine without it.')
                     }
                   }}
                   style={{
@@ -634,12 +635,12 @@ export default function Settings() {
                     marginBottom: '0.75rem',
                   }}
                 >
-                  Exit kiosk mode and return to the desktop. Only available when running on Pi with the local service.
+                  Step out of fullscreen kiosk to the desktop (Pi + helper).
                 </p>
                 <button
                   onClick={async () => {
                     try {
-                      const response = await fetch('http://localhost:3001/exit', {
+                      const response = await fetch(`${getKioskSidecarOrigin()}/exit`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                       })
@@ -648,10 +649,10 @@ export default function Settings() {
                         if (document.exitFullscreen) document.exitFullscreen().catch(() => {})
                         window.close()
                       } else {
-                        alert('Failed to exit kiosk mode. Try ESC or long-press the top-left corner.')
+                        alert('Hmm — try ESC or a long press on the top-left corner.')
                       }
                     } catch {
-                      alert('Exit service is not available. Run the app on the Pi with the local service for this feature.')
+                      alert('That exit shortcut needs the Pi helper — otherwise use ESC / top-left long-press.')
                     }
                   }}
                   style={{

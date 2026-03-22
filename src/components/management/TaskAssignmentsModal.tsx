@@ -252,6 +252,7 @@ export default function TaskAssignmentsModal({ isOpen, onClose }: Props) {
 
   return (
     <div
+      className="fdc-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -271,7 +272,7 @@ export default function TaskAssignmentsModal({ isOpen, onClose }: Props) {
           border: '1px solid var(--border)',
           maxWidth: '920px',
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: 'min(90vh, 100%)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',

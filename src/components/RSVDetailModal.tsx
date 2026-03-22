@@ -85,6 +85,7 @@ export default function RSVDetailModal({ rsv, pods, isOpen, onClose }: RSVDetail
 
   return (
     <div
+      className="fdc-modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
@@ -102,14 +103,15 @@ export default function RSVDetailModal({ rsv, pods, isOpen, onClose }: RSVDetail
     >
       <div
         ref={modalContentRef}
+        className="touch-kbd-scroll"
         style={{
           backgroundColor: 'var(--bg-primary)',
           borderRadius: isMobile ? '0' : '12px',
           padding: isMobile ? '1rem' : '2rem',
           maxWidth: isMobile ? '100%' : '800px',
           width: '100%',
-          maxHeight: isMobile ? '100vh' : '90vh',
-          height: isMobile ? '100vh' : 'auto',
+          maxHeight: isMobile ? '100%' : '90vh',
+          height: isMobile ? '100%' : 'auto',
           overflow: 'auto',
           border: isMobile ? 'none' : '2px solid var(--border)',
           boxShadow: isMobile ? 'none' : '0 4px 20px rgba(0, 0, 0, 0.3)',

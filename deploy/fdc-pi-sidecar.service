@@ -1,0 +1,19 @@
+[Unit]
+Description=Walker Track kiosk sidecar (127.0.0.1:3001 — system info, keyboard, restart)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=walker-ranger
+Group=walker-ranger
+WorkingDirectory=/home/walker-ranger/FDCTrackingApp
+Environment=FDC_APP_ROOT=/home/walker-ranger/FDCTrackingApp
+# Unit restarted when you use Settings → Restart app (must match your kiosk stack)
+Environment=FDC_APP_SERVICE=fdc-tracker.service
+ExecStart=/usr/bin/node /home/walker-ranger/FDCTrackingApp/fdc-pi-sidecar.cjs
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

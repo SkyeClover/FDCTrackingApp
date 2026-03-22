@@ -5,14 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:full": "concurrently -k -n vite,agent -c blue,cyan \"vite\" \"node device-agent.cjs\"",
     "build": "tsc && vite build",
     "test": "tsc --noEmit",
     "preview": "vite preview",
-    "pi-proxy": "node pi-proxy-server.cjs",
-    "pi-proxy:dev": "node pi-proxy-server.cjs",
-    "device-agent": "node device-agent.cjs",
-    "peer-server": "node fdc-peer-server.mjs"
+    "peer-server": "node fdc-peer-server.mjs",
+    "pi-sidecar": "node fdc-pi-sidecar.cjs"
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0",
@@ -27,7 +24,6 @@
     "@types/react-dom": "^18.2.17",
     "@types/sql.js": "^1.4.10",
     "@vitejs/plugin-react": "^4.2.1",
-    "concurrently": "^9.2.1",
     "typescript": "^5.2.2",
     "vercel": "^48.12.0",
     "vite": "^5.0.8"

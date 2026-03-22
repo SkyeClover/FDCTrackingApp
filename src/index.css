@@ -5,6 +5,8 @@
 }
 
 :root {
+  /* Set by SimpleKeyboard when visible so <main> can scroll above the keyboard */
+  --keyboard-bottom-inset: 0px;
   --bg-primary: #0f0f0f;
   --bg-secondary: #1a1a1a;
   --bg-tertiary: #252525;
@@ -93,7 +95,28 @@ body {
 
 #root {
   height: 100vh;
+  max-height: 100vh;
+  min-height: 0;
   display: flex;
+  width: 100%;
+}
+
+/* SimpleKeyboard sets --keyboard-bottom-inset and html.simple-kbd-visible */
+html.simple-kbd-visible #root {
+  height: calc(100vh - var(--keyboard-bottom-inset, 0px));
+  max-height: calc(100vh - var(--keyboard-bottom-inset, 0px));
+}
+
+@supports (height: 100dvh) {
+  html.simple-kbd-visible #root {
+    height: calc(100dvh - var(--keyboard-bottom-inset, 0px));
+    max-height: calc(100dvh - var(--keyboard-bottom-inset, 0px));
+  }
+}
+
+/* Full-screen / sheet modals: don’t extend under the fixed keyboard */
+html.simple-kbd-visible .fdc-modal-overlay {
+  bottom: var(--keyboard-bottom-inset, 0px) !important;
 }
 
 code {
@@ -154,11 +177,13 @@ html {
   /* Allow text selection in inputs */
   input,
   textarea,
+  select,
   [contenteditable="true"] {
     -webkit-user-select: text !important;
     -moz-user-select: text !important;
     -ms-user-select: text !important;
     user-select: text !important;
+    touch-action: manipulation;
   }
   
   /* Larger touch targets for tablets */
@@ -302,11 +327,13 @@ html {
   /* Allow text selection in inputs */
   input,
   textarea,
+  select,
   [contenteditable="true"] {
     -webkit-user-select: text !important;
     -moz-user-select: text !important;
     -ms-user-select: text !important;
     user-select: text !important;
+    touch-action: manipulation;
   }
   
   /* Improve scrolling performance */
@@ -386,6 +413,45 @@ main,
 
 main {
   scrollbar-gutter: stable;
+  padding-bottom: var(--keyboard-bottom-inset);
+  scroll-padding-bottom: calc(var(--keyboard-bottom-inset) + 16px);
+  transition: padding-bottom 0.2s ease;
+}
+
+/**
+ * Scroll surfaces (modals, sheets) — extra bottom space when SimpleKeyboard is open
+ * so fields stay above the keyboard. Use with scrollInputIntoView in SimpleKeyboard.
+ */
+.touch-kbd-scroll {
+  /* inset already includes keyboard + gap from SimpleKeyboard */
+  padding-bottom: calc(1rem + var(--keyboard-bottom-inset, 0px)) !important;
+  scroll-padding-bottom: calc(32px + var(--keyboard-bottom-inset, 0px));
+  transition: padding-bottom 0.2s ease;
+}
+
+/* Coarse pointer (touch / Pi kiosk): larger fields without waiting for tablet breakpoint */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    min-height: 48px;
+    font-size: 16px;
+    padding: 0.5rem 0.65rem;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 1.35rem;
+    height: 1.35rem;
+    min-width: 1.35rem;
+    min-height: 1.35rem;
+  }
+}
+
+/* Number fields where native steppers help on touch (port, etc.) — do not use .input-no-spinner */
+input[type='number'].touch-stepper {
+  min-width: 5.5rem;
+  padding-inline: 0.5rem;
 }
 
 /* Legacy number inputs: hide spinner arrows when this class is used */

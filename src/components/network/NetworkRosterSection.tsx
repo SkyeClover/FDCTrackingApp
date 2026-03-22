@@ -209,7 +209,7 @@ function NetworkRosterSectionInner({
           <button
             type="button"
             onClick={() => applyParentIdsFromTree()}
-            title="Add missing BOC / PLT FDC rows from Management, then set parent IDs from hierarchy"
+            title="I’ll add any missing battery / PLT rows from Management, then fill parent IDs from your tree"
             style={{
               padding: '0.25rem 0.5rem',
               borderRadius: '4px',
@@ -244,7 +244,7 @@ function NetworkRosterSectionInner({
         <strong>Auto roll-up</strong> is on, turning it on adds a roster row for each <strong>Battery (BOC)</strong> and{' '}
         <strong>PLT FDC (POC)</strong> you created, and saving a row fills <strong>Parent ID</strong> from that tree.{' '}
         <strong>Apply parents from tree</strong> adds any missing BOC/POC rows, then updates all parents (legacy text roles
-        skipped). Edit <strong>Host</strong>/<strong>Port</strong> per node (e.g. Pi at <code style={{ fontSize: '0.7rem' }}>192.168.1.10:8787</code> for sync).{' '}
+        skipped). Edit <strong>Host</strong>/<strong>Port</strong> per node (e.g. Pi at <code style={{ fontSize: '0.7rem' }}>fdc-tracker.local:8787</code> for sync).{' '}
         <strong>Peer unit ID</strong> = sender’s Local unit ID for ingest alerts / auto-accept.
       </p>
 
@@ -259,7 +259,7 @@ function NetworkRosterSectionInner({
               <th style={{ padding: '0.35rem' }}>Port</th>
               <th style={{ padding: '0.35rem' }}>TLS</th>
               <th style={{ padding: '0.35rem' }}>Bearer</th>
-              <th style={{ padding: '0.35rem' }} title="Sender’s localUnitId (HMAC identity)">
+              <th style={{ padding: '0.35rem' }} title="Their Local unit ID — I use this to match incoming sync">
                 Peer unit ID
               </th>
               <th style={{ padding: '0.35rem' }}>Alerts</th>
@@ -415,11 +415,16 @@ function RosterRowEditor({
       <td style={{ padding: '0.35rem' }}>
         <input
           type="number"
+          className="touch-stepper"
+          min={1}
+          max={65535}
+          step={1}
           value={draft.port ?? ''}
           onChange={(e) =>
             setDraft({ ...draft, port: e.target.value ? parseInt(e.target.value, 10) : null })
           }
-          style={{ width: '64px' }}
+          style={{ width: '100%', minWidth: '5.5rem' }}
+          title="Port (8787 default). Use steppers or keyboard."
         />
       </td>
       <td style={{ padding: '0.35rem' }}>
@@ -443,7 +448,7 @@ function RosterRowEditor({
           value={draft.peerUnitId ?? ''}
           onChange={(e) => setDraft({ ...draft, peerUnitId: e.target.value.trim() || null })}
           placeholder="Their local unit ID"
-          title="Must match sender’s Local unit ID for alerts / auto-accept"
+          title="Same ID they use under Local unit ID — keeps alerts and auto-accept straight"
           style={{ width: '100%', minWidth: '56px', fontSize: '0.75rem' }}
         />
       </td>
@@ -460,7 +465,7 @@ function RosterRowEditor({
           type="checkbox"
           checked={draft.autoAcceptSync}
           onChange={(e) => setDraft({ ...draft, autoAcceptSync: e.target.checked })}
-          title="Auto-apply snapshot when ingest matches this peer"
+          title="If it’s from them, apply new data without asking"
         />
       </td>
       <td style={{ padding: '0.35rem', color: statusColor(draft.status) }}>{draft.status}</td>
