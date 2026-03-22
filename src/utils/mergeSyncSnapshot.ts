@@ -44,24 +44,25 @@ function remoteLauncherAllowedForBocMerge(
   local: AppState,
   remoteL: Launcher,
   bocId: string,
-  remotePocIdsInBattery: Set<string>
+  remotePocIdsInBattery: Set<string>,
+  remotePocById: Map<string, AppState['pocs'][number]>
 ): boolean {
   if (!remoteL.pocId || !remotePocIdsInBattery.has(remoteL.pocId)) return false
-  const assignPoc = local.pocs.find((p) => p.id === remoteL.pocId)
-  if (!assignPoc || assignPoc.bocId !== bocId) return false
+  const localAssignPoc = local.pocs.find((p) => p.id === remoteL.pocId)
+  const remoteAssignPoc = remotePocById.get(remoteL.pocId)
+  const assignPocBocId = localAssignPoc?.bocId ?? remoteAssignPoc?.bocId
+  if (!assignPocBocId || assignPocBocId !== bocId) return false
 
   const existing = local.launchers.find((l) => l.id === remoteL.id)
   if (!existing) return true
-  if (!existing.pocId) return remoteL.pocId === assignPoc.id
+  if (!existing.pocId) return true
   const existingPoc = local.pocs.find((p) => p.id === existing.pocId)
-  if (existingPoc?.bocId !== bocId) return false
+  if (existingPoc && existingPoc.bocId !== bocId) return false
   return existing.pocId === remoteL.pocId
 }
 
 function remoteLauncherAllowedForPocMerge(local: AppState, remoteL: Launcher, mergePocId: string): boolean {
   if (remoteL.pocId !== mergePocId) return false
-  const assignPoc = local.pocs.find((p) => p.id === mergePocId)
-  if (!assignPoc) return false
 
   const existing = local.launchers.find((l) => l.id === remoteL.id)
   if (!existing) return true
@@ -76,9 +77,10 @@ function remoteLauncherAllowedForPocMerge(local: AppState, remoteL: Launcher, me
 export function mergeAppStateByBocId(local: AppState, remote: AppState, bocId: string): AppState {
   const remotePocs = remote.pocs.filter((p) => p.bocId === bocId)
   const remotePocIds = new Set(remotePocs.map((p) => p.id))
+  const remotePocById = new Map(remotePocs.map((p) => [p.id, p]))
 
   const remoteLaunchers = remote.launchers.filter((l) =>
-    remoteLauncherAllowedForBocMerge(local, l, bocId, remotePocIds)
+    remoteLauncherAllowedForBocMerge(local, l, bocId, remotePocIds, remotePocById)
   )
   const launcherIds = new Set(remoteLaunchers.map((l) => l.id))
 
@@ -136,6 +138,7 @@ export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: s
   const oldAmmoIds = new Set<string>()
 
   const remotePocs = remote.pocs.filter((p) => p.id === pocId)
+  const remotePoc = remotePocs[0]
   const remoteLaunchers = remote.launchers.filter((l) => remoteLauncherAllowedForPocMerge(local, l, pocId))
   const launcherIds = new Set(remoteLaunchers.map((l) => l.id))
 
@@ -155,9 +158,14 @@ export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: s
     local.tasks,
     remote.tasks.filter((t) => taskInScope(t, pocIds, launcherIds))
   )
+  const mergedBocs =
+    remotePoc?.bocId && remote.bocs.some((b) => b.id === remotePoc.bocId)
+      ? upsertById(local.bocs, remote.bocs.filter((b) => b.id === remotePoc.bocId))
+      : local.bocs
 
   return {
     ...local,
+    bocs: mergedBocs,
     pocs: mergedPocs,
     launchers: mergedLaunchers,
     pods: mergedPods,
