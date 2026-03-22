@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Install systemd unit for fdc-pi-sidecar (auto-start on boot).
+# Full Pi kiosk (web + peer + sidecar + UFW): use deploy/pi-install-all.sh instead.
 # Run on the Pi:   sudo bash deploy/pi-install-sidecar.sh [--sudoers]
 # --sudoers  also installs /etc/sudoers.d/fdc-pi-sidecar (edit template if your kiosk unit is not fdc-tracker.service).
 

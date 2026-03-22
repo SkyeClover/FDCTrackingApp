@@ -1,0 +1,7 @@
+# Installed as /etc/default/fdc-peer-server (optional; peer runs without HMAC if empty).
+# Must match the Shared secret in the app (Network → Sync) on every device.
+FDC_SYNC_SECRET=
+
+# Optional overrides:
+# FDC_PEER_PORT=8787
+# FDC_PEER_HOST=0.0.0.0

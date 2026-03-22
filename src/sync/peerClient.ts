@@ -1,5 +1,5 @@
 import type { AppState } from '../types'
-import { serializeState } from '../utils/saveLoad'
+import { serializeStateForPeerSync } from '../utils/saveLoad'
 import { hmacSha256Hex } from './hmac'
 import type { NetworkRosterRow, SyncMetaRow } from '../persistence/sqlite'
 
@@ -22,6 +22,42 @@ export function peerBaseUrl(row: NetworkRosterRow): string | null {
 
 function baseUrl(row: NetworkRosterRow): string | null {
   return peerBaseUrl(row)
+}
+
+const DEFAULT_PEER_LISTEN_PORT = 8787
+
+/**
+ * Bases to try for “this device’s” ingest (health / pull).
+ * Hosted sites use the page origin only. Pi / LAN often serves the UI on :3000 (etc.) and
+ * fdc-peer-server on `peerListenPort` — same hostname, different port.
+ */
+export function getIngestBaseCandidates(pageOrigin: string, peerListenPort: number): string[] {
+  const port = Number.isFinite(peerListenPort) && peerListenPort > 0 ? peerListenPort : DEFAULT_PEER_LISTEN_PORT
+  let u: URL
+  try {
+    u = new URL(pageOrigin)
+  } catch {
+    return [pageOrigin.replace(/\/$/, '')]
+  }
+  const pagePort = u.port || (u.protocol === 'https:' ? '443' : '80')
+  const primary = `${u.protocol}//${u.host}`.replace(/\/$/, '')
+  const bases: string[] = [primary]
+  if (pagePort === String(port)) return bases
+
+  const host = u.hostname
+  const localSplitStack =
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /\.local$/i.test(host)
+
+  if (localSplitStack) {
+    const alt = `${u.protocol}//${host}:${port}`.replace(/\/$/, '')
+    if (alt !== primary) bases.push(alt)
+  }
+  return bases
 }
 
 /**
@@ -107,7 +143,7 @@ export async function pushSnapshotToPeer(
   }
 
   const path = `${base}/fdc/v1/push`
-  const snapshotJson = serializeState(state)
+  const snapshotJson = serializeStateForPeerSync(state)
   const bodyObj = {
     kind: 'snapshot' as const,
     fromUnitId: meta.localUnitId,
@@ -151,18 +187,14 @@ export async function pushSnapshotToPeer(
   }
 }
 
-/**
- * GET /fdc/v1/status — last stored snapshot (requires HMAC when sync secret is set on server).
- * `base` is origin-like, e.g. https://your-hosted-site.example or http://192.168.1.5:8787
- */
-export async function fetchIngestStatus(
+async function fetchIngestStatusAtBase(
   meta: SyncMetaRow,
-  base: string
+  baseRoot: string
 ): Promise<{ ok: boolean; snapshotJson?: string; detail?: string; stateVersion?: number }> {
   if (!meta.syncSharedSecret?.trim()) {
     return { ok: false, detail: 'Shared secret not set (Network → Sync).' }
   }
-  const root = base.replace(/\/$/, '')
+  const root = baseRoot.replace(/\/$/, '')
   const url = `${root}/fdc/v1/status`
   const secret = meta.syncSharedSecret || ''
   const sig = secret ? await hmacSha256Hex(secret, '') : ''
@@ -172,7 +204,7 @@ export async function fetchIngestStatus(
     const res = await fetch(url, { method: 'GET', headers, credentials: 'omit' })
     const text = await res.text()
     if (!res.ok) {
-      return { ok: false, detail: text.slice(0, 240) }
+      return { ok: false, detail: `${text.slice(0, 220)} (${url})` }
     }
     const j = JSON.parse(text) as { snapshotJson?: string; stateVersion?: number }
     if (typeof j.snapshotJson !== 'string' || j.snapshotJson.length === 0) {
@@ -184,12 +216,36 @@ export async function fetchIngestStatus(
       stateVersion: typeof j.stateVersion === 'number' ? j.stateVersion : undefined,
     }
   } catch (e) {
-    return { ok: false, detail: e instanceof Error ? e.message : String(e) }
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, detail: `${msg} (${url})` }
   }
 }
 
-/** GET /fdc/v1/health — lightweight; no auth. */
-export async function fetchIngestHealth(baseRoot: string): Promise<{
+/**
+ * GET /fdc/v1/status — tries the page origin, then on LAN/Pi the same host on `meta.peerListenPort`
+ * when the UI is not served from the peer port (e.g. :3000 vs :8787).
+ */
+export async function fetchIngestStatus(
+  meta: SyncMetaRow,
+  pageOrigin: string
+): Promise<{ ok: boolean; snapshotJson?: string; detail?: string; stateVersion?: number }> {
+  const listenPort = meta.peerListenPort || DEFAULT_PEER_LISTEN_PORT
+  const bases = getIngestBaseCandidates(pageOrigin, listenPort)
+  let last: { ok: boolean; snapshotJson?: string; detail?: string; stateVersion?: number } = {
+    ok: false,
+    detail: 'Could not load ingest.',
+  }
+  for (const base of bases) {
+    last = await fetchIngestStatusAtBase(meta, base)
+    if (last.ok) return last
+  }
+  if (bases.length > 1 && last.detail) {
+    last = { ...last, detail: `${last.detail} Tried: ${bases.join(' → ')}` }
+  }
+  return last
+}
+
+async function fetchIngestHealthAtBase(baseRoot: string): Promise<{
   ok: boolean
   stateVersion?: number
   fromUnitId?: string | null
@@ -200,7 +256,7 @@ export async function fetchIngestHealth(baseRoot: string): Promise<{
   try {
     const res = await fetch(url, { method: 'GET', credentials: 'omit' })
     const text = await res.text()
-    if (!res.ok) return { ok: false, detail: text.slice(0, 200) }
+    if (!res.ok) return { ok: false, detail: `${text.slice(0, 180)} (${url})` }
     const j = JSON.parse(text) as { stateVersion?: number; fromUnitId?: string | null }
     return {
       ok: true,
@@ -208,8 +264,36 @@ export async function fetchIngestHealth(baseRoot: string): Promise<{
       fromUnitId: j.fromUnitId ?? null,
     }
   } catch (e) {
-    return { ok: false, detail: e instanceof Error ? e.message : String(e) }
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, detail: `${msg} (${url})` }
   }
+}
+
+/** GET /fdc/v1/health — same multi-base behavior as {@link fetchIngestStatus}. */
+export async function fetchIngestHealth(
+  pageOrigin: string,
+  peerListenPort: number = DEFAULT_PEER_LISTEN_PORT
+): Promise<{
+  ok: boolean
+  stateVersion?: number
+  fromUnitId?: string | null
+  detail?: string
+}> {
+  const bases = getIngestBaseCandidates(pageOrigin, peerListenPort)
+  let last: {
+    ok: boolean
+    stateVersion?: number
+    fromUnitId?: string | null
+    detail?: string
+  } = { ok: false, detail: 'Could not reach ingest health.' }
+  for (const base of bases) {
+    last = await fetchIngestHealthAtBase(base)
+    if (last.ok) return last
+  }
+  if (bases.length > 1 && last.detail) {
+    last = { ...last, detail: `${last.detail} Tried: ${bases.join(' → ')}` }
+  }
+  return last
 }
 
 export async function fetchPeerHealth(row: NetworkRosterRow): Promise<{ ok: boolean; latencyMs: number }> {

@@ -3,7 +3,7 @@ import type { Database } from 'sql.js'
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
 import { SCHEMA_V1 } from './schema'
 import { idbGetSqliteBlob, idbSetSqliteBlob } from './idb'
-import type { AppState } from '../types'
+import type { AppState, CurrentUserRole } from '../types'
 import {
   serializeState,
   deserializeState,
@@ -12,6 +12,8 @@ import {
   INITIAL_SETUP_KEY,
   stateHasOrgEntities,
 } from '../utils/saveLoad'
+import { normalizeLoadedAppState } from '../utils/normalizeAppState'
+import { mergePreservedViewRoleAfterSync } from '../utils/roleScope'
 
 let sqlModule: Awaited<ReturnType<typeof initSqlJs>> | null = null
 let db: Database | null = null
@@ -466,12 +468,18 @@ export function removeSyncOutboxRow(id: number): void {
   scheduleFlush()
 }
 
-/** Replace operational DB from full snapshot JSON (sync). */
-export function applySnapshotJson(json: string): AppState {
-  const state = deserializeState(json)
-  saveAppStateToDb(state)
+/**
+ * Replace operational DB from full snapshot JSON (sync / ingest).
+ * Strips any remote `currentUserRole` and restores `preservedViewRole` when that unit still exists (per-device UX).
+ */
+export function applySnapshotJson(json: string, preservedViewRole?: CurrentUserRole): AppState {
+  const raw = deserializeState(json)
+  const withoutRemoteRole: AppState = { ...raw, currentUserRole: undefined }
+  const normalized = normalizeLoadedAppState(withoutRemoteRole)
+  const final = mergePreservedViewRoleAfterSync(normalized, preservedViewRole)
+  saveAppStateToDb(final)
   void flushPersistenceNow()
-  return state
+  return final
 }
 
 export function clearAllPersistence(): void {

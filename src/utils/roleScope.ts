@@ -1,4 +1,15 @@
-import type { BOC, Battalion, Brigade, CurrentUserRole, Launcher, POC, Pod, RSV, Task } from '../types'
+import type {
+  AppState,
+  BOC,
+  Battalion,
+  Brigade,
+  CurrentUserRole,
+  Launcher,
+  POC,
+  Pod,
+  RSV,
+  Task,
+} from '../types'
 
 export type ViewDensity = 'compact' | 'detailed'
 
@@ -256,4 +267,29 @@ export function orgSliceFromState(state: {
     pods: state.pods,
     rsvs: state.rsvs,
   }
+}
+
+/** True if the brigade / battalion / BOC / PLT (POC) for the view role still exists in this org. */
+export function viewRoleReferencedUnitExists(state: AppState, role: CurrentUserRole): boolean {
+  const { type, id } = role
+  return type === 'brigade'
+    ? state.brigades.some((b) => b.id === id)
+    : type === 'battalion'
+      ? state.battalions.some((b) => b.id === id)
+      : type === 'boc'
+        ? state.bocs.some((b) => b.id === id)
+        : state.pocs.some((p) => p.id === id)
+}
+
+/**
+ * After applying a remote snapshot, keep this device’s view role when that unit still exists.
+ * Peer pushes should omit `currentUserRole` (serializeStateForPeerSync); legacy snapshots may still include it.
+ */
+export function mergePreservedViewRoleAfterSync(
+  snapshot: AppState,
+  preserved: CurrentUserRole | undefined
+): AppState {
+  if (!preserved) return snapshot
+  if (!viewRoleReferencedUnitExists(snapshot, preserved)) return snapshot
+  return { ...snapshot, currentUserRole: preserved }
 }

@@ -2356,9 +2356,8 @@ export function AppDataProvider({
   const applySnapshotFromJson = useCallback(
     (json: string): boolean => {
       try {
-        const s = applySnapshotJson(json)
-        const normalized = normalizeLoadedAppState(s)
-        setState(normalized)
+        const s = applySnapshotJson(json, stateRef.current.currentUserRole)
+        setState(s)
         writeInitialSetupCompleteToDb()
         setInitialSetupComplete(true)
         addLog({ type: 'success', message: 'Snapshot applied (ingest / sync)' })

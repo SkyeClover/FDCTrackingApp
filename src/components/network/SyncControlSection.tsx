@@ -298,6 +298,10 @@ export function SyncControlSection({
             onChange={(e) => saveMeta({ peerListenPort: parseInt(e.target.value, 10) || 8787 })}
             className="touch-stepper"
           />
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400, lineHeight: 1.35 }}>
+            Port where <code style={{ fontSize: '0.7rem' }}>fdc-peer-server</code> runs (often 8787). If the app opens on another
+            port (e.g. Pi on :3000), I still use this for pull / ingest health on the same machine.
+          </span>
         </label>
         <label
           style={{
@@ -393,7 +397,7 @@ export function SyncControlSection({
           type="button"
           disabled={busy || pullBusy || pingBusy || !secretOk}
           onClick={() => void pullFromThisSiteIngest()}
-          title="Pull the last snapshot this website already has stored — handy when I’m on the same URL you pushed to."
+          title="Pull the last snapshot stored in this device’s ingest (same host as the app; on a Pi I also try your peer listen port if the UI is on a different port)."
           style={{
             padding: '0.5rem 1rem',
             background: 'var(--bg-tertiary)',

@@ -47,14 +47,14 @@ export function SyncInboxBanner() {
 
   const runPoll = useCallback(async () => {
     if (typeof window === 'undefined' || busyRef.current) return
-    if (!isSyncSharedSecretConfigured(getSyncMeta())) return
+    const meta = getSyncMeta()
+    if (!isSyncSharedSecretConfigured(meta)) return
     const origin = window.location.origin
-    const health = await fetchIngestHealth(origin)
+    const health = await fetchIngestHealth(origin, meta.peerListenPort)
     if (!health.ok) return
 
     const ingestSv = health.stateVersion ?? 0
     const fromUid = health.fromUnitId ?? null
-    const meta = getSyncMeta()
     const lastApplied = meta.lastAppliedIngestStateVersion
     const dismissed = meta.dismissedIngestStateVersion
 

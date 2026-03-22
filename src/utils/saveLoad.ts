@@ -64,6 +64,11 @@ export function stateHasOrgEntities(state: {
 }
 
 // Convert Date objects to ISO strings for JSON serialization
+/** Snapshot JSON for peer sync / ingest — omits device-local Settings → View role. */
+export function serializeStateForPeerSync(state: AppState): string {
+  return serializeState({ ...state, currentUserRole: undefined })
+}
+
 export function serializeState(state: AppState): string {
   const serialized = {
     ...state,
