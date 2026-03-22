@@ -49,7 +49,7 @@ function remoteLauncherAllowedForBocMerge(
 ): boolean {
   if (!remoteL.pocId || !remotePocIdsInBattery.has(remoteL.pocId)) return false
   const remoteAssignPoc = remotePocById.get(remoteL.pocId)
-  if (!remoteAssignPoc?.bocId || remoteAssignPoc.bocId !== bocId) return false
+  if (remoteAssignPoc?.bocId && remoteAssignPoc.bocId !== bocId) return false
 
   const existing = local.launchers.find((l) => l.id === remoteL.id)
   if (!existing) return true
@@ -103,30 +103,60 @@ function resolveRemoteBocIdForMerge(local: AppState, remote: AppState, mergeBocI
  * Launchers are applied only when local org assigns them to a POC under this battery and `pocId` matches remote.
  */
 export function mergeAppStateByBocId(local: AppState, remote: AppState, bocId: string): AppState {
-  const sourceRemoteBocId = resolveRemoteBocIdForMerge(local, remote, bocId)
-  if (!sourceRemoteBocId) return local
+  const sourceRemoteBocId = resolveRemoteBocIdForMerge(local, remote, bocId) ?? bocId
 
-  const sourceRemotePocs = remote.pocs.filter((p) => p.bocId === sourceRemoteBocId)
-  const remotePocIds = new Set(sourceRemotePocs.map((p) => p.id))
+  const inferredPocIds = new Set<string>()
+  for (const l of remote.launchers) {
+    if (l.pocId) inferredPocIds.add(l.pocId)
+  }
+  for (const r of remote.rsvs) {
+    if (r.pocId) inferredPocIds.add(r.pocId)
+  }
+  for (const p of remote.pods) {
+    if (p.pocId) inferredPocIds.add(p.pocId)
+  }
+  for (const t of remote.tasks) {
+    for (const pid of t.pocIds ?? []) inferredPocIds.add(pid)
+  }
+
+  const sourceRemotePocs = remote.pocs.filter(
+    (p) => p.bocId === sourceRemoteBocId || inferredPocIds.has(p.id)
+  )
+  const remotePocIds = new Set<string>([...sourceRemotePocs.map((p) => p.id), ...inferredPocIds])
   const remotePocById = new Map(sourceRemotePocs.map((p) => [p.id, p]))
   const localPocsInBoc = local.pocs.filter((p) => p.bocId === bocId)
   const localPocByName = new Map(localPocsInBoc.map((p) => [normalizeName(p.name), p.id]))
   const remoteToLocalPocId = new Map<string, string>()
-  for (const remotePoc of sourceRemotePocs) {
-    const localById = local.pocs.find((p) => p.id === remotePoc.id && p.bocId === bocId)
+  for (const remotePocId of remotePocIds) {
+    const remotePoc = sourceRemotePocs.find((p) => p.id === remotePocId)
+    const localById = local.pocs.find((p) => p.id === remotePocId && p.bocId === bocId)
     if (localById) {
-      remoteToLocalPocId.set(remotePoc.id, localById.id)
+      remoteToLocalPocId.set(remotePocId, localById.id)
       continue
     }
-    const localByName = localPocByName.get(normalizeName(remotePoc.name))
-    remoteToLocalPocId.set(remotePoc.id, localByName ?? remotePoc.id)
+    const localByName = remotePoc ? localPocByName.get(normalizeName(remotePoc.name)) : undefined
+    if (localByName) {
+      remoteToLocalPocId.set(remotePocId, localByName)
+      continue
+    }
+    if (localPocsInBoc.length === 1) {
+      remoteToLocalPocId.set(remotePocId, localPocsInBoc[0].id)
+      continue
+    }
+    remoteToLocalPocId.set(remotePocId, remotePocId)
   }
 
-  const remotePocs = sourceRemotePocs.map((p) => ({
+  const remotePocsKnown = sourceRemotePocs.map((p) => ({
     ...p,
     id: remoteToLocalPocId.get(p.id) ?? p.id,
     bocId,
   }))
+  const existingPocIds = new Set(remotePocsKnown.map((p) => p.id))
+  const remotePocsFallback = [...remotePocIds]
+    .map((id) => remoteToLocalPocId.get(id) ?? id)
+    .filter((id) => !existingPocIds.has(id))
+    .map((id) => ({ id, name: id, launchers: [], bocId }))
+  const remotePocs = [...remotePocsKnown, ...remotePocsFallback]
 
   const remoteLaunchers = remote.launchers
     .filter((l) =>

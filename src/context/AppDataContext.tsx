@@ -35,6 +35,7 @@ import {
   writeInitialSetupCompleteToDb,
   clearInitialSetupFlagInDb,
   clearAllPersistence,
+  appendAuditLog,
 } from '../persistence/sqlite'
 import FirstRunSetup from '../components/setup/FirstRunSetup'
 import {
@@ -2538,6 +2539,15 @@ export function AppDataProvider({
         }
         const normalized = normalizeLoadedAppState({ ...merged, currentUserRole: undefined })
         const s = mergePreservedViewRoleAfterSync(normalized, preserved)
+        const countDelta = (next: number, prev: number) => `${next} (${next >= prev ? '+' : ''}${next - prev})`
+        const mergeStats = [
+          `bocs=${countDelta(s.bocs.length, local.bocs.length)}`,
+          `pocs=${countDelta(s.pocs.length, local.pocs.length)}`,
+          `launchers=${countDelta(s.launchers.length, local.launchers.length)}`,
+          `pods=${countDelta(s.pods.length, local.pods.length)}`,
+          `rsvs=${countDelta(s.rsvs.length, local.rsvs.length)}`,
+          `tasks=${countDelta(s.tasks.length, local.tasks.length)}`,
+        ].join(', ')
         skipNextStateAutosaveRef.current = true
         saveAppStateToDb(
           s,
@@ -2551,6 +2561,7 @@ export function AppDataProvider({
           scope?.ingestMergeBocId || scope?.ingestMergePocId
             ? ' (merged into local org — other batteries unchanged)'
             : ''
+        appendAuditLog('sync', 'Ingest apply summary', mergeStats)
         addLog({ type: 'success', message: `Snapshot applied (ingest / sync)${mergeNote}` })
         return true
       } catch {
