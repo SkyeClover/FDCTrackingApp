@@ -56,7 +56,7 @@ export async function runSnapshotPush(state: AppState, forceLabel: string): Prom
       continue
     }
 
-    const health = await fetchPeerHealth(row)
+    const health = await fetchPeerHealth(row, { localStateVersion: sv })
     const tabDown =
       health.transportOk && health.stationSessionTracked && !health.browserPresent
     const stationOfflineYellow = tabDown

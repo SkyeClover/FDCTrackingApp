@@ -152,7 +152,7 @@ export function SyncControlSection({
       }
       const lines: string[] = []
       for (const row of peers) {
-        const h = await fetchPeerHealth(row)
+        const h = await fetchPeerHealth(row, { localStateVersion: getStateVersion() })
         const origin = peerBaseUrl(row) ?? row.displayName
         if (!h.transportOk) {
           lines.push(`${row.displayName}: FAIL ingest unreachable → ${origin}`)

@@ -334,8 +334,19 @@ export async function fetchIngestHealth(
   return last
 }
 
+export type FetchPeerHealthOptions = {
+  /**
+   * When ingest `stateVersion` equals this (your DB after pull/accept), ignore `snapshotUnitMismatch`.
+   * Otherwise pull/accept aligns versions but `fromUnitId` still reflects whoever last POSTed to ingest.
+   */
+  localStateVersion?: number
+}
+
 /** GET health for a roster peer — transport up + browser tab presence when ingest supports it. */
-export async function fetchPeerHealth(row: NetworkRosterRow): Promise<{
+export async function fetchPeerHealth(
+  row: NetworkRosterRow,
+  options?: FetchPeerHealthOptions
+): Promise<{
   transportOk: boolean
   /** Peer runs a ingest build that tracks the Walker Track tab (session-ping / offline). */
   stationSessionTracked: boolean
@@ -380,12 +391,14 @@ export async function fetchPeerHealth(row: NetworkRosterRow): Promise<{
     let browserPresent = true
     let browserOfflineKind: 'clean' | 'stale' | 'unclean' | null = null
     let snapshotUnitMismatch = false
+    let ingestStateVersion = 0
     try {
       const j = JSON.parse(text) as {
         stationSessionTracked?: boolean
         browserPresent?: boolean
         browserOfflineKind?: string | null
         snapshotUnitMismatch?: boolean
+        stateVersion?: number
       }
       if (j.stationSessionTracked === true) {
         stationSessionTracked = true
@@ -394,8 +407,21 @@ export async function fetchPeerHealth(row: NetworkRosterRow): Promise<{
       if (j.snapshotUnitMismatch === true) snapshotUnitMismatch = true
       const k = j.browserOfflineKind
       if (k === 'clean' || k === 'stale' || k === 'unclean') browserOfflineKind = k
+      const sv = j.stateVersion
+      if (typeof sv === 'number' && Number.isFinite(sv)) ingestStateVersion = sv
+      else if (sv != null) {
+        const n = Number(sv)
+        if (Number.isFinite(n)) ingestStateVersion = n
+      }
     } catch {
       /* legacy health JSON — no tab tracking */
+    }
+    if (
+      snapshotUnitMismatch &&
+      options?.localStateVersion !== undefined &&
+      ingestStateVersion === options.localStateVersion
+    ) {
+      snapshotUnitMismatch = false
     }
     return {
       transportOk: true,
