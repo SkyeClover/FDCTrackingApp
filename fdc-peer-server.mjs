@@ -155,6 +155,8 @@ const server = http.createServer((req, res) => {
       fromUnitId: last.fromUnitId,
       signatureRequired: Boolean(SECRET),
       secretCharCount: SECRET.length,
+      /** When true, clients should trust browserPresent for “is the Walker Track tab up?” */
+      stationSessionTracked: true,
       browserPresent: presence.browserPresent,
       browserOfflineKind: presence.offlineKind,
       browserLastActivityAt: last.browserLastActivityAt,

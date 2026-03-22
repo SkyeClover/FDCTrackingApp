@@ -333,41 +333,81 @@ export async function fetchIngestHealth(
   return last
 }
 
-/** GET health for a roster peer — transport up + optional browser-present (fdc-peer-server 2+). */
+/** GET health for a roster peer — transport up + browser tab presence when ingest supports it. */
 export async function fetchPeerHealth(row: NetworkRosterRow): Promise<{
   transportOk: boolean
+  /** Peer runs a ingest build that tracks the Walker Track tab (session-ping / offline). */
+  stationSessionTracked: boolean
+  /** Meaningful when stationSessionTracked; otherwise assume true for legacy (snapshot push still allowed). */
   browserPresent: boolean
   browserOfflineKind: 'clean' | 'stale' | 'unclean' | null
   latencyMs: number
 }> {
   const base = baseUrl(row)
-  if (!base) return { transportOk: false, browserPresent: false, browserOfflineKind: null, latencyMs: 0 }
+  if (!base) {
+    return {
+      transportOk: false,
+      stationSessionTracked: false,
+      browserPresent: false,
+      browserOfflineKind: null,
+      latencyMs: 0,
+    }
+  }
   const url = `${base}/fdc/v1/health`
   const t0 = performance.now()
   try {
     const r = await fetch(url, { method: 'GET', credentials: 'omit' })
     const latencyMs = Math.round(performance.now() - t0)
-    if (!r.ok) return { transportOk: false, browserPresent: false, browserOfflineKind: null, latencyMs }
+    if (!r.ok) {
+      return {
+        transportOk: false,
+        stationSessionTracked: false,
+        browserPresent: false,
+        browserOfflineKind: null,
+        latencyMs,
+      }
+    }
     const text = await r.text()
+    let stationSessionTracked = false
     let browserPresent = true
     let browserOfflineKind: 'clean' | 'stale' | 'unclean' | null = null
     try {
-      const j = JSON.parse(text) as { browserPresent?: boolean; browserOfflineKind?: string | null }
-      if (typeof j.browserPresent === 'boolean') browserPresent = j.browserPresent
+      const j = JSON.parse(text) as {
+        stationSessionTracked?: boolean
+        browserPresent?: boolean
+        browserOfflineKind?: string | null
+      }
+      if (j.stationSessionTracked === true) {
+        stationSessionTracked = true
+        browserPresent = typeof j.browserPresent === 'boolean' ? j.browserPresent : false
+      }
       const k = j.browserOfflineKind
       if (k === 'clean' || k === 'stale' || k === 'unclean') browserOfflineKind = k
     } catch {
-      /* legacy health JSON */
+      /* legacy health JSON — no tab tracking */
     }
-    return { transportOk: true, browserPresent, browserOfflineKind, latencyMs }
+    return { transportOk: true, stationSessionTracked, browserPresent, browserOfflineKind, latencyMs }
   } catch {
     return {
       transportOk: false,
+      stationSessionTracked: false,
       browserPresent: false,
       browserOfflineKind: null,
       latencyMs: Math.round(performance.now() - t0),
     }
   }
+}
+
+/** Roster row that receives clean / tab-close offline-notify (explicit id, else first IP peer in roster order). */
+export function resolveUpstreamNotifyRosterRow(meta: SyncMetaRow): NetworkRosterRow | null {
+  const roster = listNetworkRoster()
+  const pick = (r: NetworkRosterRow) => Boolean(r.host && r.port != null && r.bearer === 'ip')
+  const id = meta.upstreamNotifyRosterId?.trim()
+  if (id) {
+    const row = roster.find((r) => r.id === id)
+    if (row && pick(row)) return row
+  }
+  return roster.find(pick) ?? null
 }
 
 async function postSignedToUrl(
@@ -445,7 +485,7 @@ export async function reportBrowserOfflineLocalIngest(
   }
 }
 
-/** POST offline-notify to the first roster row with a host (next upstream hop). */
+/** POST offline-notify to {@link resolveUpstreamNotifyRosterRow}. */
 export async function notifyUpstreamOffline(
   meta: SyncMetaRow,
   options: { clean: boolean; keepalive?: boolean }
@@ -453,9 +493,14 @@ export async function notifyUpstreamOffline(
   if (!meta.syncSharedSecret?.trim()) {
     return { ok: false, detail: 'No shared secret' }
   }
-  const roster = listNetworkRoster()
-  const row = roster.find((r) => r.host && r.port != null && r.bearer === 'ip')
-  if (!row) return { ok: false, detail: 'No upstream peer in roster' }
+  const row = resolveUpstreamNotifyRosterRow(meta)
+  if (!row) {
+    return {
+      ok: false,
+      detail:
+        'No upstream for sign-off — pick “Upstream for sign-off” below or add a roster row with host, port, IP/LAN.',
+    }
+  }
   const base = peerBaseUrl(row)
   if (!base) return { ok: false, detail: 'Bad peer URL' }
   const bodyObj = {

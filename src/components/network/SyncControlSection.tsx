@@ -17,6 +17,7 @@ import {
   notifyUpstreamOffline,
   peerBaseUrl,
   reportBrowserOfflineLocalIngest,
+  resolveUpstreamNotifyRosterRow,
   sendPeerPing,
 } from '../../sync/peerClient'
 import { isSyncSharedSecretConfigured } from '../../sync/syncGuards'
@@ -47,6 +48,15 @@ export function SyncControlSection({
   const autoBusyRef = useRef(false)
 
   const auditEntries = useMemo(() => listAuditLog(200), [auditTick])
+
+  const ipRosterPeers = useMemo(
+    () => listNetworkRoster().filter((r) => r.host && r.port != null && r.bearer === 'ip'),
+    [auditTick]
+  )
+  const resolvedUpstream = useMemo(
+    () => resolveUpstreamNotifyRosterRow(getSyncMeta()),
+    [meta.upstreamNotifyRosterId, auditTick, ipRosterPeers.length]
+  )
   const secretOk = useMemo(() => isSyncSharedSecretConfigured(meta), [meta])
 
   const refreshMeta = useCallback(() => {
@@ -115,28 +125,60 @@ export function SyncControlSection({
       const lines: string[] = []
       for (const row of peers) {
         const h = await fetchPeerHealth(row)
-        const r = await sendPeerPing(row, m)
         const origin = peerBaseUrl(row) ?? row.displayName
-        const stationClosed = h.transportOk && !h.browserPresent
-        const stationNote = stationClosed
-          ? h.browserOfflineKind === 'clean'
-            ? 'station signed off'
-            : h.browserOfflineKind === 'stale'
-              ? 'no tab heartbeat'
-              : 'browser offline'
-          : null
-        lines.push(
-          `${row.displayName}: ${r.ok ? `OK ${r.detail ?? 'pong'}` : `FAIL ${r.detail ?? 'error'}`}${stationNote ? ` · ${stationNote}` : ''} → ${origin}`
-        )
-        const rosterStatus = !r.ok ? 'red' : stationClosed ? 'yellow' : 'green'
+        if (!h.transportOk) {
+          lines.push(`${row.displayName}: FAIL ingest unreachable → ${origin}`)
+          upsertNetworkRosterRow({
+            ...row,
+            status: 'red',
+            lastSeenMs: Date.now(),
+            lastError: 'ingest unreachable',
+          })
+          continue
+        }
+        const r = await sendPeerPing(row, m)
+        const tracked = h.stationSessionTracked
+        const tabMissing = tracked && !h.browserPresent
+        let line: string
+        let rosterStatus: string
+        let lastErr: string | null
+        if (!r.ok) {
+          line = `FAIL signed ping: ${r.detail ?? 'error'}`
+          rosterStatus = 'red'
+          lastErr = r.detail ?? 'ping failed'
+        } else if (!tracked) {
+          line = `WARN crypto OK — peer can’t report if Walker Track tab is open (deploy current fdc-peer-server on them)`
+          rosterStatus = 'yellow'
+          lastErr = 'ingest has no session tracking'
+        } else if (tabMissing) {
+          const kind =
+            h.browserOfflineKind === 'clean'
+              ? 'clean sign-off'
+              : h.browserOfflineKind === 'stale'
+                ? 'no tab heartbeat (unclean)'
+                : 'tab offline'
+          line = `FAIL station closed (${kind}) — ${r.detail ?? 'pong'}`
+          rosterStatus = 'yellow'
+          lastErr = `Walker Track tab not present (${kind})`
+        } else {
+          line = `OK Walker Track tab up — ${r.detail ?? 'pong'}`
+          rosterStatus = 'green'
+          lastErr = null
+        }
+        lines.push(`${row.displayName}: ${line} → ${origin}`)
         upsertNetworkRosterRow({
           ...row,
           status: rosterStatus,
           lastSeenMs: Date.now(),
-          lastError: !r.ok ? (r.detail ?? 'ping failed') : stationNote,
+          lastError: lastErr,
         })
       }
-      setLastPath(['Test message (quick ping — not a full data copy):', ...lines].join('\n'))
+      setLastPath(
+        [
+          'Test message: signed ping + (when supported) Walker Track tab presence on their ingest:',
+          ...lines,
+        ].join('\n')
+      )
       setLastLog(new Date().toLocaleTimeString())
       setSyncOutputOpen(true)
       appendAuditLog(
@@ -354,6 +396,31 @@ export function SyncControlSection({
             port (e.g. Pi on :3000), I still use this for pull / ingest health on the same machine.
           </span>
         </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem', gridColumn: '1 / -1' }}>
+          <span>Upstream for sign-off &amp; tab-close notify</span>
+          <select
+            value={meta.upstreamNotifyRosterId || ''}
+            onChange={(e) => saveMeta({ upstreamNotifyRosterId: e.target.value })}
+            style={{ maxWidth: '100%', padding: '0.25rem 0.35rem', fontSize: '0.8rem' }}
+          >
+            <option value="">Default — first roster row (host + IP/LAN), same order as push</option>
+            {ipRosterPeers.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.displayName} ({r.host}:{r.port})
+              </option>
+            ))}
+          </select>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400, lineHeight: 1.35 }}>
+            Clean disconnect and closing this tab POST an <code style={{ fontSize: '0.7rem' }}>offline-notify</code> here.
+            {ipRosterPeers.length === 0 ? (
+              <strong> Add a network roster row with host/port first.</strong>
+            ) : resolvedUpstream ? (
+              <> Resolves to: <strong>{resolvedUpstream.displayName}</strong>.</>
+            ) : (
+              <strong> No row qualifies — set host, port, bearer IP/LAN on a roster entry.</strong>
+            )}
+          </span>
+        </label>
         <label
           style={{
             display: 'flex',
@@ -503,11 +570,11 @@ export function SyncControlSection({
         Over the internet: add the other site as a roster row (its hostname, port <code style={{ fontSize: '0.7rem' }}>443</code>, TLS on), and use the same shared passphrase there. If you’re on that same site, you can pull what was last saved there.
       </p>
       <p style={{ margin: '0 0 0.45rem', color: 'var(--text-secondary)', fontSize: '0.72rem', lineHeight: 1.35 }}>
-        <strong>Station presence:</strong> each copy should run <code style={{ fontSize: '0.7rem' }}>fdc-peer-server</code> with this
-        build. I heartbeat to it while the tab is open. Closing the tab sends a <em>clean</em> sign-off to your local ingest and
-        the first roster peer (upstream). If the tab dies without that, upstream sees <em>unclean</em> (stale heartbeat) after a
-        couple of minutes — roster goes yellow, push may skip. Use <strong>Clean disconnect</strong> before leaving if you won’t
-        close the tab.
+        <strong>Station presence:</strong> each peer must run the current <code style={{ fontSize: '0.7rem' }}>fdc-peer-server</code>{' '}
+        so <strong>Send test message</strong> can tell “tab up” vs “only Node is up.” I heartbeat to my local ingest while this tab
+        is open. Closing the tab notifies <strong>Upstream for sign-off</strong> (and local ingest). If the tab dies, their ingest
+        reports <em>unclean</em> (stale) after a couple of minutes. Snapshot push still works if their Node ingest is reachable —
+        yellow means “their operator UI probably isn’t running.”
       </p>
 
       {(lastPath || lastLog) && (

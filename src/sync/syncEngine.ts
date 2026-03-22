@@ -44,17 +44,20 @@ export async function runSnapshotPush(state: AppState, forceLabel: string): Prom
       continue
     }
     const health = await fetchPeerHealth(row)
-    const stationClosed = health.transportOk && !health.browserPresent
-    const rosterStatus = !health.transportOk ? 'red' : stationClosed ? 'yellow' : 'green'
+    const tabDown =
+      health.transportOk && health.stationSessionTracked && !health.browserPresent
+    const rosterStatus = !health.transportOk ? 'red' : tabDown ? 'yellow' : 'green'
     const stationMsg = !health.transportOk
       ? 'ingest unreachable'
-      : stationClosed
+      : tabDown
         ? health.browserOfflineKind === 'clean'
-          ? 'station signed off (clean)'
+          ? 'Walker Track tab signed off (clean)'
           : health.browserOfflineKind === 'stale'
-            ? 'no browser heartbeat (unclean)'
-            : 'browser session offline'
-        : null
+            ? 'no tab heartbeat (unclean)'
+            : 'Walker Track tab offline'
+        : !health.stationSessionTracked && health.transportOk
+          ? 'ingest up — session tracking unknown (old fdc-peer-server?)'
+          : null
     upsertNetworkRosterRow({
       ...row,
       status: rosterStatus,
@@ -72,32 +75,14 @@ export async function runSnapshotPush(state: AppState, forceLabel: string): Prom
       appendAuditLog('sync', `skip hop ${row.id}`, 'offline with skip enabled')
       continue
     }
-    if (stationClosed && !skipAllowed) {
-      targets.push({
-        row,
-        result: `station offline (${health.browserOfflineKind ?? '?'})`,
-        path: `${row.host}:${row.port}`,
-      })
-      appendAuditLog('sync', `push skipped ${row.id}`, stationMsg ?? 'browser absent')
-      continue
-    }
-    if (stationClosed && skipAllowed) {
-      targets.push({
-        row,
-        result: `skipped (station offline — ${health.browserOfflineKind ?? '?'})`,
-        path: `${row.host}:${row.port}`,
-      })
-      appendAuditLog('sync', `skip hop ${row.id}`, stationMsg ?? 'browser absent')
-      continue
-    }
 
     const pr = await pushSnapshotToPeer(row, meta, state, sv)
     const ok = pr.ok
     upsertNetworkRosterRow({
       ...row,
-      status: ok ? 'green' : 'yellow',
+      status: ok ? (tabDown ? 'yellow' : 'green') : 'yellow',
       lastSeenMs: Date.now(),
-      lastError: ok ? null : pr.detail ?? 'push failed',
+      lastError: ok ? (tabDown ? stationMsg : null) : pr.detail ?? 'push failed',
     })
     targets.push({
       row,

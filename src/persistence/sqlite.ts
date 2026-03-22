@@ -90,6 +90,9 @@ function runMigrations(database: Database): void {
   if (!hasTableColumn(database, 'sync_meta', 'auto_push_enabled')) {
     database.run('ALTER TABLE sync_meta ADD COLUMN auto_push_enabled INTEGER NOT NULL DEFAULT 1')
   }
+  if (!hasTableColumn(database, 'sync_meta', 'upstream_notify_roster_id')) {
+    database.run('ALTER TABLE sync_meta ADD COLUMN upstream_notify_roster_id TEXT')
+  }
   if (!hasTableColumn(database, 'network_roster', 'peer_unit_id')) {
     database.run('ALTER TABLE network_roster ADD COLUMN peer_unit_id TEXT')
   }
@@ -245,6 +248,8 @@ export interface SyncMetaRow {
   syncAlertStyleJson: string
   /** Periodically push snapshot to roster peers (~90s) when secret + peers are configured. */
   autoPushEnabled: boolean
+  /** Roster row id for offline-notify / tab-close; empty = first IP peer in roster order. */
+  upstreamNotifyRosterId: string
 }
 
 export function getSyncMeta(): SyncMetaRow {
@@ -253,7 +258,8 @@ export function getSyncMeta(): SyncMetaRow {
     `SELECT state_version, local_unit_id, skip_echelon_enabled, skip_echelon_verified,
             max_skip_hops, sync_shared_secret, peer_listen_port, auto_rollup_from_org,
             last_applied_ingest_state_version, dismissed_ingest_state_version,
-            incoming_alerts_enabled, sync_alert_style_json, auto_push_enabled
+            incoming_alerts_enabled, sync_alert_style_json, auto_push_enabled,
+            upstream_notify_roster_id
      FROM sync_meta WHERE id = 1`
   )
   if (!r.length || !r[0].values.length) {
@@ -271,6 +277,7 @@ export function getSyncMeta(): SyncMetaRow {
       incomingAlertsEnabled: true,
       syncAlertStyleJson: '',
       autoPushEnabled: true,
+      upstreamNotifyRosterId: '',
     }
   }
   const row = r[0].values[0]
@@ -288,6 +295,7 @@ export function getSyncMeta(): SyncMetaRow {
     incomingAlertsEnabled: row[10] != null ? Number(row[10]) === 1 : true,
     syncAlertStyleJson: row[11] != null ? String(row[11]) : '',
     autoPushEnabled: row[12] != null ? Number(row[12]) === 1 : true,
+    upstreamNotifyRosterId: row[13] != null ? String(row[13]) : '',
   }
 }
 
@@ -299,6 +307,9 @@ export function updateSyncMeta(partial: Partial<Omit<SyncMetaRow, 'stateVersion'
   }
   if (partial.syncSharedSecret !== undefined) {
     next.syncSharedSecret = String(partial.syncSharedSecret).trim().replace(/^\uFEFF/, '')
+  }
+  if (partial.upstreamNotifyRosterId !== undefined) {
+    next.upstreamNotifyRosterId = String(partial.upstreamNotifyRosterId).trim()
   }
   ensureDb().run(
     `UPDATE sync_meta SET
@@ -314,7 +325,8 @@ export function updateSyncMeta(partial: Partial<Omit<SyncMetaRow, 'stateVersion'
       dismissed_ingest_state_version = ?,
       incoming_alerts_enabled = ?,
       sync_alert_style_json = ?,
-      auto_push_enabled = ?
+      auto_push_enabled = ?,
+      upstream_notify_roster_id = ?
     WHERE id = 1`,
     [
       next.stateVersion,
@@ -330,6 +342,7 @@ export function updateSyncMeta(partial: Partial<Omit<SyncMetaRow, 'stateVersion'
       next.incomingAlertsEnabled ? 1 : 0,
       next.syncAlertStyleJson,
       next.autoPushEnabled ? 1 : 0,
+      next.upstreamNotifyRosterId || null,
     ]
   )
   scheduleFlush()
@@ -499,7 +512,8 @@ export function clearAllPersistence(): void {
     dismissed_ingest_state_version = 0,
     incoming_alerts_enabled = 1,
     sync_alert_style_json = NULL,
-    auto_push_enabled = 1
+    auto_push_enabled = 1,
+    upstream_notify_roster_id = NULL
     WHERE id = 1`)
   database.run('COMMIT')
   try {
