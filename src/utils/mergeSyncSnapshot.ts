@@ -323,13 +323,21 @@ export function mergeAppStateByBocId(local: AppState, remote: AppState, bocId: s
       ...l,
       pocId: l.pocId ? (remoteToLocalPocId.get(l.pocId) ?? l.pocId) : l.pocId,
     }))
+    .map((l) => {
+      const existing = local.launchers.find((x) => x.id === l.id)
+      if (!existing?.pocId) return l
+      const existingPoc = local.pocs.find((p) => p.id === existing.pocId)
+      if (existingPoc?.bocId !== bocId) return l
+      // Keep local launcher-to-POC assignment as source of truth in battery merges.
+      return { ...l, pocId: existing.pocId }
+    })
     .filter((l) => {
       const existing = local.launchers.find((x) => x.id === l.id)
       if (!existing) return true
       if (!existing.pocId) return true
       const existingPoc = local.pocs.find((p) => p.id === existing.pocId)
       if (existingPoc && existingPoc.bocId !== bocId) return false
-      return existing.pocId === l.pocId
+      return true
     })
   const launcherIds = new Set(remoteLaunchers.map((l) => l.id))
 
@@ -356,8 +364,9 @@ export function mergeAppStateByBocId(local: AppState, remote: AppState, bocId: s
       pocId: r.pocId ? (remoteToLocalPocId.get(r.pocId) ?? r.pocId) : r.pocId,
     }))
   const knownRsvIds = new Set(remoteRsvsKnown.map((r) => r.id))
+  const localRsvIds = new Set(local.rsvs.map((r) => r.id))
   const remoteRsvsFallback = [...inferredRsvIds]
-    .filter((id) => !knownRsvIds.has(id))
+    .filter((id) => !knownRsvIds.has(id) && !localRsvIds.has(id))
     .map((id) => ({ id, name: id, bocId }))
   const remoteRsvs = [...remoteRsvsKnown, ...remoteRsvsFallback]
   const rsvIds = new Set([...remoteRsvs.map((r) => r.id), ...inferredRsvIds])
@@ -455,8 +464,9 @@ export function mergeAppStateByPocId(local: AppState, remote: AppState, pocId: s
     .filter((r) => r.pocId === sourceRemotePocId)
     .map((r) => ({ ...r, pocId }))
   const knownRsvIds = new Set(remoteRsvsKnown.map((r) => r.id))
+  const localRsvIds = new Set(local.rsvs.map((r) => r.id))
   const remoteRsvsFallback = [...inferredRsvIds]
-    .filter((id) => !knownRsvIds.has(id))
+    .filter((id) => !knownRsvIds.has(id) && !localRsvIds.has(id))
     .map((id) => ({ id, name: id, pocId }))
   const remoteRsvs = [...remoteRsvsKnown, ...remoteRsvsFallback]
   const rsvIds = new Set(remoteRsvs.map((r) => r.id))
