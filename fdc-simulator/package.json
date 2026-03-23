@@ -1,0 +1,13 @@
+{
+  "name": "fdc-simulator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Standalone WebSocket simulation server for FDCTrackingApp (separate runtime from the tracking UI).",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
