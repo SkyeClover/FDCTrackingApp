@@ -4,7 +4,7 @@ import { DEFAULT_ROUND_TYPES } from '../constants/roundTypes'
 export const STORAGE_KEY = 'fdc-tracker-state'
 /** Persisted when the user finishes first-run setup or when existing data is detected (migration). */
 export const INITIAL_SETUP_KEY = 'fdc-initial-setup-done'
-export const APP_VERSION = '1.1.13'
+export const APP_VERSION = '1.1.2'
 
 /** Default task templates — reused by {@link getDefaultState} and legacy snapshot loads. */
 const DEFAULT_TASK_TEMPLATES: TaskTemplate[] = [

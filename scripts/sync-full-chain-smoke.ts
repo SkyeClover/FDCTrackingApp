@@ -27,7 +27,7 @@ function emptyState(): AppState {
     taskTemplates: defaultTemplates.map((t) => ({ ...t })),
     logs: [],
     roundTypes: {},
-    version: '1.1.13',
+    version: '1.1.2',
     ammoPlatoons: [],
   }
 }
