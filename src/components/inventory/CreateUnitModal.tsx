@@ -24,6 +24,9 @@ const LINE_KINDS: { id: CreateUnitKind; label: string; hint: string }[] = [
   { id: 'rsv', label: 'RSV', hint: 'Reload vehicle' },
 ]
 
+/**
+ * Implements kind meta for this module.
+ */
 function kindMeta(kind: CreateUnitKind) {
   return [...OPS_KINDS, ...LINE_KINDS].find((k) => k.id === kind)
 }
@@ -35,6 +38,9 @@ type Props = {
   initialKind?: CreateUnitKind | null
 }
 
+/**
+ * Renders the Create Unit Modal UI section.
+ */
 export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props) {
   const {
     bocs,
@@ -55,6 +61,7 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [kind, setKind] = useState<CreateUnitKind | null>(null)
 
+  // --- Local state and callbacks ---
   const [name, setName] = useState('')
 
   const [assignBocId, setAssignBocId] = useState('')
@@ -63,6 +70,7 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
   const [assignBattalionId, setAssignBattalionId] = useState('')
   const [rsvAssign, setRsvAssign] = useState<'skip' | 'poc' | 'boc'>('skip')
 
+  // --- Side effects ---
   useEffect(() => {
     if (!isOpen) return
     if (initialKind) {
@@ -80,7 +88,10 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
     setRsvAssign('skip')
   }, [isOpen, initialKind])
 
-  const resetClose = () => {
+    /**
+   * Implements reset close for this module.
+   */
+const resetClose = () => {
     setStep(1)
     setKind(null)
     onClose()
@@ -94,7 +105,10 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
     kind === 'battalion' ||
     kind === 'boc'
 
-  const goNextFromStep2 = () => {
+    /**
+   * Implements go next from step2 for this module.
+   */
+const goNextFromStep2 = () => {
     if (!kind) return
     if (kind === 'brigade') {
       submitCreate()
@@ -107,7 +121,10 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
     submitCreate()
   }
 
-  const submitCreate = () => {
+    /**
+   * Implements submit create for this module.
+   */
+const submitCreate = () => {
     if (!kind) return
     const ts = Date.now().toString()
 
@@ -187,7 +204,10 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
   const brigadesSorted = [...brigades].sort((a, b) => a.name.localeCompare(b.name))
   const battalionsSorted = [...battalions].sort((a, b) => a.name.localeCompare(b.name))
 
-  const canStep2Next = () => {
+    /**
+   * Determines whether can step2 next is true in the current context.
+   */
+const canStep2Next = () => {
     if (!kind) return false
     if (
       kind === 'brigade' ||
@@ -202,6 +222,7 @@ export default function CreateUnitModal({ isOpen, onClose, initialKind }: Props)
     return false
   }
 
+  // --- Render ---
   return (
     <div
       data-guide="create-unit-modal"

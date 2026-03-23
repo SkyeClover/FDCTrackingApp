@@ -14,7 +14,10 @@ export const CompactEditableItem = memo(
     const [isEditing, setIsEditing] = useState(false)
     const [editValue, setEditValue] = useState(name)
 
-    const handleSave = () => {
+        /**
+     * Handles save interactions for this workflow.
+     */
+const handleSave = () => {
       if (editValue.trim() && editValue.trim() !== name) {
         onUpdate(editValue.trim())
       }
@@ -22,7 +25,10 @@ export const CompactEditableItem = memo(
       setEditValue(name)
     }
 
-    const handleCancel = () => {
+        /**
+     * Handles cancel interactions for this workflow.
+     */
+const handleCancel = () => {
       setIsEditing(false)
       setEditValue(name)
     }
@@ -136,7 +142,10 @@ export const PodEditableItem = memo(
   }) => {
     const { ammoPlatoons } = useAppData()
 
-    const getPodAssignment = () => {
+        /**
+     * Returns pod assignment for downstream consumers.
+     */
+const getPodAssignment = () => {
       if (pod.launcherId) {
         const launcher = launchers.find((l) => l.id === pod.launcherId)
         return { type: 'launcher', displayType: 'Launcher', name: launcher?.name || 'Unknown', id: pod.launcherId }
@@ -172,7 +181,10 @@ export const PodEditableItem = memo(
       setEditAmmoValue(currentAvailable)
     }, [pod.name, pod.rounds])
 
-    const handleSaveName = () => {
+        /**
+     * Handles save name interactions for this workflow.
+     */
+const handleSaveName = () => {
       if (editNameValue.trim() && editNameValue.trim() !== pod.name) {
         onUpdateName(editNameValue.trim())
       }
@@ -180,12 +192,18 @@ export const PodEditableItem = memo(
       setEditNameValue(pod.name)
     }
 
-    const handleCancelName = () => {
+        /**
+     * Handles cancel name interactions for this workflow.
+     */
+const handleCancelName = () => {
       setIsEditingName(false)
       setEditNameValue(pod.name)
     }
 
-    const handleSaveAmmo = () => {
+        /**
+     * Handles save ammo interactions for this workflow.
+     */
+const handleSaveAmmo = () => {
       const count = typeof editAmmoValue === 'number' ? editAmmoValue : availableRounds
       const currentAvailable = pod.rounds.filter((r) => r.status === 'available').length
       if (count >= 0 && count !== currentAvailable) {
@@ -196,7 +214,10 @@ export const PodEditableItem = memo(
       setEditAmmoValue(updatedAvailable)
     }
 
-    const handleCancelAmmo = () => {
+        /**
+     * Handles cancel ammo interactions for this workflow.
+     */
+const handleCancelAmmo = () => {
       setIsEditingAmmo(false)
       const currentAvailable = pod.rounds.filter((r) => r.status === 'available').length
       setEditAmmoValue(currentAvailable)

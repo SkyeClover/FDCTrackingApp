@@ -41,6 +41,9 @@ let last = {
   unitSessions: {},
 }
 
+/**
+ * Implements load store for this module.
+ */
 function loadStore() {
   try {
     const raw = fs.readFileSync(storePath, 'utf8')
@@ -54,6 +57,9 @@ function loadStore() {
   if (!last.unitSessions || typeof last.unitSessions !== 'object') last.unitSessions = {}
 }
 
+/**
+ * Implements save store for this module.
+ */
 function saveStore() {
   try {
     fs.writeFileSync(storePath, JSON.stringify(last, null, 2), 'utf8')
@@ -62,17 +68,26 @@ function saveStore() {
   }
 }
 
+/**
+ * Implements touch browser session for this module.
+ */
 function touchBrowserSession() {
   last.browserLastActivityAt = Date.now()
   last.sessionOffline = null
   saveStore()
 }
 
+/**
+ * Implements norm unit for this module.
+ */
 function normUnit(s) {
   if (!s || typeof s !== 'string') return ''
   return s.replace(/\s/g, '').toUpperCase()
 }
 
+/**
+ * Implements compute browser presence for this module.
+ */
 function computeBrowserPresence() {
   const now = Date.now()
   if (last.sessionOffline && typeof last.sessionOffline === 'object') {
@@ -110,10 +125,16 @@ function presenceForForUnit(forUnitRaw) {
 
 loadStore()
 
+/**
+ * Implements hmac hex for this module.
+ */
 function hmacHex(body) {
   return crypto.createHmac('sha256', SECRET).update(body).digest('hex')
 }
 
+/**
+ * Implements verify sig for this module.
+ */
 function verifySig(body, sigHeader) {
   if (!SECRET) return true
   if (!sigHeader || typeof sigHeader !== 'string') return false
@@ -139,6 +160,9 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
+/**
+ * Implements send json for this module.
+ */
 function sendJson(res, status, obj) {
   const body = JSON.stringify(obj)
   res.writeHead(status, {
@@ -148,6 +172,9 @@ function sendJson(res, status, obj) {
   res.end(body)
 }
 
+/**
+ * Implements read post for this module.
+ */
 function readPost(req, res, maxBytes, onBody) {
   const chunks = []
   let total = 0

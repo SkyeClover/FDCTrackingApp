@@ -18,6 +18,9 @@ interface POCDetailModalProps {
   onClose: () => void
 }
 
+/**
+ * Renders the POCDetail Modal UI section.
+ */
 export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: _bocs = [], isOpen, onClose }: POCDetailModalProps) {
   void _bocs // Keep for interface compatibility but not used in logic
   // Hooks must be called at the top level - but only access when modal is open
@@ -146,6 +149,7 @@ export default function POCDetailModal({ poc, pods, launchers, rsvs = [], bocs: 
   // Ensure we have a valid poc name
   const pocName = poc?.name || 'Unknown POC'
 
+  // --- Render ---
   return (
     <div
       className="fdc-modal-overlay"

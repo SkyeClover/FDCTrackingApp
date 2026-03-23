@@ -21,15 +21,24 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null
 
 const FLUSH_MS = 400
 
+/**
+ * Implements ensure db for this module.
+ */
 function ensureDb(): Database {
   if (!db) throw new Error('SQLite not initialized')
   return db
 }
 
+/**
+ * Returns database for downstream consumers.
+ */
 export function getDatabase(): Database | null {
   return db
 }
 
+/**
+ * Implements schedule flush for this module.
+ */
 function scheduleFlush(): void {
   if (flushTimer) clearTimeout(flushTimer)
   flushTimer = setTimeout(() => {
@@ -38,6 +47,9 @@ function scheduleFlush(): void {
   }, FLUSH_MS)
 }
 
+/**
+ * Implements flush to idb for this module.
+ */
 async function flushToIdb(): Promise<void> {
   if (!db) return
   try {
@@ -48,6 +60,9 @@ async function flushToIdb(): Promise<void> {
   }
 }
 
+/**
+ * Implements flush persistence now for this module.
+ */
 export async function flushPersistenceNow(): Promise<void> {
   if (flushTimer) {
     clearTimeout(flushTimer)
@@ -56,6 +71,9 @@ export async function flushPersistenceNow(): Promise<void> {
   await flushToIdb()
 }
 
+/**
+ * Determines whether has table column is true in the current context.
+ */
 function hasTableColumn(database: Database, table: string, column: string): boolean {
   const r = database.exec(`PRAGMA table_info(${table})`)
   if (!r.length || !r[0].values.length) return false
@@ -65,6 +83,9 @@ function hasTableColumn(database: Database, table: string, column: string): bool
   return false
 }
 
+/**
+ * Implements run migrations for this module.
+ */
 function runMigrations(database: Database): void {
   database.run(SCHEMA_V1)
   const row = database.exec('SELECT version FROM schema_migrations WHERE version = 1')
@@ -90,6 +111,9 @@ function runMigrations(database: Database): void {
   if (!hasTableColumn(database, 'sync_meta', 'auto_push_enabled')) {
     database.run('ALTER TABLE sync_meta ADD COLUMN auto_push_enabled INTEGER NOT NULL DEFAULT 1')
   }
+  if (!hasTableColumn(database, 'sync_meta', 'auto_push_interval_ms')) {
+    database.run('ALTER TABLE sync_meta ADD COLUMN auto_push_interval_ms INTEGER NOT NULL DEFAULT 90000')
+  }
   if (!hasTableColumn(database, 'sync_meta', 'upstream_notify_roster_id')) {
     database.run('ALTER TABLE sync_meta ADD COLUMN upstream_notify_roster_id TEXT')
   }
@@ -113,6 +137,9 @@ function runMigrations(database: Database): void {
   }
 }
 
+/**
+ * Implements migrate from local storage if needed for this module.
+ */
 function migrateFromLocalStorageIfNeeded(database: Database): void {
   const r = database.exec('SELECT json FROM app_state WHERE id = 1')
   if (r.length && r[0].values.length) return
@@ -143,6 +170,9 @@ function randomUnitId(): string {
   return hex.toUpperCase()
 }
 
+/**
+ * Implements init persistence for this module.
+ */
 export async function initPersistence(): Promise<void> {
   if (db) return
   sqlModule = await initSqlJs({ locateFile: () => wasmUrl })
@@ -166,6 +196,9 @@ export async function initPersistence(): Promise<void> {
   await flushToIdb()
 }
 
+/**
+ * Implements load app state from db for this module.
+ */
 export function loadAppStateFromDb(): AppState | null {
   const database = ensureDb()
   const r = database.exec('SELECT json FROM app_state WHERE id = 1')
@@ -181,6 +214,9 @@ export function loadAppStateFromDb(): AppState | null {
   }
 }
 
+/**
+ * Implements read initial setup complete from db for this module.
+ */
 export function readInitialSetupCompleteFromDb(): boolean {
   try {
     const database = ensureDb()
@@ -192,16 +228,25 @@ export function readInitialSetupCompleteFromDb(): boolean {
   }
 }
 
+/**
+ * Implements write initial setup complete to db for this module.
+ */
 export function writeInitialSetupCompleteToDb(): void {
   ensureDb().run('UPDATE sync_meta SET initial_setup_complete = 1 WHERE id = 1')
   scheduleFlush()
 }
 
+/**
+ * Implements clear initial setup flag in db for this module.
+ */
 export function clearInitialSetupFlagInDb(): void {
   ensureDb().run('UPDATE sync_meta SET initial_setup_complete = 0 WHERE id = 1')
   scheduleFlush()
 }
 
+/**
+ * Implements save app state to db for this module.
+ */
 export function saveAppStateToDb(
   state: AppState,
   options?: { /** Set sync counter exactly (e.g. after applying ingest v46); default is +1 per save. */
@@ -230,12 +275,18 @@ export function saveAppStateToDb(
   scheduleFlush()
 }
 
+/**
+ * Returns state version for downstream consumers.
+ */
 export function getStateVersion(): number {
   const r = ensureDb().exec('SELECT state_version FROM sync_meta WHERE id = 1')
   if (!r.length || !r[0].values.length) return 1
   return Number(r[0].values[0][0]) || 1
 }
 
+/**
+ * Updates state version with the provided value.
+ */
 export function setStateVersion(v: number): void {
   ensureDb().run('UPDATE sync_meta SET state_version = ? WHERE id = 1', [Math.max(1, Math.floor(v))])
   scheduleFlush()
@@ -261,17 +312,22 @@ export interface SyncMetaRow {
   syncAlertStyleJson: string
   /** Periodically push snapshot to roster peers (~90s) when secret + peers are configured. */
   autoPushEnabled: boolean
+  /** Auto-push cadence in milliseconds (user configurable in Network). */
+  autoPushIntervalMs: number
   /** Roster row id for offline-notify / tab-close; empty = first IP peer in roster order. */
   upstreamNotifyRosterId: string
 }
 
+/**
+ * Returns sync meta for downstream consumers.
+ */
 export function getSyncMeta(): SyncMetaRow {
   const database = ensureDb()
   const r = database.exec(
     `SELECT state_version, local_unit_id, skip_echelon_enabled, skip_echelon_verified,
             max_skip_hops, sync_shared_secret, peer_listen_port, auto_rollup_from_org,
             last_applied_ingest_state_version, dismissed_ingest_state_version,
-            incoming_alerts_enabled, sync_alert_style_json, auto_push_enabled,
+            incoming_alerts_enabled, sync_alert_style_json, auto_push_enabled, auto_push_interval_ms,
             upstream_notify_roster_id
      FROM sync_meta WHERE id = 1`
   )
@@ -290,6 +346,7 @@ export function getSyncMeta(): SyncMetaRow {
       incomingAlertsEnabled: true,
       syncAlertStyleJson: '',
       autoPushEnabled: true,
+      autoPushIntervalMs: 90_000,
       upstreamNotifyRosterId: '',
     }
   }
@@ -308,10 +365,14 @@ export function getSyncMeta(): SyncMetaRow {
     incomingAlertsEnabled: row[10] != null ? Number(row[10]) === 1 : true,
     syncAlertStyleJson: row[11] != null ? String(row[11]) : '',
     autoPushEnabled: row[12] != null ? Number(row[12]) === 1 : true,
-    upstreamNotifyRosterId: row[13] != null ? String(row[13]) : '',
+    autoPushIntervalMs: Math.max(5_000, row[13] != null ? Number(row[13]) || 90_000 : 90_000),
+    upstreamNotifyRosterId: row[14] != null ? String(row[14]) : '',
   }
 }
 
+/**
+ * Implements update sync meta for this module.
+ */
 export function updateSyncMeta(partial: Partial<Omit<SyncMetaRow, 'stateVersion'>> & { stateVersion?: number }): void {
   const cur = getSyncMeta()
   const next = {
@@ -339,6 +400,7 @@ export function updateSyncMeta(partial: Partial<Omit<SyncMetaRow, 'stateVersion'
       incoming_alerts_enabled = ?,
       sync_alert_style_json = ?,
       auto_push_enabled = ?,
+      auto_push_interval_ms = ?,
       upstream_notify_roster_id = ?
     WHERE id = 1`,
     [
@@ -355,10 +417,14 @@ export function updateSyncMeta(partial: Partial<Omit<SyncMetaRow, 'stateVersion'
       next.incomingAlertsEnabled ? 1 : 0,
       next.syncAlertStyleJson,
       next.autoPushEnabled ? 1 : 0,
+      Math.max(5_000, Number(next.autoPushIntervalMs) || 90_000),
       next.upstreamNotifyRosterId || null,
     ]
   )
   scheduleFlush()
+  if (typeof window !== 'undefined' && partial.localUnitId !== undefined) {
+    window.dispatchEvent(new CustomEvent('fdc-sync-meta-changed'))
+  }
 }
 
 export interface NetworkRosterRow {
@@ -382,6 +448,9 @@ export interface NetworkRosterRow {
   stationOfflineSinceMs: number | null
 }
 
+/**
+ * Implements list network roster for this module.
+ */
 export function listNetworkRoster(): NetworkRosterRow[] {
   const r = ensureDb().exec(
     `SELECT id, display_name, echelon_role, parent_unit_id, host, port, use_tls, bearer,
@@ -410,6 +479,9 @@ export function listNetworkRoster(): NetworkRosterRow[] {
   }))
 }
 
+/**
+ * Implements upsert network roster row for this module.
+ */
 export function upsertNetworkRosterRow(row: NetworkRosterRow): void {
   ensureDb().run(
     `INSERT OR REPLACE INTO network_roster
@@ -438,11 +510,17 @@ export function upsertNetworkRosterRow(row: NetworkRosterRow): void {
   scheduleFlush()
 }
 
+/**
+ * Implements delete network roster row for this module.
+ */
 export function deleteNetworkRosterRow(id: string): void {
   ensureDb().run('DELETE FROM network_roster WHERE id = ?', [id])
   scheduleFlush()
 }
 
+/**
+ * Implements append audit log for this module.
+ */
 export function appendAuditLog(category: string, message: string, detail?: string): void {
   ensureDb().run('INSERT INTO audit_log (ts, category, message, detail) VALUES (?, ?, ?, ?)', [
     Date.now(),
@@ -453,11 +531,17 @@ export function appendAuditLog(category: string, message: string, detail?: strin
   scheduleFlush()
 }
 
+/**
+ * Implements clear audit log for this module.
+ */
 export function clearAuditLog(): void {
   ensureDb().run('DELETE FROM audit_log')
   scheduleFlush()
 }
 
+/**
+ * Implements list audit log for this module.
+ */
 export function listAuditLog(limit = 200): { ts: number; category: string; message: string; detail: string | null }[] {
   const r = ensureDb().exec(
     `SELECT ts, category, message, detail FROM audit_log ORDER BY id DESC LIMIT ${Math.min(5000, Math.max(1, limit))}`
@@ -471,6 +555,9 @@ export function listAuditLog(limit = 200): { ts: number; category: string; messa
   }))
 }
 
+/**
+ * Implements enqueue sync outbox for this module.
+ */
 export function enqueueSyncOutbox(kind: string, payloadJson: string, targetUnitId?: string): void {
   ensureDb().run(
     'INSERT INTO sync_outbox (created_ms, payload_json, target_unit_id, kind) VALUES (?, ?, ?, ?)',
@@ -479,6 +566,9 @@ export function enqueueSyncOutbox(kind: string, payloadJson: string, targetUnitI
   scheduleFlush()
 }
 
+/**
+ * Implements list sync outbox for this module.
+ */
 export function listSyncOutbox(limit = 50): { id: number; createdMs: number; kind: string; payloadJson: string; targetUnitId: string | null }[] {
   const r = ensureDb().exec(
     `SELECT id, created_ms, kind, payload_json, target_unit_id FROM sync_outbox ORDER BY id ASC LIMIT ${Math.min(500, Math.max(1, limit))}`
@@ -493,6 +583,9 @@ export function listSyncOutbox(limit = 50): { id: number; createdMs: number; kin
   }))
 }
 
+/**
+ * Implements remove sync outbox row for this module.
+ */
 export function removeSyncOutboxRow(id: number): void {
   ensureDb().run('DELETE FROM sync_outbox WHERE id = ?', [id])
   scheduleFlush()
@@ -508,6 +601,9 @@ export function applySnapshotJson(json: string, preservedViewRole?: CurrentUserR
   return mergePreservedViewRoleAfterSync(normalized, preservedViewRole)
 }
 
+/**
+ * Implements clear all persistence for this module.
+ */
 export function clearAllPersistence(): void {
   const database = ensureDb()
   database.run('BEGIN')
@@ -526,6 +622,7 @@ export function clearAllPersistence(): void {
     incoming_alerts_enabled = 1,
     sync_alert_style_json = NULL,
     auto_push_enabled = 1,
+    auto_push_interval_ms = 90000,
     upstream_notify_roster_id = NULL
     WHERE id = 1`)
   database.run('COMMIT')

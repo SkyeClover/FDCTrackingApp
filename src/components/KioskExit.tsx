@@ -5,6 +5,9 @@ interface KioskExitProps {
   onExit: () => void
 }
 
+/**
+ * Renders the Kiosk Exit UI section.
+ */
 export default function KioskExit({ onExit }: KioskExitProps) {
   const [showExit, setShowExit] = useState(false)
   const [exitCountdown, setExitCountdown] = useState(0)
@@ -27,7 +30,10 @@ export default function KioskExit({ onExit }: KioskExitProps) {
     // Long press on top-left corner (5 seconds)
     let longPressTimer: NodeJS.Timeout | null = null
 
-    const handleTouchStart = (e: TouchEvent) => {
+        /**
+     * Handles touch start interactions for this workflow.
+     */
+const handleTouchStart = (e: TouchEvent) => {
       const touch = e.touches[0]
       // Top-left corner (within 100px from top and left)
       if (touch.clientX < 100 && touch.clientY < 100) {
@@ -38,7 +44,10 @@ export default function KioskExit({ onExit }: KioskExitProps) {
       }
     }
 
-    const handleTouchEnd = () => {
+        /**
+     * Handles touch end interactions for this workflow.
+     */
+const handleTouchEnd = () => {
       if (longPressTimer) {
         clearTimeout(longPressTimer)
         longPressTimer = null
@@ -72,7 +81,10 @@ export default function KioskExit({ onExit }: KioskExitProps) {
     }
   }, [exitCountdown])
 
-  const handleExit = async () => {
+    /**
+   * Handles exit interactions for this workflow.
+   */
+const handleExit = async () => {
     try {
       // Call the exit handler endpoint to launch terminal
       const response = await fetch(`${getKioskSidecarOrigin()}/exit`, {

@@ -25,6 +25,7 @@ const TaskTemplateForm = memo(({
   onCancel: () => void
   isMobile?: boolean
 }) => {
+  // --- Local state and callbacks ---
   const [name, setName] = useState(editingTemplate?.name || '')
   const [description, setDescription] = useState(editingTemplate?.description || '')
   // Duration is stored in minutes in the UI, but converted to seconds for storage
@@ -32,7 +33,10 @@ const TaskTemplateForm = memo(({
   const [duration, setDuration] = useState<number | ''>(initialDurationMinutes)
   const [type, setType] = useState<TaskTemplate['type']>(editingTemplate?.type || 'custom')
 
-  const handleSubmit = (e: React.FormEvent) => {
+    /**
+   * Handles submit interactions for this workflow.
+   */
+const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (name.trim()) {
       // Convert minutes to seconds for storage
@@ -46,6 +50,7 @@ const TaskTemplateForm = memo(({
     }
   }
 
+  // --- Render ---
   return (
     <form
       onSubmit={handleSubmit}
@@ -167,6 +172,9 @@ const TaskTemplateForm = memo(({
 
 TaskTemplateForm.displayName = 'TaskTemplateForm'
 
+/**
+ * Renders the Management UI section.
+ */
 export default function Management() {
   const isMobile = useIsMobile()
   const {
@@ -212,7 +220,10 @@ export default function Management() {
     [editingTemplate, addTaskTemplate, updateTaskTemplate]
   )
 
-  const formatDuration = (seconds: number) => {
+    /**
+   * Implements format duration for this module.
+   */
+const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`

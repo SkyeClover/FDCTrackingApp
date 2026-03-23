@@ -29,7 +29,10 @@ export default function SegmentedIntPicker({
   const values: number[] = []
   for (let i = min; i <= max; i++) values.push(i)
 
-  const bump = (delta: number) => {
+    /**
+   * Implements bump for this module.
+   */
+const bump = (delta: number) => {
     if (disabled) return
     if (value === '') {
       onChange(Math.min(max, Math.max(min, min + delta)))

@@ -18,6 +18,9 @@ interface POCCardProps {
   readOnly?: boolean
 }
 
+/**
+ * Renders the POCCard UI section.
+ */
 export default function POCCard({
   poc,
   launchers,
@@ -79,6 +82,7 @@ export default function POCCard({
     return { podsByRoundTypeCounts: pods, availableRoundsByType: rnds }
   }, [podsOnRSVs, roundTypeOptions])
 
+  // --- Render ---
   return (
     <div
       data-guide="poc-card"

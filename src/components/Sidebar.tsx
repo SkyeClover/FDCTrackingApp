@@ -6,6 +6,9 @@ interface SidebarProps {
   onPageChange: (page: Page) => void
 }
 
+/**
+ * Renders the Sidebar UI section.
+ */
 export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   return (
     <aside

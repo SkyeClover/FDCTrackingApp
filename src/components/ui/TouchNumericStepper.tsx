@@ -28,7 +28,10 @@ export default function TouchNumericStepper({
   const canDec = n === null ? false : n > min
   const canInc = n === null ? true : max === undefined || n < max
 
-  const applyDelta = (delta: number) => {
+    /**
+   * Implements apply delta for this module.
+   */
+const applyDelta = (delta: number) => {
     if (disabled) return
     const base = n ?? min
     let next = base + delta
@@ -37,7 +40,10 @@ export default function TouchNumericStepper({
     onChange(next)
   }
 
-  const onInput = (raw: string) => {
+    /**
+   * Implements on input for this module.
+   */
+const onInput = (raw: string) => {
     if (raw === '') {
       onChange('')
       return

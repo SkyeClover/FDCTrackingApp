@@ -12,9 +12,13 @@ interface FireMissionModalProps {
   onClose: () => void
 }
 
+/**
+ * Renders the Fire Mission Modal UI section.
+ */
 export default function FireMissionModal({ isOpen, onClose }: FireMissionModalProps) {
   const { launchers, pods, startFireMission, addLog, roundTypes } = useAppData()
   const [selectedLaunchers, setSelectedLaunchers] = useState<Set<string>>(new Set())
+  // --- Local state and callbacks ---
   const [targetNumber, setTargetNumber] = useState('')
   const [roundsPerLauncher, setRoundsPerLauncher] = useState<number | ''>(1)
   const [selectedRoundType, setSelectedRoundType] = useState<string>('')
@@ -59,7 +63,10 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
     return true
   })
 
-  const toggleLauncher = (launcherId: string) => {
+    /**
+   * Implements toggle launcher for this module.
+   */
+const toggleLauncher = (launcherId: string) => {
     setSelectedLaunchers((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(launcherId)) {
@@ -71,7 +78,10 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
     })
   }
 
-  const handleStartMission = () => {
+    /**
+   * Handles start mission interactions for this workflow.
+   */
+const handleStartMission = () => {
     if (selectedLaunchers.size === 0) {
       alert('Please select at least one launcher')
       return
@@ -139,6 +149,7 @@ export default function FireMissionModal({ isOpen, onClose }: FireMissionModalPr
     onClose()
   }
 
+  // --- Render ---
   return (
     <div
       className="fdc-modal-overlay"

@@ -13,6 +13,9 @@ type Props = {
   style?: CSSProperties
 }
 
+/**
+ * Renders the Collapsible Card UI section.
+ */
 export function CollapsibleCard({
   title,
   description,

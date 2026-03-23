@@ -44,9 +44,13 @@ function formatBytes(bytes: string | undefined | null): string {
   }
 }
 
+/**
+ * Renders the System Info UI section.
+ */
 export default function SystemInfo() {
   // All hooks must be called unconditionally at the top
   const [info, setInfo] = useState<SystemInfo | null>(null)
+  // --- Local state and callbacks ---
   const [hostedSkip] = useState(
     () => typeof window !== 'undefined' && !shouldAttemptLocalAgentFetch()
   )
@@ -97,6 +101,7 @@ export default function SystemInfo() {
     }
   }, [])
 
+  // --- Side effects ---
   useEffect(() => {
     if (hostedSkip) return
     const timer = setTimeout(() => {
@@ -239,6 +244,7 @@ export default function SystemInfo() {
     )
   }
 
+  // --- Render ---
   return (
     <PageShell title="System information" isMobile={safeIsMobile}>
       {/* System Information Grid */}

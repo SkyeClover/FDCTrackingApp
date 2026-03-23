@@ -4,10 +4,26 @@ import { useAppData } from '../../context/AppDataContext'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import CreateUnitModal from '../inventory/CreateUnitModal'
 import { stateHasOrgEntities } from '../../utils/saveLoad'
+import { buildDemoSeedState } from '../../utils/demoSeed'
+import {
+  getSyncMeta,
+  listNetworkRoster,
+  updateSyncMeta,
+  upsertNetworkRosterRow,
+  type NetworkRosterRow,
+} from '../../persistence/sqlite'
+import {
+  echelonRoleValue,
+  getParentUnitIdForEchelonRole,
+  type OrgUnitsSlice,
+} from '../network/echelonRoleUi'
 import type { CurrentUserRole } from '../../types'
 
 type Screen = 'home' | 'fresh' | 'restore'
 
+/**
+ * Renders the First Run Setup UI section.
+ */
 export default function FirstRunSetup() {
   const isMobile = useIsMobile()
   const {
@@ -19,14 +35,18 @@ export default function FirstRunSetup() {
     setCurrentUserRole,
     loadFromFile,
     completeInitialSetup,
+    applySnapshotFromJson,
   } = useAppData()
 
   const [screen, setScreen] = useState<Screen>('home')
+  // --- Local state and callbacks ---
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedRoleType, setSelectedRoleType] = useState<'brigade' | 'battalion' | 'boc' | 'poc' | ''>('')
   const [selectedRoleId, setSelectedRoleId] = useState('')
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const [restoreBusy, setRestoreBusy] = useState(false)
+  const [seedBusy, setSeedBusy] = useState(false)
+  const [seedError, setSeedError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const hasOrg = useMemo(
@@ -45,7 +65,10 @@ export default function FirstRunSetup() {
   const bocsSorted = useMemo(() => [...bocs].sort((a, b) => a.name.localeCompare(b.name)), [bocs])
   const pocsSorted = useMemo(() => [...pocs].sort((a, b) => a.name.localeCompare(b.name)), [pocs])
 
-  const resolveRole = (): CurrentUserRole | null => {
+    /**
+   * Implements resolve role for this module.
+   */
+const resolveRole = (): CurrentUserRole | null => {
     if (!selectedRoleType || !selectedRoleId) return null
     if (selectedRoleType === 'brigade') {
       const b = brigades.find((x) => x.id === selectedRoleId)
@@ -63,7 +86,10 @@ export default function FirstRunSetup() {
     return poc ? { type: 'poc', id: poc.id, name: poc.name } : null
   }
 
-  const handleEnterApp = () => {
+    /**
+   * Handles enter app interactions for this workflow.
+   */
+const handleEnterApp = () => {
     const role = resolveRole()
     if (!hasOrg || !role) return
     setCurrentUserRole(role)
@@ -72,7 +98,10 @@ export default function FirstRunSetup() {
 
   const canEnterApp = hasOrg && !!resolveRole()
 
-  const onRestorePick = async (e: ChangeEvent<HTMLInputElement>) => {
+    /**
+   * Implements on restore pick for this module.
+   */
+const onRestorePick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
@@ -85,6 +114,75 @@ export default function FirstRunSetup() {
     }
   }
 
+    /**
+   * Handles load demo seed interactions for this workflow.
+   */
+const handleLoadDemoSeed = () => {
+    setSeedError(null)
+    setSeedBusy(true)
+    try {
+      const seeded = buildDemoSeedState()
+      const ok = applySnapshotFromJson(JSON.stringify(seeded))
+      if (!ok) {
+        setSeedError('Could not apply demo seed right now.')
+      } else {
+        const org: OrgUnitsSlice = {
+          brigades: seeded.brigades,
+          battalions: seeded.battalions,
+          bocs: seeded.bocs,
+          pocs: seeded.pocs,
+        }
+        const existing = listNetworkRoster()
+        const byRole = new Set(existing.map((r) => r.echelonRole))
+        let maxSort = existing.reduce((m, r) => Math.max(m, r.sortOrder ?? 0), 0)
+                /**
+         * Implements add role row for this module.
+         */
+const addRoleRow = (type: 'brigade' | 'battalion' | 'boc' | 'poc', id: string, name: string) => {
+          const role = echelonRoleValue(type, id)
+          if (byRole.has(role)) return
+          maxSort += 1
+          const row: NetworkRosterRow = {
+            id: crypto.randomUUID(),
+            displayName: name,
+            echelonRole: role,
+            parentUnitId: getParentUnitIdForEchelonRole(role, org),
+            host: '127.0.0.1',
+            port: 8787,
+            useTls: false,
+            bearer: 'ip',
+            status: 'unknown',
+            lastSeenMs: null,
+            lastError: null,
+            sortOrder: maxSort,
+            peerUnitId: role,
+            syncAlertsEnabled: true,
+            autoAcceptSync: false,
+            stationOfflineSinceMs: null,
+          }
+          upsertNetworkRosterRow(row)
+          byRole.add(role)
+        }
+        for (const bde of seeded.brigades) addRoleRow('brigade', bde.id, bde.name)
+        for (const bn of seeded.battalions) addRoleRow('battalion', bn.id, bn.name)
+        for (const boc of seeded.bocs) addRoleRow('boc', boc.id, boc.name)
+        for (const poc of seeded.pocs) addRoleRow('poc', poc.id, poc.name)
+        const meta = getSyncMeta()
+        if (!meta.localUnitId && seeded.pocs[0]) {
+          updateSyncMeta({ localUnitId: `poc:${seeded.pocs[0].id}` })
+        }
+        if (seeded.brigades[0]) {
+          setSelectedRoleType('brigade')
+          setSelectedRoleId(seeded.brigades[0].id)
+        }
+      }
+    } catch {
+      setSeedError('Failed generating demo seed data.')
+    } finally {
+      setSeedBusy(false)
+    }
+  }
+
   const panelStyle: CSSProperties = {
     backgroundColor: 'var(--bg-tertiary)',
     border: '1px solid var(--border)',
@@ -92,6 +190,7 @@ export default function FirstRunSetup() {
     padding: isMobile ? '1rem' : '1.35rem',
   }
 
+  // --- Render ---
   return (
     <div
       className="fdc-modal-overlay"
@@ -165,6 +264,37 @@ export default function FirstRunSetup() {
 
               <button
                 type="button"
+                onClick={() => {
+                  handleLoadDemoSeed()
+                  setScreen('fresh')
+                }}
+                disabled={seedBusy}
+                style={{
+                  ...panelStyle,
+                  cursor: seedBusy ? 'wait' : 'pointer',
+                  textAlign: 'left',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.65rem',
+                  borderColor: 'var(--success)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Sparkles size={22} color="var(--success)" />
+                  <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '1.05rem' }}>
+                    {seedBusy ? 'Loading simulation demo seed…' : 'Load simulation demo seed'}
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  Quick-start simulation seed: 1 brigade, 1 battalion, 1 BOC, 1 ammo platoon, 3 POCs, and launchers/RSVs/pods.
+                </span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', opacity: 0.9 }}>
+                  Works only with the local simulation program (`fdc-simulator`).
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setScreen('restore')}
                 style={{
                   ...panelStyle,
@@ -187,6 +317,9 @@ export default function FirstRunSetup() {
                 </span>
               </button>
             </div>
+            {seedError && (
+              <p style={{ marginTop: '0.75rem', color: 'var(--danger)', fontSize: '0.88rem' }}>{seedError}</p>
+            )}
           </>
         )}
 
@@ -250,11 +383,39 @@ export default function FirstRunSetup() {
               >
                 Create unit…
               </button>
+              <button
+                type="button"
+                onClick={handleLoadDemoSeed}
+                disabled={seedBusy}
+                style={{
+                  marginLeft: '0.6rem',
+                  padding: '0.65rem 1.1rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  fontWeight: 600,
+                  cursor: seedBusy ? 'wait' : 'pointer',
+                  fontSize: '0.9rem',
+                }}
+              >
+                {seedBusy ? 'Seeding simulation…' : 'Load simulation demo seed'}
+              </button>
               {!hasOrg && (
                 <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: 'var(--warning)', fontStyle: 'italic' }}>
                   Create at least one unit before continuing.
                 </p>
               )}
+              {seedError && (
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.82rem', color: 'var(--danger)' }}>{seedError}</p>
+              )}
+              <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Simulation demo seed builds: 1 brigade, 1 battalion, 1 BOC, 1 ammo PLT (BOC-linked), 3 POCs, 4 launchers
+                total (1-2 per POC), and 1 RSV per POC with about 4 reserve pods each.
+              </p>
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)', opacity: 0.9 }}>
+                This simulation demo seed is intended for the local `fdc-simulator` integration flow.
+              </p>
             </div>
 
             <h2

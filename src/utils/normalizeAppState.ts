@@ -1,6 +1,9 @@
 import type { AmmoPlatoon, AppState } from '../types'
 import { LEGACY_AMMO_PLT_ID } from '../constants/ammoPlatoon'
 
+/**
+ * Implements migrate ammo platoons for this module.
+ */
 function migrateAmmoPlatoons(base: AppState): AmmoPlatoon[] {
   const existing = base.ammoPlatoons
   if (Array.isArray(existing) && existing.length > 0) return existing

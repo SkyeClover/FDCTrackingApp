@@ -21,7 +21,12 @@ import {
 } from './echelonRoleUi'
 import { ensureBocPocRosterFromOrg } from './rosterFromOrg'
 import { CollapsibleCard } from './CollapsibleCard'
+import { useSimulation } from '../../simulation/SimulationContext'
+import type { SimUnitState } from '../../types'
 
+/**
+ * Implements status color for this module.
+ */
 function statusColor(status: string): string {
   if (status === 'green') return 'var(--success, #2a8)'
   if (status === 'yellow') return 'var(--warning, #c90)'
@@ -29,6 +34,9 @@ function statusColor(status: string): string {
   return 'var(--text-secondary)'
 }
 
+/**
+ * Implements status tooltip text for this module.
+ */
 function statusTooltipText(row: NetworkRosterRow, org: OrgUnitsSlice): string {
   const role = formatEchelonRoleForDisplay(row.echelonRole, org)
   const when = row.lastSeenMs ? new Date(row.lastSeenMs).toLocaleString() : 'never'
@@ -45,6 +53,54 @@ function statusTooltipText(row: NetworkRosterRow, org: OrgUnitsSlice): string {
   return `${row.displayName}: status unknown (${role}). Run "Send test message" to update reachability.`
 }
 
+/**
+ * Implements sim status for unit for this module.
+ */
+function simStatusForUnit(unit: { destructionLevel?: string; commsStatus?: string }): 'green' | 'yellow' | 'red' {
+  const destruction = String(unit.destructionLevel ?? '').toLowerCase()
+  const comms = String(unit.commsStatus ?? '').toLowerCase()
+  if (destruction === 'destroyed' || destruction === 'struck_off') return 'red'
+  if (comms === 'down' || comms === 'offline' || comms === 'lost') return 'red'
+  if (destruction === 'degraded') return 'yellow'
+  if (comms === 'degraded' || comms === 'intermittent') return 'yellow'
+  return 'green'
+}
+
+/**
+ * Implements sim tooltip text for this module.
+ */
+function simTooltipText(
+  row: NetworkRosterRow,
+  org: OrgUnitsSlice,
+  simUnit: { destructionLevel?: string; commsStatus?: string; lastHeartbeat?: string } | undefined
+): string {
+  const role = formatEchelonRoleForDisplay(row.echelonRole, org)
+  if (!simUnit) return statusTooltipText(row, org)
+  const when = simUnit.lastHeartbeat ? new Date(simUnit.lastHeartbeat).toLocaleString() : 'now'
+  const state = simStatusForUnit(simUnit)
+  if (state === 'green') {
+    return `${row.displayName}: online in simulation (${role}). Unit intact/comms up. Last heartbeat ${when}.`
+  }
+  if (state === 'yellow') {
+    return `${row.displayName}: degraded in simulation (${role}). Unit/comms degraded. Last heartbeat ${when}.`
+  }
+  return `${row.displayName}: offline in simulation (${role}). Unit destroyed/struck-off or comms down. Last heartbeat ${when}.`
+}
+
+/**
+ * Implements sim entity ref for roster row for this module.
+ */
+function simEntityRefForRosterRow(row: NetworkRosterRow): string | null {
+  const peer = row.peerUnitId?.trim()
+  if (peer) return peer
+  const parsed = parseEchelonRole(row.echelonRole)
+  if (!parsed) return null
+  return `${parsed.type}:${parsed.id}`
+}
+
+/**
+ * Renders the Network Roster Section Inner UI section.
+ */
 function NetworkRosterSectionInner({
   isMobile,
   refreshKey = 0,
@@ -57,7 +113,8 @@ function NetworkRosterSectionInner({
   /** True while a roster row is in edit mode — parent can pause agent polling. */
   onEditingChange?: (editing: boolean) => void
 }) {
-  const { brigades, battalions, bocs, pocs } = useAppData()
+  const { brigades, battalions, bocs, pocs, simulationOverlay } = useAppData()
+  const sim = useSimulation()
   const [rows, setRows] = useState<NetworkRosterRow[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -73,14 +130,69 @@ function NetworkRosterSectionInner({
     [echelonGroups]
   )
 
+  // --- Local state and callbacks ---
   const [autoRollup, setAutoRollup] = useState(() => getSyncMeta().autoRollupFromOrg)
 
+  const simUnitsByRef = useMemo(() => {
+    const map = new Map<string, SimUnitState>()
+    for (const u of simulationOverlay?.unitStates ?? []) {
+      map.set(u.entityRef, u)
+    }
+    return map
+  }, [simulationOverlay?.unitStates])
+
+  const deriveDisplayedStatus = useCallback(
+    (row: NetworkRosterRow) => {
+      const simRef = simEntityRefForRosterRow(row)
+      const simUnit = simRef ? simUnitsByRef.get(simRef) : undefined
+      if (sim.connectionStatus === 'connected' && simUnit) {
+        const status = simStatusForUnit(simUnit)
+        const seen = simUnit.lastHeartbeat ? new Date(simUnit.lastHeartbeat).toLocaleString() : '—'
+        return {
+          status,
+          seen,
+          tooltip: simTooltipText(row, org, simUnit),
+        }
+      }
+      if (sim.connectionStatus === 'connected' && simRef) {
+        return {
+          status: 'green',
+          seen: 'live',
+          tooltip: `${row.displayName}: connected to simulator (${formatEchelonRoleForDisplay(
+            row.echelonRole,
+            org
+          )}) via ${simRef}. Waiting for next heartbeat.`,
+        }
+      }
+      return {
+        status: row.status,
+        seen: row.lastSeenMs ? new Date(row.lastSeenMs).toLocaleString() : '—',
+        tooltip: statusTooltipText(row, org),
+      }
+    },
+    [sim.connectionStatus, simUnitsByRef, org]
+  )
+
+  // --- Side effects ---
   useEffect(() => {
     setAutoRollup(getSyncMeta().autoRollupFromOrg)
   }, [refreshKey])
 
   const reload = useCallback(() => {
-    setRows(listNetworkRoster())
+    const raw = listNetworkRoster()
+    const next = raw.map((row) => {
+      const peer = row.peerUnitId?.trim()
+      if (peer) return row
+      const parsed = parseEchelonRole(row.echelonRole)
+      if (!parsed) return row
+      return { ...row, peerUnitId: `${parsed.type}:${parsed.id}` }
+    })
+    for (let i = 0; i < raw.length; i += 1) {
+      if ((raw[i].peerUnitId ?? null) !== (next[i].peerUnitId ?? null)) {
+        upsertNetworkRosterRow(next[i])
+      }
+    }
+    setRows(next)
   }, [])
 
   useEffect(() => {
@@ -117,10 +229,12 @@ function NetworkRosterSectionInner({
 
   const addRow = useCallback(() => {
     const id = crypto.randomUUID()
+    const role = firstEchelonRoleValue(org)
+    const parsed = parseEchelonRole(role)
     const row: NetworkRosterRow = {
       id,
       displayName: 'New unit',
-      echelonRole: firstEchelonRoleValue(org),
+      echelonRole: role,
       parentUnitId: null,
       host: '127.0.0.1',
       port: 8787,
@@ -130,7 +244,7 @@ function NetworkRosterSectionInner({
       lastSeenMs: null,
       lastError: null,
       sortOrder: rows.length,
-      peerUnitId: null,
+      peerUnitId: parsed ? `${parsed.type}:${parsed.id}` : null,
       syncAlertsEnabled: true,
       autoAcceptSync: false,
       stationOfflineSinceMs: null,
@@ -148,6 +262,10 @@ function NetworkRosterSectionInner({
       if (getSyncMeta().autoRollupFromOrg) {
         const pid = getParentUnitIdForEchelonRole(next.echelonRole, org)
         next = { ...next, parentUnitId: pid }
+      }
+      if (!next.peerUnitId?.trim()) {
+        const parsed = parseEchelonRole(next.echelonRole)
+        if (parsed) next = { ...next, peerUnitId: `${parsed.type}:${parsed.id}` }
       }
       return next
     },
@@ -265,22 +383,31 @@ function NetworkRosterSectionInner({
     </div>
   )
 
+  // --- Render ---
   return (
     <CollapsibleCard
       title="Echelon roster & reachability"
       defaultOpen
       headerRight={rosterToolbar}
       description={
-        <p style={{ margin: 0, fontSize: '0.8rem', lineHeight: 1.35 }}>
-          <strong>Role</strong> = echelon from <strong>Management</strong> (Bde → Bn → BOC → PLT FDC). When{' '}
-          <strong>Auto roll-up</strong> is on, turning it on adds a roster row for each <strong>Battery (BOC)</strong> and{' '}
-          <strong>PLT FDC (POC)</strong> you created, and saving a row fills <strong>Parent ID</strong> from that tree.{' '}
-          <strong>Apply parents from tree</strong> adds any missing BOC/POC rows, then updates all parents (legacy text roles
-          skipped). Edit <strong>Host</strong>/<strong>Port</strong> per node (e.g. Pi at <code style={{ fontSize: '0.7rem' }}>fdc-tracker.local:8787</code> for sync).{' '}
-          <strong>Peer unit ID</strong> = sender’s Local unit ID for ingest alerts / auto-accept. Apply scope is automatic
-          from this row’s Role: <strong>BOC</strong> rows apply battery subtree only, <strong>PLT</strong> rows apply that
-          PLT subtree only.
-        </p>
+        <div style={{ fontSize: '0.8rem', lineHeight: 1.35 }}>
+          <p style={{ margin: 0 }}>
+            <strong>Role</strong> = echelon from <strong>Management</strong> (Bde → Bn → BOC → PLT FDC). When{' '}
+            <strong>Auto roll-up</strong> is on, turning it on adds a roster row for each <strong>Battery (BOC)</strong> and{' '}
+            <strong>PLT FDC (POC)</strong> you created, and saving a row fills <strong>Parent ID</strong> from that tree.{' '}
+            <strong>Apply parents from tree</strong> adds any missing BOC/POC rows, then updates all parents (legacy text roles
+            skipped). Edit <strong>Host</strong>/<strong>Port</strong> per node (e.g. Pi at{' '}
+            <code style={{ fontSize: '0.7rem' }}>fdc-tracker.local:8787</code> for sync). <strong>Peer unit ID</strong> = sender’s
+            Local unit ID for ingest alerts / auto-accept. Use the same org ids for the external <strong>simulation</strong> binding
+            (<code style={{ fontSize: '0.7rem' }}>poc:…</code> / <code style={{ fontSize: '0.7rem' }}>boc:…</code> style refs). Apply
+            scope is automatic from this row’s Role: <strong>BOC</strong> rows apply battery subtree only, <strong>PLT</strong> rows
+            apply that PLT subtree only.
+          </p>
+          <p style={{ margin: '0.45rem 0 0', color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
+            <strong style={{ color: 'var(--text-primary)' }}>Simulation feed:</strong> {sim.connectionStatus}
+            {sim.connectionStatus === 'connected' ? ` · seq ${sim.lastSequence}` : ''}
+          </p>
+        </div>
       }
     >
       {isMobile ? (
@@ -305,6 +432,7 @@ function NetworkRosterSectionInner({
                 onAutoSave={autosaveRow}
                 onDelete={() => removeRow(r.id)}
                 statusColor={statusColor}
+                deriveDisplayedStatus={deriveDisplayedStatus}
               />
             ))
           )}
@@ -354,6 +482,7 @@ function NetworkRosterSectionInner({
                   onAutoSave={autosaveRow}
                   onDelete={() => removeRow(r.id)}
                   statusColor={statusColor}
+                  deriveDisplayedStatus={deriveDisplayedStatus}
                 />
               ))}
             </tbody>
@@ -366,6 +495,9 @@ function NetworkRosterSectionInner({
 
 export const NetworkRosterSection = NetworkRosterSectionInner
 
+/**
+ * Renders the Roster Row Editor UI section.
+ */
 function RosterRowEditor({
   row,
   org,
@@ -379,6 +511,7 @@ function RosterRowEditor({
   onAutoSave,
   onDelete,
   statusColor,
+  deriveDisplayedStatus,
 }: {
   row: NetworkRosterRow
   org: OrgUnitsSlice
@@ -392,6 +525,7 @@ function RosterRowEditor({
   onAutoSave: (r: NetworkRosterRow) => void
   onDelete: () => void
   statusColor: (s: string) => string
+  deriveDisplayedStatus: (row: NetworkRosterRow) => { status: string; seen: string; tooltip: string }
 }) {
   const [draft, setDraft] = useState(row)
   const rowRef = useRef<HTMLDivElement | HTMLTableRowElement | null>(null)
@@ -400,7 +534,10 @@ function RosterRowEditor({
     setDraft(row)
   }, [row])
 
-  const autosaveIfLeavingEditor = (relatedTarget: EventTarget | null) => {
+    /**
+   * Implements autosave if leaving editor for this module.
+   */
+const autosaveIfLeavingEditor = (relatedTarget: EventTarget | null) => {
     if (!isEditing) return
     if (suppressBlurSaveRef.current) {
       suppressBlurSaveRef.current = false
@@ -416,9 +553,11 @@ function RosterRowEditor({
   const legacyRole = draft.echelonRole && !parseEchelonRole(draft.echelonRole)
 
   if (!isEditing) {
-    const seen = row.lastSeenMs ? new Date(row.lastSeenMs).toLocaleString() : '—'
-    const statusClass = `network-status-pill network-status-${row.status || 'unknown'}`
-    const statusTooltip = statusTooltipText(row, org)
+    const derived = deriveDisplayedStatus(row)
+    const shownStatus = derived.status || row.status || 'unknown'
+    const seen = derived.seen
+    const statusClass = `network-status-pill network-status-${shownStatus}`
+    const statusTooltip = derived.tooltip
     if (isMobile) {
       const roleScope =
         parseEchelonRole(row.echelonRole)?.type === 'boc'
@@ -438,8 +577,8 @@ function RosterRowEditor({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.35rem' }}>
             <strong style={{ color: 'var(--text-primary)' }}>{row.displayName}</strong>
-            <span className={statusClass} style={{ color: statusColor(row.status), fontWeight: 700 }} title={statusTooltip}>
-              {row.status}
+            <span className={statusClass} style={{ color: statusColor(shownStatus), fontWeight: 700 }} title={statusTooltip}>
+              {shownStatus}
             </span>
           </div>
           <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>
@@ -478,8 +617,8 @@ function RosterRowEditor({
         <td style={{ padding: '0.35rem' }}>{row.syncAlertsEnabled ? 'on' : 'off'}</td>
         <td style={{ padding: '0.35rem' }}>{row.autoAcceptSync ? 'on' : 'off'}</td>
         <td style={{ padding: '0.35rem' }}>
-          <span className={statusClass} style={{ color: statusColor(row.status), fontWeight: 600 }} title={statusTooltip}>
-            {row.status}
+          <span className={statusClass} style={{ color: statusColor(shownStatus), fontWeight: 600 }} title={statusTooltip}>
+            {shownStatus}
           </span>
         </td>
         <td style={{ padding: '0.35rem', whiteSpace: 'nowrap' }}>{seen}</td>

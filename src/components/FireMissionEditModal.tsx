@@ -15,6 +15,9 @@ interface FireMissionEditModalProps {
   onSave: (updates: Partial<Task>) => void
 }
 
+/**
+ * Renders the Fire Mission Edit Modal UI section.
+ */
 export default function FireMissionEditModal({
   task,
   isOpen,
@@ -22,6 +25,7 @@ export default function FireMissionEditModal({
   onSave,
 }: FireMissionEditModalProps) {
   const { launchers, roundTypes } = useAppData()
+  // --- Local state and callbacks ---
   const [targetNumber, setTargetNumber] = useState(task.targetNumber || task.name || '')
   const [grid, setGrid] = useState(task.grid || '')
   const [unitAssigned, setUnitAssigned] = useState(task.unitAssigned || '')
@@ -53,6 +57,7 @@ export default function FireMissionEditModal({
     .sort()
 
   // Update form when task changes
+  // --- Side effects ---
   useEffect(() => {
     setTargetNumber(task.targetNumber || task.name || '')
     setGrid(task.grid || '')
@@ -79,7 +84,10 @@ export default function FireMissionEditModal({
     return launchers.filter((l) => l.status !== 'maintenance')
   }, [launchers])
 
-  const toggleLauncher = (launcherId: string) => {
+    /**
+   * Implements toggle launcher for this module.
+   */
+const toggleLauncher = (launcherId: string) => {
     setSelectedLauncherIds((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(launcherId)) {
@@ -103,7 +111,10 @@ export default function FireMissionEditModal({
 
   if (!isOpen) return null
 
-  const handleSave = () => {
+    /**
+   * Handles save interactions for this workflow.
+   */
+const handleSave = () => {
     onSave({
       name: targetNumber.trim() || task.name, // Update mission name to match target number
       targetNumber: targetNumber.trim() || undefined,
@@ -123,6 +134,7 @@ export default function FireMissionEditModal({
     })
   }
 
+  // --- Render ---
   return (
     <div
       className="fdc-modal-overlay"

@@ -14,6 +14,9 @@ interface DashboardHeaderProps {
   onLoadFromFile?: (file: File) => Promise<boolean>
 }
 
+/**
+ * Renders the Dashboard Header UI section.
+ */
 export default function DashboardHeader({
   onInitiateFireMission,
   onReport,
@@ -23,11 +26,13 @@ export default function DashboardHeader({
 }: DashboardHeaderProps) {
   const { currentUserRole } = useAppData()
   const { navigateTo } = useAppNavigation()
+  // --- Local state and callbacks ---
   const [currentTime, setCurrentTime] = useState(new Date())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
 
+  // --- Side effects ---
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date())
@@ -36,21 +41,30 @@ export default function DashboardHeader({
     return () => clearInterval(timer)
   }, [])
 
-  const formatDate = (date: Date) => {
+    /**
+   * Implements format date for this module.
+   */
+const formatDate = (date: Date) => {
     const month = String(date.getUTCMonth() + 1).padStart(2, '0')
     const day = String(date.getUTCDate()).padStart(2, '0')
     const year = date.getUTCFullYear()
     return `${month}/${day}/${year}`
   }
 
-  const formatTime = (date: Date) => {
+    /**
+   * Implements format time for this module.
+   */
+const formatTime = (date: Date) => {
     const hours = String(date.getUTCHours()).padStart(2, '0')
     const minutes = String(date.getUTCMinutes()).padStart(2, '0')
     const seconds = String(date.getUTCSeconds()).padStart(2, '0')
     return `${hours}:${minutes}:${seconds} ZULU`
   }
 
-  const handleSaveClick = () => {
+    /**
+   * Handles save click interactions for this workflow.
+   */
+const handleSaveClick = () => {
     if (onSaveToFile) {
       onSaveToFile()
     } else if (onSaveLoad) {
@@ -58,11 +72,17 @@ export default function DashboardHeader({
     }
   }
 
-  const handleLoadClick = () => {
+    /**
+   * Handles load click interactions for this workflow.
+   */
+const handleLoadClick = () => {
     fileInputRef.current?.click()
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    /**
+   * Handles file change interactions for this workflow.
+   */
+const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file && onLoadFromFile) {
       const ok = await onLoadFromFile(file)
@@ -76,6 +96,7 @@ export default function DashboardHeader({
     }
   }
 
+  // --- Render ---
   return (
     <div
       style={{

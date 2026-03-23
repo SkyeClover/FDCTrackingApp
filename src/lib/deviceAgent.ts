@@ -14,6 +14,9 @@ export interface DeviceSystemInfo {
   platform?: string
 }
 
+/**
+ * Determines whether is private lan or local hostname is true in the current context.
+ */
 function isPrivateLanOrLocalHostname(hostname: string): boolean {
   const h = hostname.toLowerCase()
   if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]') return true
@@ -41,6 +44,9 @@ export function shouldAttemptLocalAgentFetch(): boolean {
   return false
 }
 
+/**
+ * Returns agent origin for downstream consumers.
+ */
 function getAgentOrigin(): string {
   const env = import.meta.env.VITE_DEVICE_AGENT_ORIGIN
   if (env && typeof env === 'string' && env.length > 0) return env.replace(/\/$/, '')
@@ -50,6 +56,9 @@ function getAgentOrigin(): string {
 /** Short timeout so offline agents fail fast (reduces console noise from hanging requests). */
 const FETCH_TIMEOUT_MS = 2800
 
+/**
+ * Implements abort after for this module.
+ */
 function abortAfter(ms: number): AbortSignal {
   if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
     return AbortSignal.timeout(ms)
@@ -59,6 +68,9 @@ function abortAfter(ms: number): AbortSignal {
   return c.signal
 }
 
+/**
+ * Implements try fetch for this module.
+ */
 async function tryFetch(url: string): Promise<DeviceSystemInfo> {
   const response = await fetch(url, {
     method: 'GET',

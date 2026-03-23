@@ -71,6 +71,8 @@ export interface Task {
   missionStatus?: string // (j) Mission Status
   timeMfrReceived?: Date // (k) Time MFR Received
   numberOfRoundsFired?: number // (l) Number of Rounds Fired
+  /** Auto-derived execution rate from completion data. */
+  rofRoundsPerMinute?: number
   remarks?: string // (m) Remarks
   // Legacy fields for backwards compatibility
   target?: string // Target/Recipient (legacy)
@@ -133,6 +135,96 @@ export interface CurrentUserRole {
   name: string
 }
 
+/** Simulation / live-exercise overlay (fed by external sim WebSocket). Kept out of peer sync payloads when possible. */
+export type SimDestructionLevel = 'intact' | 'degraded' | 'destroyed' | 'struck_off'
+
+export type SimUnitRole = 'lineUnit' | 'opsNode' | 'fdcNode' | 'supportUnit' | 'enemyUnit'
+
+export type SimEnemyCategory = 'ground_troops' | 'ada_system' | 'counterfire_radar' | 'airfield' | 'c2_node' | 'unknown'
+
+export interface SimEnemyDetails {
+  category: SimEnemyCategory
+  label?: string
+  threatRangeKm?: number
+  highValue?: boolean
+}
+
+export interface SimRoundRangeProfile {
+  roundType: string
+  minRangeKm?: number
+  maxRangeKm: number
+  label?: string
+  color?: string
+}
+
+export interface SimRangeFanConfig {
+  enabled: boolean
+  profiles: SimRoundRangeProfile[]
+  showLabels?: boolean
+}
+
+/** Stable ref in form `poc:<id>`, `boc:<id>`, `launcher:<id>`, `battalion:<id>`, `brigade:<id>`. */
+export type SimEntityRef = string
+
+export interface SimUnitState {
+  entityRef: SimEntityRef
+  unitRole: SimUnitRole
+  destructionLevel: SimDestructionLevel
+  mgrsGrid?: string
+  displayGrid?: string
+  lastHeartbeat?: string
+  readiness?: string
+  commsStatus?: string
+  enemyDetails?: SimEnemyDetails
+}
+
+export type SurvivorGroupStatus = 'forming' | 'awaiting_orders' | 'in_transit' | 'merging' | 'absorbed'
+
+export interface SurvivorGroup {
+  id: string
+  sourceUnitIds: string[]
+  headcountOrStrength?: number
+  currentLocation?: string
+  status: SurvivorGroupStatus
+  proposedTargetEchelon?: string
+  proposedTargetUnitId?: string
+}
+
+export type ReassignmentApprovalState = 'auto_applied' | 'pending' | 'approved' | 'rejected'
+
+export interface ReassignmentRecord {
+  id: string
+  survivorGroupId?: string
+  fromOrg?: string
+  toOrg?: string
+  reason?: string
+  proposedBy?: 'sim_automation' | 'operator' | 'ops_node'
+  approvalState: ReassignmentApprovalState
+  effectiveAt?: string
+}
+
+export type SimControlMode = 'auto' | 'human' | 'hybrid'
+
+export interface SimControlState {
+  scopeId: string
+  mode: SimControlMode
+  heldBy: string
+  leaseExpiresAt?: string
+}
+
+export interface SimulationOverlay {
+  protocolVersion: number
+  scenarioId?: string
+  updatedAt?: string
+  unitStates: SimUnitState[]
+  survivorGroups: SurvivorGroup[]
+  reassignments: ReassignmentRecord[]
+  /** Round range metadata for map range-fan overlays. */
+  rangeFanConfig?: SimRangeFanConfig
+  /** scopeId -> control */
+  controlByScope?: Record<string, SimControlState>
+}
+
 export interface AppState {
   brigades: Brigade[]
   battalions: Battalion[]
@@ -152,4 +244,6 @@ export interface AppState {
   /** @deprecated Legacy single-platoon battery link; use ammoPlatoons[].bocId. Kept for migration. */
   ammoPltBocId?: string
   ammoPlatoons: AmmoPlatoon[]
+  /** Live simulation metadata; merged from external sim deltas. */
+  simulationOverlay?: SimulationOverlay
 }

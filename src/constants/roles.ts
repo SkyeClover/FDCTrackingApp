@@ -10,6 +10,9 @@ const LABELS: Record<CurrentUserRole['type'], string> = {
   poc: 'POC',
 }
 
+/**
+ * Implements format role display for this module.
+ */
 export function formatRoleDisplay(role: CurrentUserRole): string {
   return `${LABELS[role.type]}: ${role.name}`
 }

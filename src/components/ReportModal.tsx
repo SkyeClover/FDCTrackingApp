@@ -17,6 +17,9 @@ interface ReportModalProps {
   onClose: () => void
 }
 
+/**
+ * Renders the Report Modal UI section.
+ */
 export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], isOpen, onClose }: ReportModalProps) {
   const { roundTypes, ammoPlatoons } = useAppData()
   const [selectedBOC, setSelectedBOC] = useState<string>('')
@@ -242,7 +245,10 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
     return report
   }
 
-  const handleCopyASCII = () => {
+    /**
+   * Handles copy ascii interactions for this workflow.
+   */
+const handleCopyASCII = () => {
     const asciiReport = generateASCIIReport()
     navigator.clipboard.writeText(asciiReport)
     alert('ASCII report copied to clipboard!')
@@ -250,7 +256,10 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
 
   /** Build a self-contained HTML document for printing (no dependency on app layout/CSS). */
   const buildPrintDocumentHtml = (printedAt: string): string => {
-    const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        /**
+     * Implements esc for this module.
+     */
+const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const sections: string[] = []
 
     // Header
@@ -400,7 +409,10 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
 </html>`
   }
 
-  const handlePrint = () => {
+    /**
+   * Handles print interactions for this workflow.
+   */
+const handlePrint = () => {
     const printedAt = new Date().toLocaleString()
     setPrintTime(printedAt)
     const html = buildPrintDocumentHtml(printedAt)
@@ -416,6 +428,7 @@ export default function ReportModal({ bocs, pocs, launchers, pods, rsvs = [], is
     setTimeout(() => win.print(), 300)
   }
 
+  // --- Render ---
   return (
     <div
       className="fdc-modal-overlay"

@@ -8,6 +8,7 @@ import {
   Rocket,
   Cpu,
   Network,
+  Map,
 } from 'lucide-react'
 
 export type Page =
@@ -19,6 +20,7 @@ export type Page =
   | 'fire-missions'
   | 'system-info'
   | 'network'
+  | 'simulation'
 
 export type NavItem = {
   id: Page
@@ -36,5 +38,6 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'logs', label: 'Logs', labelMobile: 'Logs', icon: FileText },
   { id: 'system-info', label: 'System Info', labelMobile: 'System Info', icon: Cpu },
   { id: 'network', label: 'Network', labelMobile: 'Network', icon: Network },
+  { id: 'simulation', label: 'Simulation', labelMobile: 'Simulation', icon: Map },
   { id: 'settings', label: 'Settings / Help', labelMobile: 'Settings', icon: HelpCircle },
 ]

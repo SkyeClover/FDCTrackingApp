@@ -34,6 +34,7 @@ export function SyncInboxBanner() {
   const noPeerMatchHintSvRef = useRef(0)
   const alertsOffForRowHintSvRef = useRef(0)
 
+  // --- Side effects ---
   useEffect(() => {
     bannerRef.current = banner
   }, [banner])
@@ -251,6 +252,7 @@ export function SyncInboxBanner() {
   const meta = getSyncMeta()
   const style = parseSyncAlertStyle(meta.syncAlertStyleJson)
 
+  // --- Render ---
   return (
     <div
       role="status"

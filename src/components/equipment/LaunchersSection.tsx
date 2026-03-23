@@ -4,6 +4,9 @@ import { useAppData } from '../../context/AppDataContext'
 
 type LauncherView = 'organized' | 'unassigned'
 
+/**
+ * Renders the Launchers Section UI section.
+ */
 export default function LaunchersSection({
   isMobile = false,
   hideCreateButton = false,
@@ -16,6 +19,7 @@ export default function LaunchersSection({
   embedded?: boolean
 }) {
   const { pocs, bocs, launchers, addLauncher, deleteLauncher, assignLauncherToPOC } = useAppData()
+  // --- Local state and callbacks ---
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [formPocId, setFormPocId] = useState('')
@@ -102,6 +106,7 @@ export default function LaunchersSection({
     return { batteries, unassigned }
   }, [visibleLaunchers, pocsById, bocsById, launchers])
 
+  // --- Side effects ---
   useEffect(() => {
     if (selectedView !== 'organized') return
     setOpenBatteries((prev) => {
@@ -147,7 +152,10 @@ export default function LaunchersSection({
     })
   }, [])
 
-  const handleSubmit = (e: React.FormEvent) => {
+    /**
+   * Handles submit interactions for this workflow.
+   */
+const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
     addLauncher({
@@ -161,8 +169,12 @@ export default function LaunchersSection({
     setShowForm(false)
   }
 
-  const pocName = (id: string | undefined) => (id ? pocsById.get(id)?.name ?? '—' : '—')
+    /**
+   * Implements poc name for this module.
+   */
+const pocName = (id: string | undefined) => (id ? pocsById.get(id)?.name ?? '—' : '—')
 
+  // --- Render ---
   return (
     <div
       data-guide="launchers-section"

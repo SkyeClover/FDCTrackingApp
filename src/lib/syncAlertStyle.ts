@@ -13,6 +13,9 @@ export interface SyncAlertStyle {
   color: string
 }
 
+/**
+ * Implements parse sync alert style for this module.
+ */
 export function parseSyncAlertStyle(json: string | null | undefined): SyncAlertStyle {
   if (!json?.trim()) {
     return { ...DEFAULT_SYNC_ALERT_STYLE }
@@ -31,6 +34,9 @@ export function parseSyncAlertStyle(json: string | null | undefined): SyncAlertS
   }
 }
 
+/**
+ * Implements normalize peer unit id for this module.
+ */
 export function normalizePeerUnitId(a: string | null | undefined): string {
   return (a ?? '').replace(/\s/g, '').toUpperCase()
 }

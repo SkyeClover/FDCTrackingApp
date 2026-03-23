@@ -15,6 +15,9 @@ type Props = {
   'data-guide'?: string
 }
 
+/**
+ * Renders the Collapsible Section UI section.
+ */
 export default function CollapsibleSection({
   title,
   subtitle,

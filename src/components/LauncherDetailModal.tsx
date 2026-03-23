@@ -16,10 +16,14 @@ interface LauncherDetailModalProps {
   readOnly?: boolean
 }
 
+/**
+ * Renders the Launcher Detail Modal UI section.
+ */
 export default function LauncherDetailModal({ launcher, pod, isOpen, onClose, readOnly = false }: LauncherDetailModalProps) {
   const { tasks, logs, taskTemplates, clearTask, endTaskEarly, startTaskFromTemplate } = useAppData()
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
+  // --- Local state and callbacks ---
   const [currentTime, setCurrentTime] = useState(new Date())
   const [showTaskSelection, setShowTaskSelection] = useState(false)
   
@@ -34,6 +38,7 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose, re
   })
 
   // Update time every second for standby time display and task elapsed time
+  // --- Side effects ---
   useEffect(() => {
     const needsUpdate = (launcher.status === 'idle' && launcher.lastIdleTime) || launcher.currentTask
     if (needsUpdate) {
@@ -158,6 +163,7 @@ export default function LauncherDetailModal({ launcher, pod, isOpen, onClose, re
     return `${mins}:${String(secs).padStart(2, '0')}`
   }
 
+  // --- Render ---
   return (
     <div
       className="fdc-modal-overlay"

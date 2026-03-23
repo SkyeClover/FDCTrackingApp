@@ -14,9 +14,13 @@ interface LauncherCardProps {
   readOnly?: boolean
 }
 
+/**
+ * Renders the Launcher Card UI section.
+ */
 export default function LauncherCard({ launcher, pod, onReload, onClick, readOnly = false }: LauncherCardProps) {
   const { taskProgress } = useProgress()
   const { tasks, clearTask, taskTemplates, endTaskEarly } = useAppData()
+  // --- Local state and callbacks ---
   const [currentTime, setCurrentTime] = useState(new Date())
   const isTablet = useIsTablet()
   const availableRounds = pod?.rounds.filter((r) => r.status === 'available').length || 0
@@ -25,6 +29,7 @@ export default function LauncherCard({ launcher, pod, onReload, onClick, readOnl
   const maxRounds = 6 // Standard capacity
 
   // Update time every second for standby time display and task elapsed time
+  // --- Side effects ---
   useEffect(() => {
     const needsUpdate = (launcher.status === 'idle' && launcher.lastIdleTime) || launcher.currentTask
     if (needsUpdate) {
@@ -47,8 +52,12 @@ export default function LauncherCard({ launcher, pod, onReload, onClick, readOnl
     : undefined
   
   // Check if this is a reload task
-  const isReloadTask = launcher.currentTask?.templateId
-    ? taskTemplates.find((t) => t.id === launcher.currentTask?.templateId)?.type === 'reload'
+  const isReloadTask = launcher.currentTask
+    ? ((launcher.currentTask.templateId
+        ? taskTemplates.find((t) => t.id === launcher.currentTask?.templateId)?.type === 'reload'
+        : false) ||
+      launcher.currentTask.name.toLowerCase().includes('reload') ||
+      (launcher.currentTask.description ?? '').toLowerCase().includes('reload'))
     : false
   
   // For reload tasks, don't mark as completed just because progress >= 100%
@@ -89,6 +98,7 @@ export default function LauncherCard({ launcher, pod, onReload, onClick, readOnl
     }
   }
 
+  // --- Render ---
   return (
     <div
       data-guide="launcher-card"

@@ -1,3 +1,6 @@
+/**
+ * Renders the Maintenance Banner UI section.
+ */
 export default function MaintenanceBanner() {
   return (
     <div style={{

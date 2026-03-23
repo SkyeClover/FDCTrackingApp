@@ -12,6 +12,9 @@ interface ProgressContextType {
 
 const ProgressContext = createContext<ProgressContextType | undefined>(undefined)
 
+/**
+ * Renders the Progress Provider UI section.
+ */
 export function ProgressProvider({ children }: { children: ReactNode }) {
   const [taskProgress, setTaskProgress] = useState<TaskProgress>({})
 
@@ -34,6 +37,9 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   )
 }
 
+/**
+ * Manages progress state and behavior for this hook.
+ */
 export function useProgress() {
   const context = useContext(ProgressContext)
   if (context === undefined) {

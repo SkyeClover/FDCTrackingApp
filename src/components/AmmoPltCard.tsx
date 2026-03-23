@@ -11,6 +11,9 @@ interface AmmoPltCardProps {
   onClick?: () => void
 }
 
+/**
+ * Renders the Ammo Plt Card UI section.
+ */
 export default function AmmoPltCard({
   ammoPlatoon,
   pods,

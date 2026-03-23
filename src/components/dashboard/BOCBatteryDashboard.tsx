@@ -9,6 +9,9 @@ import type { AmmoPlatoon, BOC, Launcher, Pod, POC, RSV, Task } from '../../type
 const MAX_RND = 6
 const DOT = 7
 
+/**
+ * Implements launcher round dots for this module.
+ */
 function launcherRoundDots(pod?: Pod) {
   const available = pod?.rounds.filter((r) => r.status === 'available').length ?? 0
   const used = pod?.rounds.filter((r) => r.status === 'used').length ?? 0
@@ -60,6 +63,9 @@ interface BOCBatteryDashboardProps {
   onAmmoPltClick: (ammoPltId: string) => void
 }
 
+/**
+ * Implements section header button style for this module.
+ */
 function sectionHeaderButtonStyle(open: boolean): CSSProperties {
   return {
     width: '100%',
@@ -79,11 +85,17 @@ function sectionHeaderButtonStyle(open: boolean): CSSProperties {
   }
 }
 
+/**
+ * Implements format avail pair for this module.
+ */
 function formatAvailPair(available: number, total: number, emptyText: string): string {
   if (total <= 0) return emptyText
   return `${available}/${total} avail`
 }
 
+/**
+ * Renders the Compact Poc Plt Block UI section.
+ */
 function CompactPocPltBlock({
   poc,
   launchers,
@@ -142,6 +154,7 @@ function CompactPocPltBlock({
     [podsByRoundTypeCounts, availableRoundsByType]
   )
 
+  // --- Render ---
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
       {hasStockStrip && (
@@ -262,6 +275,9 @@ function CompactPocPltBlock({
   )
 }
 
+/**
+ * Renders the BOCBattery Dashboard UI section.
+ */
 export default function BOCBatteryDashboard({
   boc,
   pocs,
@@ -294,7 +310,10 @@ export default function BOCBatteryDashboard({
     return byLauncher
   }, [pods])
 
-  const summarizeRounds = (launcherList: Launcher[]) => {
+    /**
+   * Implements summarize rounds for this module.
+   */
+const summarizeRounds = (launcherList: Launcher[]) => {
     let availableRounds = 0
     let totalRounds = 0
     let loadedLaunchers = 0
@@ -308,7 +327,10 @@ export default function BOCBatteryDashboard({
     return { availableRounds, totalRounds, loadedLaunchers }
   }
 
-  const summarizeReserveRounds = (targetPoc: POC) => {
+    /**
+   * Implements summarize reserve rounds for this module.
+   */
+const summarizeReserveRounds = (targetPoc: POC) => {
     const reservePods = pods.filter((p) => {
       if (p.launcherId) return false
       if (p.pocId === targetPoc.id) return true
@@ -371,8 +393,10 @@ export default function BOCBatteryDashboard({
   }, [sortedPocs, launchersByPoc, podByLauncher, pods, rsvs])
 
   const [openPoc, setOpenPoc] = useState<Record<string, boolean>>({})
+  // --- Local state and callbacks ---
   const [openAmmo, setOpenAmmo] = useState(false)
 
+  // --- Side effects ---
   useEffect(() => {
     setOpenPoc((prev) => {
       const next: Record<string, boolean> = {}

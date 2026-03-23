@@ -28,7 +28,10 @@ export function useIsMobile(breakpoint: number = 768): boolean {
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null
     
-    const checkMobile = () => {
+        /**
+     * Implements check mobile for this module.
+     */
+const checkMobile = () => {
       // Force mobile mode for testing via URL parameter
       const urlParams = new URLSearchParams(window.location.search)
       if (urlParams.get('mobile') === 'true') {

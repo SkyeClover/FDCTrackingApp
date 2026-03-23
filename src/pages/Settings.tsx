@@ -9,6 +9,9 @@ import { SyncAlertSettings } from '../components/settings/SyncAlertSettings'
 import { APP_VERSION } from '../utils/saveLoad'
 import { getKioskSidecarOrigin } from '../lib/kioskSidecar'
 
+/**
+ * Renders the Settings UI section.
+ */
 export default function Settings() {
   const isMobile = useIsMobile()
   const {
@@ -47,9 +50,13 @@ export default function Settings() {
     () => [...pocs].sort((a, b) => a.name.localeCompare(b.name)),
     [pocs]
   )
+  // --- Local state and callbacks ---
   const [showDebugSection, setShowDebugSection] = useState(false)
 
-  const handleApplyRole = () => {
+    /**
+   * Handles apply role interactions for this workflow.
+   */
+const handleApplyRole = () => {
     if (!selectedRoleType || !selectedRoleId) return
 
     if (selectedRoleType === 'brigade') {
@@ -87,6 +94,7 @@ export default function Settings() {
     }
   }
 
+  // --- Render ---
   return (
     <PageShell title="Settings / Help" isMobile={isMobile}>
       <div
@@ -793,7 +801,10 @@ export default function Settings() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '400px', overflowY: 'auto' }}>
                     {pods.map((pod) => {
-                      const handleUpdateAmmoCount = (newAvailableCount: number) => {
+                                            /**
+                       * Handles update ammo count interactions for this workflow.
+                       */
+const handleUpdateAmmoCount = (newAvailableCount: number) => {
                         const currentAvailable = pod.rounds.filter((r) => r.status === 'available').length
                         const podRoundType = pod.rounds[0]?.type || 'M28A1'
                         

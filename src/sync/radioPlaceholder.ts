@@ -4,6 +4,9 @@
  */
 export const RADIO_BEARER_ID = 'radio1523' as const
 
+/**
+ * Determines whether is radio bearer is true in the current context.
+ */
 export function isRadioBearer(bearer: string): boolean {
   return bearer === RADIO_BEARER_ID || bearer === '1523'
 }

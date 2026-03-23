@@ -4,11 +4,17 @@ import PageShell from '../components/layout/PageShell'
 import CollapsibleSection from '../components/ui/CollapsibleSection'
 import { useIsMobile } from '../hooks/useIsMobile'
 
+/**
+ * Renders the Logs UI section.
+ */
 export default function Logs() {
   const { logs, clearLogs } = useAppData()
   const isMobile = useIsMobile()
 
-  const getLogIcon = (type: string) => {
+    /**
+   * Returns log icon for downstream consumers.
+   */
+const getLogIcon = (type: string) => {
     switch (type) {
       case 'error':
         return XCircle
@@ -21,7 +27,10 @@ export default function Logs() {
     }
   }
 
-  const getLogColor = (type: string) => {
+    /**
+   * Returns log color for downstream consumers.
+   */
+const getLogColor = (type: string) => {
     switch (type) {
       case 'error':
         return 'var(--danger)'

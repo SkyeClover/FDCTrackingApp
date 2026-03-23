@@ -12,16 +12,25 @@ type Props = {
   onClose: () => void
 }
 
+/**
+ * Implements sort by name for this module.
+ */
 function sortByName<T extends { name: string }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/**
+ * Implements format duration for this module.
+ */
 function formatDuration(seconds: number) {
   const mins = Math.floor(seconds / 60)
   const secs = seconds % 60
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
+/**
+ * Renders the Task Assignments Modal UI section.
+ */
 export default function TaskAssignmentsModal({ isOpen, onClose }: Props) {
   const isMobile = useIsMobile()
   const { scopedLaunchers, scopedPOCs, isScoped, currentUserRole } = useScopedForce()
@@ -250,6 +259,7 @@ export default function TaskAssignmentsModal({ isOpen, onClose }: Props) {
       : null
   const noTemplates = templatesSorted.length === 0
 
+  // --- Render ---
   return (
     <div
       className="fdc-modal-overlay"

@@ -65,3 +65,24 @@ After reboot, **`pi-install-all`**-installed units start automatically (`fdc-tra
 | Connection refused | Pi reachable? `ufw status`, **`8787`** allowed from your subnet / VPN. |
 | 401 / unauthorized | Shared secret in app matches **`/etc/default/fdc-peer-server`**; restart **`fdc-peer-server`**. |
 | Hostname won’t resolve | Use IP, or install Avahi on Pi / use Tailscale DNS. |
+
+<!-- APP_ALIGNMENT_START -->
+## Application Alignment (2026-03-23)
+
+This document is aligned to the active **FDC Tracking App (Walker Track)** implementation for `deploy/SYNC-LAN.md`.
+
+- Primary app: `E:/Projects/Cursor/TrackingThing/FDCTrackingApp` (React + TypeScript + Vite).
+- Core pages/routes: Dashboard, Inventory, Management, Fire Missions, Logs, System Info, Network, Simulation, Settings.
+- Local persistence: SQL.js and IndexedDB/local browser storage via the persistence layer.
+- Sync stack: peer sync controls in app, plus optional `fdc-peer-server` and kiosk sidecar workflows.
+- Simulation stack: optional WebSocket simulator (`fdc-simulator`) feeding Network/Simulation workflows.
+- Deployment baseline: Raspberry Pi scripts under `deploy/` and operational notes in repo docs.
+
+Source-of-truth references used for this alignment:
+- `README.md`
+- `src/navigation/routes.ts`
+- `src/context/AppDataContext.tsx`
+- `src/pages/Network.tsx`
+- `src/pages/Simulation.tsx`
+
+<!-- APP_ALIGNMENT_END -->

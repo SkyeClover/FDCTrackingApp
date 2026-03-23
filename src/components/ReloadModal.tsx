@@ -15,6 +15,9 @@ interface ReloadModalProps {
   onReload: (launcherId: string, podId?: string) => void
 }
 
+/**
+ * Renders the Reload Modal UI section.
+ */
 export default function ReloadModal({
   launcher,
   poc,
@@ -39,7 +42,10 @@ export default function ReloadModal({
   
   if (!isOpen) return null
 
-  const handleReload = (podId?: string) => {
+    /**
+   * Handles reload interactions for this workflow.
+   */
+const handleReload = (podId?: string) => {
     onReload(launcher.id, podId)
     onClose()
   }
@@ -67,6 +73,7 @@ export default function ReloadModal({
   
   const podsWithoutRSV = availablePods.filter((p) => !p.rsvId && !p.ammoPltId && !p.pocId)
 
+  // --- Render ---
   return (
     <div
       className="fdc-modal-overlay"

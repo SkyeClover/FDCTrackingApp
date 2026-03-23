@@ -28,7 +28,10 @@ export function useSwipe<T extends HTMLElement = HTMLDivElement>({
     const element = elementRef.current
     if (!element) return
 
-    const handleTouchStart = (e: TouchEvent) => {
+        /**
+     * Handles touch start interactions for this workflow.
+     */
+const handleTouchStart = (e: TouchEvent) => {
       const touch = e.touches[0]
       touchStartRef.current = {
         x: touch.clientX,
@@ -37,7 +40,10 @@ export function useSwipe<T extends HTMLElement = HTMLDivElement>({
       }
     }
 
-    const handleTouchEnd = (e: TouchEvent) => {
+        /**
+     * Handles touch end interactions for this workflow.
+     */
+const handleTouchEnd = (e: TouchEvent) => {
       if (!touchStartRef.current) return
 
       const touch = e.changedTouches[0]
@@ -77,7 +83,10 @@ export function useSwipe<T extends HTMLElement = HTMLDivElement>({
       touchStartRef.current = null
     }
 
-    const handleTouchMove = (e: TouchEvent) => {
+        /**
+     * Handles touch move interactions for this workflow.
+     */
+const handleTouchMove = (e: TouchEvent) => {
       // For modals with swipe down, allow vertical scrolling but detect swipes
       // For drawer with swipe left, prevent scrolling during horizontal swipe
       if (touchStartRef.current) {

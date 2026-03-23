@@ -8,6 +8,9 @@ import FireMissionEditModal from '../components/FireMissionEditModal'
 import FireMissionListRow from '../components/FireMissionListRow'
 import { Task } from '../types'
 
+/**
+ * Renders the Fire Missions UI section.
+ */
 export default function FireMissions() {
   const { tasks, launchers, taskTemplates, updateTask, endTaskEarly, currentUserRole, bocs, pocs } = useAppData()
   const force = useScopedForce()
@@ -167,7 +170,10 @@ export default function FireMissions() {
     return `${minutes}m ${seconds}s`
   }, [tasks, taskTemplates])
 
-  const getLauncherNames = (task: Task) => {
+    /**
+   * Returns launcher names for downstream consumers.
+   */
+const getLauncherNames = (task: Task) => {
     if (!task.launcherIds || task.launcherIds.length === 0) return 'N/A'
     return task.launcherIds
       .map((id) => {
@@ -177,7 +183,10 @@ export default function FireMissions() {
       .join(', ')
   }
 
-  const formatDateTime = (date?: Date) => {
+    /**
+   * Implements format date time for this module.
+   */
+const formatDateTime = (date?: Date) => {
     if (!date) return 'N/A'
     const options: Intl.DateTimeFormatOptions = {
       month: 'short',
@@ -190,11 +199,18 @@ export default function FireMissions() {
     return date.toLocaleString('en-US', options)
   }
 
-  const toggleGroup = (key: string) => {
+    /**
+   * Implements toggle group for this module.
+   */
+const toggleGroup = (key: string) => {
     setOpenGroups((o) => ({ ...o, [key]: !o[key] }))
   }
-  const isGroupOpen = (key: string) => openGroups[key] ?? false
+    /**
+   * Determines whether is group open is true in the current context.
+   */
+const isGroupOpen = (key: string) => openGroups[key] ?? false
 
+  // --- Render ---
   return (
     <PageShell
       title="Fire missions"
@@ -516,7 +532,10 @@ export default function FireMissions() {
                                   }
                                 }
                                 
-                                const formatTime = (date?: Date) => {
+                                                                /**
+                                 * Implements format time for this module.
+                                 */
+const formatTime = (date?: Date) => {
                                   if (!date) return ''
                                   return date.toLocaleString('en-US', {
                                     month: '2-digit',

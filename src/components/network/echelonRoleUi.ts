@@ -13,10 +13,16 @@ export interface OrgUnitsSlice {
   pocs: POC[]
 }
 
+/**
+ * Implements echelon role value for this module.
+ */
 export function echelonRoleValue(type: EchelonRoleType, id: string): string {
   return `${type}:${id}`
 }
 
+/**
+ * Implements parse echelon role for this module.
+ */
 export function parseEchelonRole(s: string): { type: EchelonRoleType; id: string } | null {
   const m = /^(brigade|battalion|boc|poc):(.+)$/.exec(s.trim())
   if (!m) return null
@@ -30,6 +36,9 @@ export function pocRoleValue(pocId: string): string {
   return echelonRoleValue('poc', pocId)
 }
 
+/**
+ * Implements format echelon role for display for this module.
+ */
 export function formatEchelonRoleForDisplay(echelonRole: string, org: OrgUnitsSlice): string {
   const parsed = parseEchelonRole(echelonRole)
   if (parsed) {
@@ -56,8 +65,14 @@ export interface EchelonSelectGroup {
   options: { value: string; label: string }[]
 }
 
+/**
+ * Implements group pocs for select for this module.
+ */
 export function groupPocsForSelect(pocs: POC[], bocs: BOC[]): { label: string; pocs: POC[] }[] {
-  const bocName = (id: string | undefined) => bocs.find((b) => b.id === id)?.name ?? 'Battery'
+    /**
+   * Implements boc name for this module.
+   */
+const bocName = (id: string | undefined) => bocs.find((b) => b.id === id)?.name ?? 'Battery'
   const withBoc = pocs.filter((p) => p.bocId)
   const without = pocs.filter((p) => !p.bocId)
   const byBoc = new Map<string, POC[]>()
@@ -79,6 +94,9 @@ export function groupPocsForSelect(pocs: POC[], bocs: BOC[]): { label: string; p
   return groups
 }
 
+/**
+ * Implements build echelon select groups for this module.
+ */
 export function buildEchelonSelectGroups(org: OrgUnitsSlice): EchelonSelectGroup[] {
   const groups: EchelonSelectGroup[] = []
   const brigades = [...org.brigades].sort((a, b) => a.name.localeCompare(b.name))
@@ -112,6 +130,9 @@ export function buildEchelonSelectGroups(org: OrgUnitsSlice): EchelonSelectGroup
   return groups
 }
 
+/**
+ * Implements first echelon role value for this module.
+ */
 export function firstEchelonRoleValue(org: OrgUnitsSlice): string {
   const groups = buildEchelonSelectGroups(org)
   for (const g of groups) {

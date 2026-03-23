@@ -7,11 +7,15 @@ import Settings from '../pages/Settings'
 import FireMissions from '../pages/FireMissions'
 import SystemInfo from '../pages/SystemInfo'
 import Network from '../pages/Network'
+import Simulation from '../pages/Simulation'
 
 export interface AppPageContentProps {
   currentPage: Page
 }
 
+/**
+ * Renders the App Page Content UI section.
+ */
 export default function AppPageContent({ currentPage }: AppPageContentProps) {
   let pageNode: JSX.Element | null = null
   switch (currentPage) {
@@ -38,6 +42,9 @@ export default function AppPageContent({ currentPage }: AppPageContentProps) {
       break
     case 'network':
       pageNode = <Network />
+      break
+    case 'simulation':
+      pageNode = <Simulation />
       break
     default:
       pageNode = null

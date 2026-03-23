@@ -5,6 +5,9 @@ import { parseEchelonRole } from '../components/network/echelonRoleUi'
 
 type WithId = { id: string }
 
+/**
+ * Implements upsert by id for this module.
+ */
 function upsertById<T extends WithId>(existing: T[], incoming: T[]): T[] {
   if (incoming.length === 0) return existing
   const existingIds = new Set(existing.map((x) => x.id))
@@ -16,6 +19,9 @@ function upsertById<T extends WithId>(existing: T[], incoming: T[]): T[] {
   return merged
 }
 
+/**
+ * Implements replace by scope for this module.
+ */
 function replaceByScope<T extends WithId>(
   existing: T[],
   incoming: T[],
@@ -26,6 +32,9 @@ function replaceByScope<T extends WithId>(
   return [...keptOutsideScope, ...incoming]
 }
 
+/**
+ * Implements map remote pods to local ids for this module.
+ */
 function mapRemotePodsToLocalIds(localPods: Pod[], incomingPods: Pod[]): {
   mappedPods: Pod[]
   remotePodIdToLocalPodId: Map<string, string>
@@ -74,6 +83,9 @@ function mapRemotePodsToLocalIds(localPods: Pod[], incomingPods: Pod[]): {
   return { mappedPods, remotePodIdToLocalPodId }
 }
 
+/**
+ * Implements infer remote poc ids for this module.
+ */
 function inferRemotePocIds(remote: AppState): Set<string> {
   const inferredPocIds = new Set<string>()
   for (const l of remote.launchers) {
@@ -91,6 +103,9 @@ function inferRemotePocIds(remote: AppState): Set<string> {
   return inferredPocIds
 }
 
+/**
+ * Implements sanitize pods for this module.
+ */
 function sanitizePods(
   pods: Pod[],
   validLauncherIds: Set<string>,
@@ -105,6 +120,9 @@ function sanitizePods(
   }))
 }
 
+/**
+ * Implements reconcile launcher pod links for this module.
+ */
 function reconcileLauncherPodLinks(launchers: Launcher[], pods: Pod[]): { launchers: Launcher[]; pods: Pod[] } {
   const nextLaunchers = launchers.map((l) => ({ ...l }))
   const nextPods = pods.map((p) => ({ ...p }))
@@ -156,6 +174,9 @@ function reconcileLauncherPodLinks(launchers: Launcher[], pods: Pod[]): { launch
   return { launchers: nextLaunchers, pods: nextPods }
 }
 
+/**
+ * Implements sanitize tasks for this module.
+ */
 function sanitizeTasks(tasks: Task[], validLauncherIds: Set<string>, validPocIds: Set<string>): Task[] {
   return tasks.map((t) => {
     const launcherIds = t.launcherIds?.filter((id) => validLauncherIds.has(id)) ?? []
@@ -168,6 +189,9 @@ function sanitizeTasks(tasks: Task[], validLauncherIds: Set<string>, validPocIds
   })
 }
 
+/**
+ * Implements reconcile app state integrity for this module.
+ */
 export function reconcileAppStateIntegrity(state: AppState): AppState {
   const validPocIds = new Set(state.pocs.map((p) => p.id))
   const validRsvIds = new Set(state.rsvs.map((r) => r.id))
@@ -193,12 +217,18 @@ export function reconcileAppStateIntegrity(state: AppState): AppState {
   }
 }
 
+/**
+ * Implements task in scope for this module.
+ */
 function taskInScope(t: Task, pocIds: Set<string>, launcherIds: Set<string>): boolean {
   if (t.pocIds?.some((id) => pocIds.has(id))) return true
   if (t.launcherIds?.some((id) => launcherIds.has(id))) return true
   return false
 }
 
+/**
+ * Implements pod in battery scope for this module.
+ */
 function podInBatteryScope(
   pod: Pod,
   pocIds: Set<string>,
@@ -234,6 +264,9 @@ function remoteLauncherAllowedForBocMerge(
   return true
 }
 
+/**
+ * Implements remote launcher allowed for poc merge for this module.
+ */
 function remoteLauncherAllowedForPocMerge(
   local: AppState,
   remoteL: Launcher,
@@ -248,10 +281,17 @@ function remoteLauncherAllowedForPocMerge(
   return existing.pocId === targetLocalPocId
 }
 
+/**
+ * Implements normalize name for this module.
+ */
 function normalizeName(s: string | null | undefined): string {
+  // --- Render ---
   return (s ?? '').trim().replace(/\s+/g, ' ').toUpperCase()
 }
 
+/**
+ * Implements map remote rsvs to local ids for this module.
+ */
 function mapRemoteRsvsToLocalIds(
   localRsvs: AppState['rsvs'],
   incomingRsvs: AppState['rsvs']
@@ -275,7 +315,10 @@ function mapRemoteRsvsToLocalIds(
   const remoteRsvIdToLocalRsvId = new Map<string, string>()
   const mappedRsvs: AppState['rsvs'] = []
 
-  const pickScopedLocalCandidate = (remoteRsv: AppState['rsvs'][number]): string | null => {
+    /**
+   * Implements pick scoped local candidate for this module.
+   */
+const pickScopedLocalCandidate = (remoteRsv: AppState['rsvs'][number]): string | null => {
     const candidates = localRsvs.filter((r) => {
       if (!unmappedLocalIds.has(r.id)) return false
       if (remoteRsv.pocId && r.pocId === remoteRsv.pocId) return true
@@ -351,6 +394,9 @@ function mapRemoteRsvsToLocalIds(
 }
 
 
+/**
+ * Implements resolve remote poc id for merge for this module.
+ */
 function resolveRemotePocIdForMerge(local: AppState, remote: AppState, mergePocId: string): string | null {
   if (remote.pocs.some((p) => p.id === mergePocId)) return mergePocId
 
@@ -367,6 +413,9 @@ function resolveRemotePocIdForMerge(local: AppState, remote: AppState, mergePocI
   return null
 }
 
+/**
+ * Implements resolve local poc id for merge for this module.
+ */
 function resolveLocalPocIdForMerge(local: AppState, remote: AppState, requestedPocId: string): string {
   if (local.pocs.some((p) => p.id === requestedPocId)) return requestedPocId
 
@@ -385,6 +434,9 @@ function resolveLocalPocIdForMerge(local: AppState, remote: AppState, requestedP
   return requestedPocId
 }
 
+/**
+ * Implements resolve remote boc id for merge for this module.
+ */
 function resolveRemoteBocIdForMerge(local: AppState, remote: AppState, mergeBocId: string): string | null {
   if (remote.bocs.some((b) => b.id === mergeBocId)) return mergeBocId
 
@@ -399,6 +451,9 @@ function resolveRemoteBocIdForMerge(local: AppState, remote: AppState, mergeBocI
   return null
 }
 
+/**
+ * Implements resolve remote battalion id for merge for this module.
+ */
 function resolveRemoteBattalionIdForMerge(
   local: AppState,
   remote: AppState,
@@ -415,6 +470,9 @@ function resolveRemoteBattalionIdForMerge(
   return null
 }
 
+/**
+ * Implements resolve remote brigade id for merge for this module.
+ */
 function resolveRemoteBrigadeIdForMerge(local: AppState, remote: AppState, mergeBrigadeId: string): string | null {
   if (remote.brigades.some((b) => b.id === mergeBrigadeId)) return mergeBrigadeId
   const localBde = local.brigades.find((b) => b.id === mergeBrigadeId)
@@ -427,6 +485,9 @@ function resolveRemoteBrigadeIdForMerge(local: AppState, remote: AppState, merge
   return null
 }
 
+/**
+ * Implements build remote scope for boc for this module.
+ */
 function buildRemoteScopeForBoc(remote: AppState, remoteBocId: string, localBocId: string): AppState {
   const scopedPocs = remote.pocs.filter((p) => p.bocId === remoteBocId).map((p) => ({ ...p, bocId: localBocId }))
   const scopedPocIds = new Set(scopedPocs.map((p) => p.id))

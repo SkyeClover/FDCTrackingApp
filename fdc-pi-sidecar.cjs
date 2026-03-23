@@ -28,12 +28,18 @@ const cors = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
+/**
+ * Implements json for this module.
+ */
 function json(res, status, obj) {
   const body = JSON.stringify(obj)
   res.writeHead(status, { 'Content-Type': 'application/json', ...cors })
   res.end(body)
 }
 
+/**
+ * Implements sh for this module.
+ */
 async function sh(cmd, timeout = 8000) {
   try {
     const { stdout, stderr } = await execAsync(cmd, {
@@ -51,6 +57,9 @@ async function sh(cmd, timeout = 8000) {
   }
 }
 
+/**
+ * Implements try file cmd for this module.
+ */
 async function tryFileCmd(cmd, args, timeout = 4000) {
   try {
     const { stdout } = await execFileAsync(cmd, args, { timeout, encoding: 'utf8' })
@@ -60,6 +69,9 @@ async function tryFileCmd(cmd, args, timeout = 4000) {
   }
 }
 
+/**
+ * Implements collect system info for this module.
+ */
 async function collectSystemInfo() {
   const cpuTemp =
     (await tryFileCmd('vcgencmd', ['measure_temp']))
@@ -81,7 +93,10 @@ async function collectSystemInfo() {
   let memoryFree = '0'
   const meminfo = await tryFileCmd('cat', ['/proc/meminfo'])
   if (meminfo) {
-    const parse = (label) => {
+        /**
+     * Implements parse for this module.
+     */
+const parse = (label) => {
       const m = meminfo.match(new RegExp(`^${label}:\\s+(\\d+)\\s+kB`, 'm'))
       return m ? BigInt(m[1]) * 1024n : 0n
     }

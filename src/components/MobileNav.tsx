@@ -9,6 +9,9 @@ interface MobileNavProps {
   onPageChange: (page: Page) => void
 }
 
+/**
+ * Renders the Mobile Nav UI section.
+ */
 export default function MobileNav({ currentPage, onPageChange }: MobileNavProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -29,7 +32,10 @@ export default function MobileNav({ currentPage, onPageChange }: MobileNavProps)
     }
   }, [isMenuOpen])
 
-  const handlePageChange = (page: Page) => {
+    /**
+   * Handles page change interactions for this workflow.
+   */
+const handlePageChange = (page: Page) => {
     onPageChange(page)
     setIsMenuOpen(false)
   }

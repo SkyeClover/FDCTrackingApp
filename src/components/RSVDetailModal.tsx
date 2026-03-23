@@ -14,6 +14,9 @@ interface RSVDetailModalProps {
   onClose: () => void
 }
 
+/**
+ * Renders the RSVDetail Modal UI section.
+ */
 export default function RSVDetailModal({ rsv, pods, isOpen, onClose }: RSVDetailModalProps) {
   const { roundTypes } = useAppData()
   const isMobile = useIsMobile()
@@ -83,6 +86,7 @@ export default function RSVDetailModal({ rsv, pods, isOpen, onClose }: RSVDetail
     0
   )
 
+  // --- Render ---
   return (
     <div
       className="fdc-modal-overlay"

@@ -17,7 +17,11 @@ interface NetworkInfo {
   platform?: string
 }
 
+/**
+ * Renders the Network UI section.
+ */
 export default function Network() {
+  // --- Local state and callbacks ---
   const [rosterTick, setRosterTick] = useState(0)
   const bumpRoster = useCallback(() => setRosterTick((x) => x + 1), [])
   const [networkLogTick, setNetworkLogTick] = useState(0)
@@ -72,6 +76,7 @@ export default function Network() {
     }
   }, [])
 
+  // --- Side effects ---
   useEffect(() => {
     if (hostedSkip) return
     const timer = setTimeout(() => {
@@ -112,6 +117,7 @@ export default function Network() {
     }
   }, [info, safeString])
 
+  // --- Render ---
   return (
     <PageShell title="Network" isMobile={safeIsMobile} contentMaxWidth="min(100%, 1680px)">
       <div
@@ -306,4 +312,5 @@ export default function Network() {
     </PageShell>
   )
 }
+
 

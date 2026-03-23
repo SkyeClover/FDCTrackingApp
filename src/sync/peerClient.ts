@@ -20,6 +20,9 @@ export function peerBaseUrl(row: NetworkRosterRow): string | null {
   return `${scheme}://${row.host}${portPart}`
 }
 
+/**
+ * Implements base url for this module.
+ */
 function baseUrl(row: NetworkRosterRow): string | null {
   return peerBaseUrl(row)
 }
@@ -121,6 +124,9 @@ export async function sendPeerPing(
   }
 }
 
+/**
+ * Implements push snapshot to peer for this module.
+ */
 export async function pushSnapshotToPeer(
   row: NetworkRosterRow,
   meta: SyncMetaRow,
@@ -187,6 +193,9 @@ export async function pushSnapshotToPeer(
   }
 }
 
+/**
+ * Implements fetch ingest status at base for this module.
+ */
 async function fetchIngestStatusAtBase(
   meta: SyncMetaRow,
   baseRoot: string
@@ -275,6 +284,9 @@ export type IngestOfflineNotify = {
   receivedAt: number
 }
 
+/**
+ * Implements fetch ingest health at base for this module.
+ */
 async function fetchIngestHealthAtBase(baseRoot: string): Promise<{
   ok: boolean
   stateVersion?: number
@@ -469,7 +481,10 @@ export async function fetchPeerHealth(
 /** Roster row that receives clean / tab-close offline-notify (explicit id, else first IP peer in roster order). */
 export function resolveUpstreamNotifyRosterRow(meta: SyncMetaRow): NetworkRosterRow | null {
   const roster = listNetworkRoster()
-  const pick = (r: NetworkRosterRow) => Boolean(r.host && r.port != null && r.bearer === 'ip')
+    /**
+   * Implements pick for this module.
+   */
+const pick = (r: NetworkRosterRow) => Boolean(r.host && r.port != null && r.bearer === 'ip')
   const id = meta.upstreamNotifyRosterId?.trim()
   if (id) {
     const row = roster.find((r) => r.id === id)
@@ -478,6 +493,9 @@ export function resolveUpstreamNotifyRosterRow(meta: SyncMetaRow): NetworkRoster
   return roster.find(pick) ?? null
 }
 
+/**
+ * Implements post signed to url for this module.
+ */
 async function postSignedToUrl(
   url: string,
   bodyObj: Record<string, unknown>,

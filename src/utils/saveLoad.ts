@@ -62,6 +62,9 @@ export function readInitialSetupCompleteFromStorage(): boolean {
   return false
 }
 
+/**
+ * Implements write initial setup complete for this module.
+ */
 export function writeInitialSetupComplete(): void {
   try {
     localStorage.setItem(INITIAL_SETUP_KEY, 'true')
@@ -70,6 +73,9 @@ export function writeInitialSetupComplete(): void {
   }
 }
 
+/**
+ * Implements clear initial setup flag for this module.
+ */
 export function clearInitialSetupFlag(): void {
   try {
     localStorage.removeItem(INITIAL_SETUP_KEY)
@@ -78,6 +84,9 @@ export function clearInitialSetupFlag(): void {
   }
 }
 
+/**
+ * Implements state has org entities for this module.
+ */
 export function stateHasOrgEntities(state: {
   brigades: unknown[]
   battalions: unknown[]
@@ -85,6 +94,7 @@ export function stateHasOrgEntities(state: {
   pocs: unknown[]
   launchers: unknown[]
 }): boolean {
+  // --- Render ---
   return (
     state.brigades.length +
       state.battalions.length +
@@ -98,9 +108,12 @@ export function stateHasOrgEntities(state: {
 // Convert Date objects to ISO strings for JSON serialization
 /** Snapshot JSON for peer sync / ingest — omits device-local Settings → View role. */
 export function serializeStateForPeerSync(state: AppState): string {
-  return serializeState({ ...state, currentUserRole: undefined })
+  return serializeState({ ...state, currentUserRole: undefined, simulationOverlay: undefined })
 }
 
+/**
+ * Implements serialize state for this module.
+ */
 export function serializeState(state: AppState): string {
   const serialized = {
     ...state,
@@ -192,9 +205,13 @@ export function deserializeState(json: string): AppState {
     })) || [],
     lastSaved: parsed.lastSaved ? new Date(parsed.lastSaved) : undefined,
     ammoPlatoons: Array.isArray(parsed.ammoPlatoons) ? parsed.ammoPlatoons : [],
+    simulationOverlay: parsed.simulationOverlay ?? undefined,
   }
 }
 
+/**
+ * Implements save to local storage for this module.
+ */
 export function saveToLocalStorage(state: AppState): void {
   try {
     const serialized = serializeState(state)
@@ -205,6 +222,9 @@ export function saveToLocalStorage(state: AppState): void {
   }
 }
 
+/**
+ * Implements load from local storage for this module.
+ */
 export function loadFromLocalStorage(): AppState | null {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
@@ -216,6 +236,9 @@ export function loadFromLocalStorage(): AppState | null {
   }
 }
 
+/**
+ * Implements export to file for this module.
+ */
 export function exportToFile(state: AppState): void {
   try {
     const serialized = serializeState(state)
@@ -234,6 +257,9 @@ export function exportToFile(state: AppState): void {
   }
 }
 
+/**
+ * Implements import from file for this module.
+ */
 export function importFromFile(file: File): Promise<AppState> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -251,6 +277,9 @@ export function importFromFile(file: File): Promise<AppState> {
   })
 }
 
+/**
+ * Returns default state for downstream consumers.
+ */
 export function getDefaultState(): AppState {
   return {
     brigades: [],
@@ -271,6 +300,9 @@ export function getDefaultState(): AppState {
   }
 }
 
+/**
+ * Implements clear local storage for this module.
+ */
 export function clearLocalStorage(): void {
   localStorage.removeItem(STORAGE_KEY)
 }

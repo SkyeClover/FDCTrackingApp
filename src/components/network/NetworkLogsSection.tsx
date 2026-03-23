@@ -9,6 +9,9 @@ type Props = {
   onClearSyncOutput: () => void
 }
 
+/**
+ * Renders the Network Logs Section UI section.
+ */
 export function NetworkLogsSection({
   refreshKey,
   syncOutputPath,

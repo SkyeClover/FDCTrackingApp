@@ -19,6 +19,9 @@ interface PodsManagementProps {
   onAddPod?: () => void
 }
 
+/**
+ * Implements split assign value for this module.
+ */
 function splitAssignValue(raw: string): [string, string] {
   const i = raw.indexOf('|')
   if (i < 0) return [raw, '']
@@ -47,6 +50,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
   } = useAppData()
 
   const [selectedGroup, setSelectedGroup] = useState<PodGroup>('all')
+  // --- Local state and callbacks ---
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRoundType, setSelectedRoundType] = useState<RoundType | 'all'>('all')
   const [selectedPodIds, setSelectedPodIds] = useState<Set<string>>(new Set())
@@ -228,9 +232,15 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
     ]
   )
 
-  const getPodRoundType = (pod: Pod): RoundType | 'Unknown' => pod.rounds[0]?.type || 'Unknown'
+    /**
+   * Returns pod round type for downstream consumers.
+   */
+const getPodRoundType = (pod: Pod): RoundType | 'Unknown' => pod.rounds[0]?.type || 'Unknown'
 
-  const getAvailableRounds = (pod: Pod): number => pod.rounds.filter((r) => r.status === 'available').length
+    /**
+   * Returns available rounds for downstream consumers.
+   */
+const getAvailableRounds = (pod: Pod): number => pod.rounds.filter((r) => r.status === 'available').length
 
   const groupCounts = useMemo(
     () => ({
@@ -268,6 +278,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
     [filteredPods, selectedPodIds]
   )
 
+  // --- Side effects ---
   useEffect(() => {
     if (selectAllCheckboxRef.current) {
       selectAllCheckboxRef.current.indeterminate = isSomeSelected && !isAllSelected
@@ -409,6 +420,7 @@ export default memo(function PodsManagement({ onAddPod }: PodsManagementProps) {
     'unassigned',
   ]
 
+  // --- Render ---
   return (
     <div
       style={{

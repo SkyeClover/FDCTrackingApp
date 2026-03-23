@@ -10,6 +10,9 @@ const defaultTemplates: TaskTemplate[] = [
   { id: 'reload-default', name: 'Reload', description: 'Reload launcher', duration: 900, type: 'reload' },
 ]
 
+/**
+ * Implements empty state for this module.
+ */
 function emptyState(): AppState {
   return {
     brigades: [],
@@ -29,14 +32,23 @@ function emptyState(): AppState {
   }
 }
 
+/**
+ * Implements assert for this module.
+ */
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message)
 }
 
+/**
+ * Implements clone state for this module.
+ */
 function cloneState<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T
 }
 
+/**
+ * Implements combine by id for this module.
+ */
 function combineById<T extends { id: string }>(...lists: T[][]): T[] {
   const byId = new Map<string, T>()
   for (const list of lists) {
@@ -45,6 +57,9 @@ function combineById<T extends { id: string }>(...lists: T[][]): T[] {
   return [...byId.values()]
 }
 
+/**
+ * Implements combine states for this module.
+ */
 function combineStates(...parts: AppState[]): AppState {
   const base = emptyState()
   if (!parts.length) return base
@@ -65,6 +80,9 @@ function combineStates(...parts: AppState[]): AppState {
   }
 }
 
+/**
+ * Implements count invalid refs for this module.
+ */
 function countInvalidRefs(s: AppState): { launcherPod: number; podLauncher: number; podRsv: number } {
   const podIds = new Set(s.pods.map((p) => p.id))
   const launcherIds = new Set(s.launchers.map((l) => l.id))
@@ -85,6 +103,9 @@ type NodeIds = {
   bocName: string
 }
 
+/**
+ * Implements make poc snapshot for this module.
+ */
 function makePocSnapshot(label: string, ids: NodeIds): AppState {
   const s = emptyState()
   s.brigades = [{ id: ids.bde, name: '1st Brigade' }]
@@ -169,6 +190,9 @@ function makePocSnapshot(label: string, ids: NodeIds): AppState {
   return s
 }
 
+/**
+ * Implements make local boc state for this module.
+ */
 function makeLocalBocState(
   localBocId: string,
   localBnId: string,
@@ -186,6 +210,9 @@ function makeLocalBocState(
   return s
 }
 
+/**
+ * Implements run for this module.
+ */
 function run(): void {
   // POC snapshots (different ids from receivers).
   const pocSnaps = {

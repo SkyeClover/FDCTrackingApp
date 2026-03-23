@@ -15,6 +15,7 @@ import {
   Brigade,
   Battalion,
   AmmoPlatoon,
+  SimulationOverlay,
 } from '../types'
 import { LEGACY_AMMO_PLT_ID } from '../constants/ammoPlatoon'
 import {
@@ -31,6 +32,7 @@ import {
   reconcileAppStateIntegrity,
   rosterMergeScopeForFromUnitId,
 } from '../utils/mergeSyncSnapshot'
+import { mergeSimulationPatch, type SimDeltaPayloadInput } from '../simulation/mergeSimulationPatch'
 import { normalizeLoadedAppState } from '../utils/normalizeAppState'
 import {
   saveAppStateToDb,
@@ -65,6 +67,9 @@ const FUNNY_COMPLETION_MESSAGES = [
   "SGT Muller would be proud - task complete!",
 ]
 
+/**
+ * Returns random completion message for downstream consumers.
+ */
 const getRandomCompletionMessage = (baseMessage: string): string => {
   const funnyMessage = FUNNY_COMPLETION_MESSAGES[Math.floor(Math.random() * FUNNY_COMPLETION_MESSAGES.length)]
   return `${baseMessage} ${funnyMessage}`
@@ -167,6 +172,10 @@ interface AppDataContextType {
     ingestStateVersion?: number,
     options?: { fromUnitId?: string | null }
   ) => boolean
+  /** Merge a simulation delta from the external sim WebSocket (tasks, launchers, overlay). */
+  applySimulationDelta: (delta: SimDeltaPayloadInput) => boolean
+  /** Live simulation overlay (destruction, survivors, control), if connected. */
+  simulationOverlay?: SimulationOverlay
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined)
@@ -180,6 +189,9 @@ interface AppDataProviderProps {
   initialSetupComplete: boolean
 }
 
+/**
+ * Renders the App Data Provider UI section.
+ */
 export function AppDataProvider({
   children,
   updateProgress,
@@ -187,6 +199,7 @@ export function AppDataProvider({
   initialAppState,
   initialSetupComplete: initialSetupCompleteProp,
 }: AppDataProviderProps) {
+  // --- Local state and callbacks ---
   const [initialSetupComplete, setInitialSetupComplete] = useState(() => initialSetupCompleteProp)
 
   const [state, setState] = useState<AppState>(() =>
@@ -205,6 +218,7 @@ export function AppDataProvider({
   const stateRef = useRef(state)
 
   // Keep stateRef in sync
+  // --- Side effects ---
   useEffect(() => {
     stateRef.current = state
   }, [state])
@@ -2553,7 +2567,10 @@ export function AppDataProvider({
         const reconciled = reconcileAppStateIntegrity(merged)
         const normalized = normalizeLoadedAppState({ ...reconciled, currentUserRole: undefined })
         const s = mergePreservedViewRoleAfterSync(normalized, preserved)
-        const countDelta = (next: number, prev: number) => `${next} (${next >= prev ? '+' : ''}${next - prev})`
+                /**
+         * Implements count delta for this module.
+         */
+const countDelta = (next: number, prev: number) => `${next} (${next >= prev ? '+' : ''}${next - prev})`
         const mergeStats = [
           `bocs=${countDelta(s.bocs.length, local.bocs.length)}`,
           `pocs=${countDelta(s.pocs.length, local.pocs.length)}`,
@@ -2594,7 +2611,10 @@ export function AppDataProvider({
           `badRefs(l->p=${badLauncherPodRefs},p->l=${badPodLauncherRefs},p->rsv=${badPodRsvRefs})`,
           `syntheticRsvNames=${syntheticRsvNames}`,
         ].join(', ')
-        const countPruned = <T extends { id: string }>(prevRows: T[], nextRows: T[]): number => {
+                /**
+         * Implements count pruned for this module.
+         */
+const countPruned = <T extends { id: string }>(prevRows: T[], nextRows: T[]): number => {
           const nextIds = new Set(nextRows.map((row) => row.id))
           let removed = 0
           for (const row of prevRows) {
@@ -2646,6 +2666,28 @@ export function AppDataProvider({
         return true
       } catch {
         addLog({ type: 'error', message: 'Failed to apply snapshot JSON' })
+        return false
+      }
+    },
+    [addLog]
+  )
+
+  const applySimulationDelta = useCallback(
+    (delta: SimDeltaPayloadInput): boolean => {
+      try {
+        const local = stateRef.current
+        const preserved = local.currentUserRole
+        const merged = mergeSimulationPatch(local, delta)
+        const reconciled = reconcileAppStateIntegrity(merged)
+        const normalized = normalizeLoadedAppState({ ...reconciled, currentUserRole: undefined })
+        const s = mergePreservedViewRoleAfterSync(normalized, preserved)
+        skipNextStateAutosaveRef.current = true
+        saveAppStateToDb(s)
+        setState(s)
+        void flushPersistenceNow()
+        return true
+      } catch {
+        addLog({ type: 'error', message: 'Failed to apply simulation delta' })
         return false
       }
     },
@@ -2812,6 +2854,7 @@ export function AppDataProvider({
     }
   }, [state])
 
+  // --- Render ---
   return (
     <AppDataContext.Provider
       value={{
@@ -2895,6 +2938,8 @@ export function AppDataProvider({
         ammoPltBocId: state.ammoPltBocId,
         getStateSnapshot: () => stateRef.current,
         applySnapshotFromJson,
+        applySimulationDelta,
+        simulationOverlay: state.simulationOverlay,
       }}
     >
       {children}
@@ -2903,6 +2948,9 @@ export function AppDataProvider({
   )
 }
 
+/**
+ * Manages app data state and behavior for this hook.
+ */
 export function useAppData() {
   const context = useContext(AppDataContext)
   if (context === undefined) {

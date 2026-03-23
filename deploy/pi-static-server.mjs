@@ -34,6 +34,9 @@ const MIME = {
   '.map': 'application/json',
 }
 
+/**
+ * Implements safe join for this module.
+ */
 function safeJoin(base, reqPath) {
   const rel = decodeURIComponent(reqPath.split('?')[0] || '/')
   const clean = path.normalize(rel).replace(/^(\.\.(\/|\\|$))+/, '')
@@ -42,6 +45,9 @@ function safeJoin(base, reqPath) {
   return abs
 }
 
+/**
+ * Implements send index html for this module.
+ */
 function sendIndexHtml(req, res) {
   const indexHtml = path.join(DIST, 'index.html')
   fs.stat(indexHtml, (e2, st2) => {

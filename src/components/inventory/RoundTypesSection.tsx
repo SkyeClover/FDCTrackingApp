@@ -15,6 +15,7 @@ type Props = {
  */
 export default function RoundTypesSection({ embedded = false, compact = false }: Props) {
   const { roundTypes, addRoundType, updateRoundType, deleteRoundType } = useAppData()
+  // --- Local state and callbacks ---
   const [newRoundTypeName, setNewRoundTypeName] = useState('')
 
   const p = compact ? '0.45rem' : '0.75rem'
@@ -23,7 +24,10 @@ export default function RoundTypesSection({ embedded = false, compact = false }:
   const allTypes = getAllRoundTypeOptions(roundTypes)
   const enabledCount = allTypes.filter((o) => roundTypes[o.value]?.enabled).length
 
-  const handleAddRoundType = () => {
+    /**
+   * Handles add round type interactions for this workflow.
+   */
+const handleAddRoundType = () => {
     const next = newRoundTypeName.trim().toUpperCase()
     if (!next) return
     addRoundType(next)
@@ -245,6 +249,7 @@ export default function RoundTypesSection({ embedded = false, compact = false }:
     return inner
   }
 
+  // --- Render ---
   return (
     <div
       data-guide="round-types-section"

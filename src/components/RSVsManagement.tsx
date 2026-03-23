@@ -25,6 +25,7 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
   } = useAppData()
   
   const [selectedView, setSelectedView] = useState<RSVView>('organized')
+  // --- Local state and callbacks ---
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRSVIds, setSelectedRSVIds] = useState<Set<string>>(new Set())
   const selectAllCheckboxRef = useRef<HTMLInputElement>(null)
@@ -214,6 +215,7 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
     return { batteries, ammoAssigned, unassigned }
   }, [visibleRSVs, pocsById, bocsById])
 
+  // --- Side effects ---
   useEffect(() => {
     if (selectedView !== 'organized') return
     setOpenBatteries((prev) => {
@@ -292,6 +294,7 @@ export default memo(function RSVsManagement({ onAddRSV }: RSVsManagementProps) {
     }
   }, [selectedRSVIds, rsvs, deleteRSV])
 
+  // --- Render ---
   return (
     <div
       style={{

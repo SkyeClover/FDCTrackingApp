@@ -19,10 +19,16 @@ export interface SyncRunSummary {
   usedSkip: boolean
 }
 
+/**
+ * Determines whether can use skip is true in the current context.
+ */
 function canUseSkip(meta: ReturnType<typeof getSyncMeta>): boolean {
   return meta.skipEchelonEnabled && meta.skipEchelonVerified
 }
 
+/**
+ * Implements tab down message for this module.
+ */
 function tabDownMessage(health: Awaited<ReturnType<typeof fetchPeerHealth>>): string {
   return health.browserOfflineKind === 'clean'
     ? 'Walker Track tab signed off (clean)'

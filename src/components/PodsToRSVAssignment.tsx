@@ -9,6 +9,7 @@ export default memo(function PodsToRSVAssignment({}: PodsToRSVAssignmentProps) {
   const { rsvs, pods, assignPodToRSV } = useAppData()
   
   const [selectedRSV, setSelectedRSV] = useState<string>('')
+  // --- Local state and callbacks ---
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPods, setSelectedPods] = useState<Set<string>>(new Set())
 
@@ -96,6 +97,7 @@ export default memo(function PodsToRSVAssignment({}: PodsToRSVAssignmentProps) {
     return pod.rounds.filter((r) => r.status === 'available').length
   }
 
+  // --- Render ---
   return (
     <div
       style={{

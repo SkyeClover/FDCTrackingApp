@@ -2,6 +2,9 @@ import { useCallback, useMemo, useState } from 'react'
 import { getSyncMeta, updateSyncMeta } from '../../persistence/sqlite'
 import { DEFAULT_SYNC_ALERT_STYLE, parseSyncAlertStyle } from '../../lib/syncAlertStyle'
 
+/**
+ * Renders the Sync Alert Settings UI section.
+ */
 export function SyncAlertSettings() {
   const initial = useMemo(() => getSyncMeta(), [])
   const parsed = useMemo(() => parseSyncAlertStyle(initial.syncAlertStyleJson), [initial.syncAlertStyleJson])

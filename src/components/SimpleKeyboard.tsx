@@ -5,6 +5,9 @@ interface SimpleKeyboardProps {
   onToggle?: () => void
 }
 
+/**
+ * Updates native input value with the provided value.
+ */
 function setNativeInputValue(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
   const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
   const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set
@@ -20,6 +23,9 @@ function getTextSelection(el: HTMLInputElement | HTMLTextAreaElement): { start: 
   return null
 }
 
+/**
+ * Implements try set selection range for this module.
+ */
 function trySetSelectionRange(el: HTMLInputElement | HTMLTextAreaElement, start: number, end: number) {
   try {
     el.setSelectionRange(start, end)
@@ -28,11 +34,18 @@ function trySetSelectionRange(el: HTMLInputElement | HTMLTextAreaElement, start:
   }
 }
 
+/**
+ * Determines whether is allowed key for number input is true in the current context.
+ */
 function isAllowedKeyForNumberInput(key: string): boolean {
   return /^[0-9.eE+-]$/.test(key)
 }
 
+/**
+ * Renders the Simple Keyboard UI section.
+ */
 export default function SimpleKeyboard({ visible }: SimpleKeyboardProps) {
+  // --- Local state and callbacks ---
   const [capsLock, setCapsLock] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -128,9 +141,13 @@ export default function SimpleKeyboard({ visible }: SimpleKeyboardProps) {
     }
   }, [])
 
+  // --- Side effects ---
   useEffect(() => {
     if (!visible) return
-    const scrollFocused = () => {
+        /**
+     * Implements scroll focused for this module.
+     */
+const scrollFocused = () => {
       applyKeyboardInset()
       const active = document.activeElement as HTMLElement | null
       if (active?.matches?.('input, textarea, select')) scrollInputIntoView(active)
@@ -147,7 +164,10 @@ export default function SimpleKeyboard({ visible }: SimpleKeyboardProps) {
 
   useEffect(() => {
     if (!visible) return
-    const handleFocus = (e: Event) => {
+        /**
+     * Handles focus interactions for this workflow.
+     */
+const handleFocus = (e: Event) => {
       const target = e.target as HTMLElement
       if (target?.matches?.('input, textarea, select')) {
         window.setTimeout(() => scrollInputIntoView(target), 80)
@@ -157,7 +177,10 @@ export default function SimpleKeyboard({ visible }: SimpleKeyboardProps) {
     return () => document.removeEventListener('focusin', handleFocus)
   }, [visible, scrollInputIntoView])
 
-  const handleKeyPress = (key: string) => {
+    /**
+   * Handles key press interactions for this workflow.
+   */
+const handleKeyPress = (key: string) => {
     const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
     if (!activeElement?.matches?.('input, textarea')) return
 
@@ -181,7 +204,10 @@ export default function SimpleKeyboard({ visible }: SimpleKeyboardProps) {
     activeElement.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }))
   }
 
-  const handleBackspace = () => {
+    /**
+   * Handles backspace interactions for this workflow.
+   */
+const handleBackspace = () => {
     const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
     if (!activeElement?.matches?.('input, textarea')) return
 
@@ -208,7 +234,10 @@ export default function SimpleKeyboard({ visible }: SimpleKeyboardProps) {
     activeElement.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }))
   }
 
-  const handleArrow = (dir: -1 | 1) => {
+    /**
+   * Handles arrow interactions for this workflow.
+   */
+const handleArrow = (dir: -1 | 1) => {
     const el = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
     if (!el?.matches?.('input, textarea')) return
     const sel = getTextSelection(el)
@@ -226,7 +255,10 @@ export default function SimpleKeyboard({ visible }: SimpleKeyboardProps) {
     el.focus()
   }
 
-  const handleEnter = () => {
+    /**
+   * Handles enter interactions for this workflow.
+   */
+const handleEnter = () => {
     const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
     if (!activeElement) return
     if (activeElement.tagName === 'TEXTAREA') {
@@ -266,6 +298,7 @@ export default function SimpleKeyboard({ visible }: SimpleKeyboardProps) {
 
   if (!visible) return null
 
+  // --- Render ---
   return (
     <div
       ref={containerRef}

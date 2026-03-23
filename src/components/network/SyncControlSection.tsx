@@ -27,6 +27,9 @@ import {
 } from '../../sync/rosterPresenceEscalation'
 import { CollapsibleCard } from './CollapsibleCard'
 
+/**
+ * Renders the Sync Control Section UI section.
+ */
 export function SyncControlSection({
   isMobile,
   onSyncDone,
@@ -42,6 +45,7 @@ export function SyncControlSection({
   onLogsChanged?: () => void
 }) {
   const { getStateSnapshot, applySnapshotFromJson } = useAppData()
+  // --- Local state and callbacks ---
   const [meta, setMeta] = useState(getSyncMeta)
   const [sv, setSv] = useState(getStateVersion)
   const [busy, setBusy] = useState(false)
@@ -92,6 +96,7 @@ export function SyncControlSection({
     onLogsChanged?.()
   }, [onLogsChanged])
 
+  // --- Side effects ---
   useEffect(() => {
     refreshMeta()
   }, [refreshMeta])
@@ -115,7 +120,10 @@ export function SyncControlSection({
       return
     }
     let cancelled = false
-    const tick = async () => {
+        /**
+     * Implements tick for this module.
+     */
+const tick = async () => {
       const h = await fetchIngestHealth(window.location.origin, meta.peerListenPort)
       if (cancelled || !h.ok) return
       const n = Number(h.stateVersion)
@@ -132,7 +140,7 @@ export function SyncControlSection({
   /** Automatic background push (same as manual snapshot push; gated by DB + secret + roster). */
   useEffect(() => {
     if (!meta.autoPushEnabled) return
-    const intervalMs = 90_000
+    const intervalMs = Math.max(5_000, Number(meta.autoPushIntervalMs) || 90_000)
     const t = window.setInterval(() => {
       if (autoBusyRef.current) return
       if (!getSyncMeta().autoPushEnabled) return
@@ -154,7 +162,7 @@ export function SyncControlSection({
         })
     }, intervalMs)
     return () => clearInterval(t)
-  }, [getStateSnapshot, onSyncDone, refreshMeta, meta.autoPushEnabled, publishSyncOutput, markLogsChanged])
+  }, [getStateSnapshot, onSyncDone, refreshMeta, meta.autoPushEnabled, meta.autoPushIntervalMs, publishSyncOutput, markLogsChanged])
 
   const doPingPeers = useCallback(async () => {
     if (!isSyncSharedSecretConfigured(getSyncMeta())) {
@@ -419,6 +427,7 @@ export function SyncControlSection({
     setFeedback('success', 'Local counters reset to baseline.')
   }, [refreshMeta, setFeedback, publishSyncOutput, markLogsChanged])
 
+  // --- Render ---
   return (
     <CollapsibleCard
       title="Sync & identity"
@@ -542,9 +551,36 @@ export function SyncControlSection({
             Auto-push snapshot
           </span>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400, lineHeight: 1.4 }}>
-            When this is on, I’ll push my data to everyone in the roster who has a host and port about every 90 seconds —
+            When this is on, I’ll push my data to everyone in the roster who has a host and port on your configured timer —
             but only if you’ve set the shared passphrase and there’s at least one peer. Turn it off if you only want to push
             when you tap “Force push snapshot”.
+          </span>
+        </label>
+        <label
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.15rem',
+            fontSize: '0.8rem',
+            gridColumn: '1 / -1',
+          }}
+        >
+          <span>Auto-push snapshot interval (seconds)</span>
+          <input
+            type="number"
+            className="touch-stepper"
+            min={5}
+            max={600}
+            step={1}
+            value={Math.round((meta.autoPushIntervalMs || 90_000) / 1000)}
+            onChange={(e) => {
+              const secs = Math.min(600, Math.max(5, parseInt(e.target.value, 10) || 90))
+              saveMeta({ autoPushIntervalMs: secs * 1000 })
+            }}
+            style={{ maxWidth: '9rem' }}
+          />
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400, lineHeight: 1.35 }}>
+            Use this to feed non-simulator clients faster than the old default cadence (5s to 600s).
           </span>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', marginTop: '1.1rem' }}>

@@ -19,6 +19,9 @@ function parsePlacement(raw: string): { kind: string; id: string } {
   return { kind: raw.slice(0, i), id: raw.slice(i + 1) }
 }
 
+/**
+ * Renders the Pod Create Modal UI section.
+ */
 export default function PodCreateModal({ isOpen, onClose }: Props) {
   const {
     roundTypes,
@@ -42,12 +45,14 @@ export default function PodCreateModal({ isOpen, onClose }: Props) {
 
   const roundTypeOptions = useMemo(() => getEnabledRoundTypeOptions(roundTypes), [roundTypes])
 
+  // --- Local state and callbacks ---
   const [namePrefix, setNamePrefix] = useState('')
   const [roundType, setRoundType] = useState<RoundType>(roundTypeOptions[0]?.value || '')
   const [roundsPerPod, setRoundsPerPod] = useState<number | ''>(6)
   const [podCount, setPodCount] = useState<number | ''>(1)
   const [placement, setPlacement] = useState('unassigned')
 
+  // --- Side effects ---
   useEffect(() => {
     if (!isOpen) return
     setNamePrefix('')
@@ -79,7 +84,10 @@ export default function PodCreateModal({ isOpen, onClose }: Props) {
     [ammoPlatoons]
   )
 
-  const applyPlacement = (podId: string, kind: string, id: string) => {
+    /**
+   * Implements apply placement for this module.
+   */
+const applyPlacement = (podId: string, kind: string, id: string) => {
     switch (kind) {
       case 'unassigned':
         break
@@ -109,7 +117,10 @@ export default function PodCreateModal({ isOpen, onClose }: Props) {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+    /**
+   * Handles submit interactions for this workflow.
+   */
+const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!namePrefix.trim() || !roundType || roundTypeOptions.length === 0) return
     const q = typeof podCount === 'number' ? podCount : 1
@@ -141,6 +152,7 @@ export default function PodCreateModal({ isOpen, onClose }: Props) {
 
   const canSubmit = !!namePrefix.trim() && !!roundType && roundTypeOptions.length > 0
 
+  // --- Render ---
   return (
     <div
       data-guide="pod-create-modal"

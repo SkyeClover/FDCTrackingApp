@@ -38,6 +38,9 @@ const branchBtn: CSSProperties = {
   boxSizing: 'border-box',
 }
 
+/**
+ * Implements tree indent for this module.
+ */
 function treeIndent(level: number): CSSProperties {
   return {
     marginLeft: level * 14,
@@ -46,10 +49,16 @@ function treeIndent(level: number): CSSProperties {
   }
 }
 
+/**
+ * Implements sort by name for this module.
+ */
 function sortByName<T extends { name: string }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/**
+ * Implements rsv placement for this module.
+ */
 function rsvPlacement(rsv: RSV): string {
   if (rsv.pocId) return `poc|${rsv.pocId}`
   if (rsv.bocId) return `boc|${rsv.bocId}`
@@ -57,6 +66,9 @@ function rsvPlacement(rsv: RSV): string {
   return 'unassigned'
 }
 
+/**
+ * Renders the Unit Hierarchy Modal UI section.
+ */
 export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
   const {
     brigades,
@@ -77,8 +89,14 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
   } = useAppData()
 
   const [open, setOpen] = useState<Record<string, boolean>>({})
-  const branchExpanded = (key: string) => open[key] ?? false
-  const toggleBranch = (key: string) =>
+    /**
+   * Implements branch expanded for this module.
+   */
+const branchExpanded = (key: string) => open[key] ?? false
+    /**
+   * Implements toggle branch for this module.
+   */
+const toggleBranch = (key: string) =>
     setOpen((prev) => ({ ...prev, [key]: !(prev[key] ?? false) }))
 
   const brigadesSorted = useMemo(() => sortByName(brigades), [brigades])
@@ -137,14 +155,38 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
 
   if (!isOpen) return null
 
-  const bnForBrigade = (bde: Brigade) => battalionsSorted.filter((b) => b.brigadeId === bde.id)
-  const bocForBn = (bn: Battalion) => bocsSorted.filter((b) => b.battalionId === bn.id)
-  const pocForBoc = (boc: BOC) => pocsSorted.filter((p) => p.bocId === boc.id)
-  const ammoForBoc = (boc: BOC) => ammoSorted.filter((ap) => ap.bocId === boc.id)
-  const launchersForPoc = (poc: POC) => launchersSorted.filter((l) => l.pocId === poc.id)
-  const rsvForPoc = (poc: POC) => rsvs.filter((r) => r.pocId === poc.id)
-  const rsvForBocOnly = (boc: BOC) => rsvs.filter((r) => r.bocId === boc.id && !r.pocId)
-  const rsvForAmmoPlt = (ap: AmmoPlatoon) => rsvs.filter((r) => r.ammoPltId === ap.id)
+    /**
+   * Implements bn for brigade for this module.
+   */
+const bnForBrigade = (bde: Brigade) => battalionsSorted.filter((b) => b.brigadeId === bde.id)
+    /**
+   * Implements boc for bn for this module.
+   */
+const bocForBn = (bn: Battalion) => bocsSorted.filter((b) => b.battalionId === bn.id)
+    /**
+   * Implements poc for boc for this module.
+   */
+const pocForBoc = (boc: BOC) => pocsSorted.filter((p) => p.bocId === boc.id)
+    /**
+   * Implements ammo for boc for this module.
+   */
+const ammoForBoc = (boc: BOC) => ammoSorted.filter((ap) => ap.bocId === boc.id)
+    /**
+   * Implements launchers for poc for this module.
+   */
+const launchersForPoc = (poc: POC) => launchersSorted.filter((l) => l.pocId === poc.id)
+    /**
+   * Implements rsv for poc for this module.
+   */
+const rsvForPoc = (poc: POC) => rsvs.filter((r) => r.pocId === poc.id)
+    /**
+   * Implements rsv for boc only for this module.
+   */
+const rsvForBocOnly = (boc: BOC) => rsvs.filter((r) => r.bocId === boc.id && !r.pocId)
+    /**
+   * Implements rsv for ammo plt for this module.
+   */
+const rsvForAmmoPlt = (ap: AmmoPlatoon) => rsvs.filter((r) => r.ammoPltId === ap.id)
 
   const orphanBattalions = battalionsSorted.filter((b) => !b.brigadeId)
   const orphanBocs = bocsSorted.filter((b) => !b.battalionId)
@@ -153,7 +195,10 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
   const orphanLaunchers = launchersSorted.filter((l) => !l.pocId)
   const orphanRsvs = rsvs.filter((r) => !r.pocId && !r.bocId && !r.ammoPltId)
 
-  const renderLauncherRow = (l: Launcher, level: number) => (
+    /**
+   * Implements render launcher row for this module.
+   */
+const renderLauncherRow = (l: Launcher, level: number) => (
     <div
       key={l.id}
       style={{
@@ -188,7 +233,10 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
     </div>
   )
 
-  const renderRsvRow = (r: RSV, level: number) => (
+    /**
+   * Implements render rsv row for this module.
+   */
+const renderRsvRow = (r: RSV, level: number) => (
     <div
       key={r.id}
       style={{
@@ -215,7 +263,10 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
     </div>
   )
 
-  const renderPocBlock = (poc: POC, level: number) => {
+    /**
+   * Implements render poc block for this module.
+   */
+const renderPocBlock = (poc: POC, level: number) => {
     const k = `poc-${poc.id}`
     const ex = branchExpanded(k)
     return (
@@ -261,7 +312,10 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
     )
   }
 
-  const renderAmmoPltBlock = (ap: AmmoPlatoon, level: number) => {
+    /**
+   * Implements render ammo plt block for this module.
+   */
+const renderAmmoPltBlock = (ap: AmmoPlatoon, level: number) => {
     const k = `ammo-${ap.id}`
     const ex = branchExpanded(k)
     return (
@@ -306,7 +360,10 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
     )
   }
 
-  const renderBocBlock = (boc: BOC, level: number) => {
+    /**
+   * Implements render boc block for this module.
+   */
+const renderBocBlock = (boc: BOC, level: number) => {
     const k = `boc-${boc.id}`
     const ex = branchExpanded(k)
     return (
@@ -353,7 +410,10 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
     )
   }
 
-  const renderBnBlock = (bn: Battalion, level: number) => {
+    /**
+   * Implements render bn block for this module.
+   */
+const renderBnBlock = (bn: Battalion, level: number) => {
     const k = `bn-${bn.id}`
     const ex = branchExpanded(k)
     return (
@@ -407,6 +467,7 @@ export default function UnitHierarchyModal({ isOpen, onClose }: Props) {
     orphanLaunchers.length > 0 ||
     orphanRsvs.length > 0
 
+  // --- Render ---
   return (
     <div
       className="fdc-modal-overlay"

@@ -6,10 +6,16 @@ interface KeyboardToggleButtonProps {
   isVisible: boolean
 }
 
+/**
+ * Renders the Keyboard Toggle Button UI section.
+ */
 export default function KeyboardToggleButton({ onToggle, isVisible }: KeyboardToggleButtonProps) {
   const [isPressed, setIsPressed] = useState(false)
 
-  const handleClick = async (e: React.MouseEvent | React.TouchEvent) => {
+    /**
+   * Handles click interactions for this workflow.
+   */
+const handleClick = async (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault()
     e.stopPropagation()
     

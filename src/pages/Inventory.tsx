@@ -8,6 +8,9 @@ import CollapsibleSection from '../components/ui/CollapsibleSection'
 import { useIsMobile } from '../hooks/useIsMobile'
 import PageShell from '../components/layout/PageShell'
 
+/**
+ * Renders the Inventory UI section.
+ */
 export default function Inventory() {
   const isMobile = useIsMobile()
   const { roundTypes } = useAppData()

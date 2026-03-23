@@ -1,6 +1,9 @@
 import { Edit2, Rocket, Target, XCircle, CheckCircle, StopCircle } from 'lucide-react'
 import type { Task } from '../types'
 
+/**
+ * Renders the Fire Mission List Row UI section.
+ */
 export default function FireMissionListRow({
   mission,
   index,

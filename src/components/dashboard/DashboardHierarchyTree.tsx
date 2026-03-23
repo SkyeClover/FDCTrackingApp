@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import type { BOC, Battalion, Brigade, Launcher, POC, Pod, RSV, Task } from '../../types'
+import type { BOC, Battalion, Brigade, Launcher, POC, Pod, RSV, SimulationOverlay, Task } from '../../types'
 import { getLauncherTaskSummary } from '../../utils/launcherTaskSummary'
+import {
+  destructionLevelOf,
+  entityRefBoc,
+  entityRefLauncher,
+  entityRefPoc,
+  survivorGroupsForPoc,
+} from '../../simulation/simOverlayHelpers'
 
 const rowBtn: CSSProperties = {
   width: '100%',
@@ -45,10 +52,16 @@ const branchBtn: CSSProperties = {
   boxSizing: 'border-box',
 }
 
+/**
+ * Implements sort by name for this module.
+ */
 function sortByName<T extends { name: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/**
+ * Implements format round pair for this module.
+ */
 function formatRoundPair(available: number, total: number): string {
   if (total <= 0) return 'No rounds loaded'
   return `${available}/${total} rounds available`
@@ -67,12 +80,18 @@ type RoundSummary = {
   reservePodsByType: Record<string, number>
 }
 
+/**
+ * Implements format by type summary for this module.
+ */
 function formatByTypeSummary(availableByType: Record<string, number>, totalByType: Record<string, number>): string {
   const keys = Object.keys(totalByType).sort((a, b) => a.localeCompare(b))
   if (keys.length === 0) return 'none'
   return keys.map((k) => `${k} ${availableByType[k] ?? 0}/${totalByType[k]}`).join(', ')
 }
 
+/**
+ * Implements format type pod round summary compact for this module.
+ */
 function formatTypePodRoundSummaryCompact(
   podsByType: Record<string, number>,
   availableByType: Record<string, number>
@@ -84,6 +103,9 @@ function formatTypePodRoundSummaryCompact(
 
 type ViewRole = 'brigade' | 'battalion' | 'boc'
 
+/**
+ * Renders the Dashboard Hierarchy Tree UI section.
+ */
 export default function DashboardHierarchyTree({
   viewRole,
   roleName,
@@ -95,6 +117,7 @@ export default function DashboardHierarchyTree({
   pods,
   rsvs,
   tasks,
+  simulationOverlay,
   onLauncherClick,
 }: {
   viewRole: ViewRole
@@ -107,15 +130,38 @@ export default function DashboardHierarchyTree({
   pods: Pod[]
   rsvs: RSV[]
   tasks: Task[]
+  /** Live simulation overlay (destruction, survivors, grids from external sim). */
+  simulationOverlay?: SimulationOverlay
   onLauncherClick: (launcherId: string) => void
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
-  const toggle = (key: string) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))
-  const isOpen = (key: string) => !!open[key]
+    /**
+   * Implements toggle for this module.
+   */
+const toggle = (key: string) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))
+    /**
+   * Determines whether is open is true in the current context.
+   */
+const isOpen = (key: string) => !!open[key]
 
+  // --- Side effects ---
   useEffect(() => {
     setOpen({})
   }, [viewRole, roleName])
+
+    /**
+   * Implements branch sim style for this module.
+   */
+const branchSimStyle = (entityRef: string): CSSProperties => {
+    const level = destructionLevelOf(simulationOverlay, entityRef)
+    if (level === 'destroyed' || level === 'struck_off') {
+      return { opacity: 0.58, borderStyle: 'dashed', borderColor: 'var(--text-secondary, #888)' }
+    }
+    if (level === 'degraded') {
+      return { borderColor: 'var(--warning, #c90)', boxShadow: '0 0 0 1px rgba(204,153,0,0.25)' }
+    }
+    return {}
+  }
 
   const title =
     viewRole === 'brigade'
@@ -162,7 +208,10 @@ export default function DashboardHierarchyTree({
     return m
   }, [rsvs])
 
-  const summarizeRoundSummary = ({
+    /**
+   * Implements summarize round summary for this module.
+   */
+const summarizeRoundSummary = ({
     launcherList,
     pocIds,
     bocIds,
@@ -186,7 +235,10 @@ export default function DashboardHierarchyTree({
     let reserveAvailable = 0
     let reserveTotal = 0
 
-    const accumulate = (
+        /**
+     * Implements accumulate for this module.
+     */
+const accumulate = (
       rounds: Pod['rounds'],
       targetAvailable: Record<string, number>,
       targetTotal: Record<string, number>
@@ -257,7 +309,10 @@ export default function DashboardHierarchyTree({
     whiteSpace: 'nowrap',
   }
 
-  const renderSummaryChips = (
+    /**
+   * Implements render summary chips for this module.
+   */
+const renderSummaryChips = (
     primary: string,
     loaded: string,
     reserve: string,
@@ -333,7 +388,10 @@ export default function DashboardHierarchyTree({
     return { map: m, orphan }
   }, [battalions])
 
-  const renderLaunchersForPoc = (pocId: string) => {
+    /**
+   * Implements render launchers for poc for this module.
+   */
+const renderLaunchersForPoc = (pocId: string) => {
     const pl = launchers.filter((l) => l.pocId === pocId)
     if (pl.length === 0) {
       return (
@@ -353,7 +411,7 @@ export default function DashboardHierarchyTree({
           key={launcher.id}
           type="button"
           onClick={() => onLauncherClick(launcher.id)}
-          style={{ ...rowBtn, marginLeft: '1.25rem' }}
+          style={{ ...rowBtn, marginLeft: '1.25rem', ...branchSimStyle(entityRefLauncher(launcher.id)) }}
         >
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 700, marginBottom: '0.15rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{launcher.name}</div>
@@ -401,7 +459,10 @@ export default function DashboardHierarchyTree({
     })
   }
 
-  const renderPocBlockFixed = (boc: BOC) => {
+    /**
+   * Implements render poc block fixed for this module.
+   */
+const renderPocBlockFixed = (boc: BOC) => {
     const pl = pocsByBoc.get(boc.id) || []
     if (pl.length === 0) {
       return (
@@ -429,10 +490,44 @@ export default function DashboardHierarchyTree({
       )}`
       return (
         <div key={poc.id} style={{ marginBottom: '0.35rem' }}>
-          <button type="button" onClick={() => toggle(key)} style={{ ...branchBtn, paddingLeft: '1.25rem' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          <button
+            type="button"
+            onClick={() => toggle(key)}
+            style={{ ...branchBtn, paddingLeft: '1.25rem', ...branchSimStyle(entityRefPoc(poc.id)) }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
               {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
               <span>{poc.name}</span>
+              {simulationOverlay?.unitStates.find((u) => u.entityRef === entityRefPoc(poc.id))?.displayGrid ||
+              simulationOverlay?.unitStates.find((u) => u.entityRef === entityRefPoc(poc.id))?.mgrsGrid ? (
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 600,
+                    color: 'var(--accent, #38c)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 4,
+                    padding: '0.08rem 0.28rem',
+                  }}
+                  title="Sim grid"
+                >
+                  SIM{' '}
+                  {simulationOverlay?.unitStates.find((u) => u.entityRef === entityRefPoc(poc.id))?.displayGrid ||
+                    simulationOverlay?.unitStates.find((u) => u.entityRef === entityRefPoc(poc.id))?.mgrsGrid}
+                </span>
+              ) : null}
+              {survivorGroupsForPoc(simulationOverlay, poc.id) > 0 ? (
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    color: 'var(--warning, #a60)',
+                    fontWeight: 600,
+                  }}
+                  title="Survivor / reassignment activity"
+                >
+                  survivors
+                </span>
+              ) : null}
             </span>
             {renderSummaryChips(
               `${nLaunch} HIMARS`,
@@ -469,7 +564,10 @@ export default function DashboardHierarchyTree({
     })
   }
 
-  const renderBocNode = (boc: BOC, depthPad: number) => {
+    /**
+   * Implements render boc node for this module.
+   */
+const renderBocNode = (boc: BOC, depthPad: number) => {
     const key = `boc-${boc.id}`
     const expanded = isOpen(key)
     const bocPocs = pocsByBoc.get(boc.id) || []
@@ -493,11 +591,26 @@ export default function DashboardHierarchyTree({
         <button
           type="button"
           onClick={() => toggle(key)}
-          style={{ ...branchBtn, paddingLeft: `${depthPad}px` }}
+          style={{ ...branchBtn, paddingLeft: `${depthPad}px`, ...branchSimStyle(entityRefBoc(boc.id)) }}
         >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
             {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
             <span>{boc.name}</span>
+            {simulationOverlay?.unitStates.find((u) => u.entityRef === entityRefBoc(boc.id))?.displayGrid ||
+            simulationOverlay?.unitStates.find((u) => u.entityRef === entityRefBoc(boc.id))?.mgrsGrid ? (
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 600,
+                  color: 'var(--accent, #38c)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 4,
+                  padding: '0.08rem 0.28rem',
+                }}
+              >
+                SIM
+              </span>
+            ) : null}
           </span>
           {renderSummaryChips(
             `${nPoc} PLT · ${nL} HIMARS`,
@@ -511,7 +624,10 @@ export default function DashboardHierarchyTree({
     )
   }
 
-  const buildBattalionSections = (): ReactNode[] => {
+    /**
+   * Implements build battalion sections for this module.
+   */
+const buildBattalionSections = (): ReactNode[] => {
     const sections: ReactNode[] = []
     sortByName(battalions).forEach((bn) => {
       const bocList = bocsByBattalion.map.get(bn.id) || []
@@ -752,6 +868,7 @@ export default function DashboardHierarchyTree({
     }
   }
 
+  // --- Render ---
   return (
     <div
       style={{

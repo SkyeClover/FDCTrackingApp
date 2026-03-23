@@ -6,17 +6,21 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "test": "tsc --noEmit",
+    "test": "tsc --noEmit && vitest run",
     "preview": "vite preview",
     "peer-server": "node fdc-peer-server.mjs",
-    "pi-sidecar": "node fdc-pi-sidecar.cjs"
+    "pi-sidecar": "node fdc-pi-sidecar.cjs",
+    "fdc-sim": "npm --prefix fdc-simulator start"
   },
   "dependencies": {
+    "@types/leaflet": "^1.9.21",
     "@vercel/kv": "^3.0.0",
     "ioredis": "^5.10.1",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-leaflet": "^4.2.1",
     "sql.js": "^1.14.1"
   },
   "devDependencies": {
@@ -26,6 +30,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.2.2",
     "vercel": "^48.12.0",
-    "vite": "^5.0.8"
+    "vite": "^5.0.8",
+    "vitest": "^3.0.5"
   }
 }

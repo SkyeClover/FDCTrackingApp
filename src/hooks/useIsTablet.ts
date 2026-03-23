@@ -28,7 +28,10 @@ export function useIsTablet(): boolean {
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null
     
-    const checkTablet = () => {
+        /**
+     * Implements check tablet for this module.
+     */
+const checkTablet = () => {
       // Force tablet mode for testing via URL parameter
       const urlParams = new URLSearchParams(window.location.search)
       if (urlParams.get('tablet') === 'true') {

@@ -5,6 +5,9 @@ type NavigateFn = (page: Page) => void
 
 const NavigationContext = createContext<{ navigateTo: NavigateFn } | null>(null)
 
+/**
+ * Renders the Navigation Provider UI section.
+ */
 export function NavigationProvider({
   children,
   navigateTo,
@@ -16,6 +19,9 @@ export function NavigationProvider({
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>
 }
 
+/**
+ * Manages app navigation state and behavior for this hook.
+ */
 export function useAppNavigation(): { navigateTo: NavigateFn } {
   const ctx = useContext(NavigationContext)
   return ctx ?? { navigateTo: () => {} }

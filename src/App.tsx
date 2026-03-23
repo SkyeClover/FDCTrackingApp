@@ -11,9 +11,13 @@ import SimpleKeyboard from './components/SimpleKeyboard'
 import KeyboardToggleButton from './components/KeyboardToggleButton'
 import MaintenanceBanner from './components/MaintenanceBanner'
 import { SyncInboxBanner } from './components/SyncInboxBanner'
+import { SimulationReassignmentBanner } from './components/SimulationReassignmentBanner'
 import { BrowserSessionLifecycle } from './components/network/BrowserSessionLifecycle'
 import { useIsMobile } from './hooks/useIsMobile'
 
+/**
+ * Renders the App Content UI section.
+ */
 function AppContent() {
   const { updateProgress, removeProgress } = useProgress()
 
@@ -24,6 +28,9 @@ function AppContent() {
   )
 }
 
+/**
+ * Renders the App Content With Data UI section.
+ */
 function AppContentWithData() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard')
   const isMobile = useIsMobile()
@@ -32,6 +39,7 @@ function AppContentWithData() {
     <NavigationProvider navigateTo={setCurrentPage}>
       <BrowserSessionLifecycle />
       <SyncInboxBanner />
+      <SimulationReassignmentBanner />
       {isMobile ? (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minHeight: 0 }}>
           <MobileNav currentPage={currentPage} onPageChange={setCurrentPage} />
@@ -118,13 +126,19 @@ function AppContentWithData() {
   )
 }
 
+/**
+ * Renders the App UI section.
+ */
 function App() {
   const [exitedKiosk, setExitedKiosk] = useState(false)
   const [keyboardVisible, setKeyboardVisible] = useState(false)
 
   const isMaintenanceMode = import.meta.env.VITE_MAINTENANCE_MODE === 'true'
 
-  const handleExitKiosk = () => {
+    /**
+   * Handles exit kiosk interactions for this workflow.
+   */
+const handleExitKiosk = () => {
     setExitedKiosk(true)
     if (document.exitFullscreen) {
       document.exitFullscreen().catch(() => {})

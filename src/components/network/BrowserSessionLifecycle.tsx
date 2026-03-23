@@ -19,7 +19,10 @@ export function BrowserSessionLifecycle() {
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    const tick = () => {
+        /**
+     * Implements tick for this module.
+     */
+const tick = () => {
       const meta = getSyncMeta()
       if (!isSyncSharedSecretConfigured(meta)) return
       void sessionPingLocalIngest(window.location.origin, meta.peerListenPort, meta)
@@ -28,7 +31,10 @@ export function BrowserSessionLifecycle() {
     void tick()
     const interval = window.setInterval(() => void tick(), HEARTBEAT_MS)
 
-    const onPageHide = (ev: PageTransitionEvent) => {
+        /**
+     * Implements on page hide for this module.
+     */
+const onPageHide = (ev: PageTransitionEvent) => {
       if (ev.persisted) return
       if (signedOffRef.current) return
       signedOffRef.current = true

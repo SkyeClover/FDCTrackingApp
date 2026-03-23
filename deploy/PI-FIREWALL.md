@@ -78,3 +78,24 @@ sudo ufw allow 5353/udp comment 'mDNS'
 
 - `deploy/pi-firewall-setup.sh` — applies the rules above  
 - `fdc-pi-sidecar.cjs` — binds **127.0.0.1** by default (`FDC_SIDECAR_HOST`)
+
+<!-- APP_ALIGNMENT_START -->
+## Application Alignment (2026-03-23)
+
+This document is aligned to the active **FDC Tracking App (Walker Track)** implementation for `deploy/PI-FIREWALL.md`.
+
+- Primary app: `E:/Projects/Cursor/TrackingThing/FDCTrackingApp` (React + TypeScript + Vite).
+- Core pages/routes: Dashboard, Inventory, Management, Fire Missions, Logs, System Info, Network, Simulation, Settings.
+- Local persistence: SQL.js and IndexedDB/local browser storage via the persistence layer.
+- Sync stack: peer sync controls in app, plus optional `fdc-peer-server` and kiosk sidecar workflows.
+- Simulation stack: optional WebSocket simulator (`fdc-simulator`) feeding Network/Simulation workflows.
+- Deployment baseline: Raspberry Pi scripts under `deploy/` and operational notes in repo docs.
+
+Source-of-truth references used for this alignment:
+- `README.md`
+- `src/navigation/routes.ts`
+- `src/context/AppDataContext.tsx`
+- `src/pages/Network.tsx`
+- `src/pages/Simulation.tsx`
+
+<!-- APP_ALIGNMENT_END -->

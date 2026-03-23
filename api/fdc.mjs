@@ -36,14 +36,23 @@ const SECRET = (process.env.FDC_SYNC_SECRET || '')
   .trim()
   .replace(/^\uFEFF/, '')
 
+/**
+ * Determines whether has kv env is true in the current context.
+ */
 function hasKvEnv() {
   return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
 }
 
+/**
+ * Determines whether has redis url is true in the current context.
+ */
 function hasRedisUrl() {
   return Boolean(process.env.REDIS_URL?.trim())
 }
 
+/**
+ * Returns store hint for downstream consumers.
+ */
 function getStoreHint() {
   if (hasRedisUrl()) return 'redis'
   if (hasKvEnv()) return 'kv'
@@ -58,6 +67,9 @@ const corsHeaders = {
 
 const STALE_AFTER_MS = Number(process.env.FDC_BROWSER_STALE_MS || 135000)
 
+/**
+ * Implements default state for this module.
+ */
 function defaultState() {
   return {
     receivedAt: 0,
@@ -73,15 +85,24 @@ function defaultState() {
 
 let memoryLast = defaultState()
 
+/**
+ * Implements norm unit for this module.
+ */
 function normUnit(s) {
   if (!s || typeof s !== 'string') return ''
   return s.replace(/\s/g, '').toUpperCase()
 }
 
+/**
+ * Implements hmac hex for this module.
+ */
 function hmacHex(body) {
   return crypto.createHmac('sha256', SECRET).update(body).digest('hex')
 }
 
+/**
+ * Implements verify post sig for this module.
+ */
 function verifyPostSig(body, sigHeader) {
   if (!SECRET) return true
   if (!sigHeader || typeof sigHeader !== 'string') return false
@@ -101,6 +122,9 @@ function verifyGetSig(sigHeader) {
   return crypto.timingSafeEqual(a, b)
 }
 
+/**
+ * Implements read kv last for this module.
+ */
 async function readKvLast() {
   try {
     const { kv } = await import('@vercel/kv')
@@ -112,6 +136,9 @@ async function readKvLast() {
   }
 }
 
+/**
+ * Implements write kv last for this module.
+ */
 async function writeKvLast(obj) {
   try {
     const { kv } = await import('@vercel/kv')
@@ -121,6 +148,9 @@ async function writeKvLast(obj) {
   }
 }
 
+/**
+ * Implements read redis last for this module.
+ */
 async function readRedisLast() {
   const url = process.env.REDIS_URL
   if (!url) return null
@@ -140,6 +170,9 @@ async function readRedisLast() {
   }
 }
 
+/**
+ * Implements write redis last for this module.
+ */
 async function writeRedisLast(obj) {
   const url = process.env.REDIS_URL
   if (!url) return
@@ -156,6 +189,9 @@ async function writeRedisLast(obj) {
   }
 }
 
+/**
+ * Returns last for downstream consumers.
+ */
 async function getLast() {
   const d = defaultState()
   let j = null
@@ -169,6 +205,9 @@ async function getLast() {
   return merged
 }
 
+/**
+ * Implements persist state for this module.
+ */
 async function persistState(s) {
   memoryLast = s
   if (hasRedisUrl()) {
@@ -178,6 +217,9 @@ async function persistState(s) {
   }
 }
 
+/**
+ * Implements update state for this module.
+ */
 async function updateState(fn) {
   const s = await getLast()
   fn(s)
@@ -185,6 +227,9 @@ async function updateState(fn) {
   await persistState(s)
 }
 
+/**
+ * Implements compute global presence for this module.
+ */
 function computeGlobalPresence(s) {
   const now = Date.now()
   if (s.sessionOffline && typeof s.sessionOffline === 'object') {
@@ -200,6 +245,9 @@ function computeGlobalPresence(s) {
   return { browserPresent: true, offlineKind: null }
 }
 
+/**
+ * Implements presence for for unit for this module.
+ */
 function presenceForForUnit(s, forUnitRaw) {
   const key = normUnit(forUnitRaw)
   if (!key) return computeGlobalPresence(s)
@@ -219,6 +267,9 @@ function presenceForForUnit(s, forUnitRaw) {
   return { browserPresent: true, offlineKind: null }
 }
 
+/**
+ * Implements send json for this module.
+ */
 function sendJson(res, status, obj, extra = {}) {
   const body = JSON.stringify(obj)
   res.writeHead(status, {
@@ -229,6 +280,9 @@ function sendJson(res, status, obj, extra = {}) {
   res.end(body)
 }
 
+/**
+ * Implements read body for this module.
+ */
 function readBody(req, maxBytes = 6 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const chunks = []
@@ -246,6 +300,9 @@ function readBody(req, maxBytes = 6 * 1024 * 1024) {
   })
 }
 
+/**
+ * Implements handler for this module.
+ */
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, corsHeaders)

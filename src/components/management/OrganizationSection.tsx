@@ -219,6 +219,9 @@ type OrganizationSectionProps = {
   onOpenHierarchy?: () => void
 }
 
+/**
+ * Renders the Organization Section UI section.
+ */
 export default function OrganizationSection({ isMobile = false, onOpenCreateUnit, onOpenHierarchy }: OrganizationSectionProps) {
   const {
     brigades,
@@ -364,6 +367,7 @@ export default function OrganizationSection({ isMobile = false, onOpenCreateUnit
     })
   }, [])
 
+  // --- Render ---
   return (
     <div>
       <div

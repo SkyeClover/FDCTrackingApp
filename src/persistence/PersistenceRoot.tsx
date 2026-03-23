@@ -10,14 +10,21 @@ import { readInitialSetupCompleteFromStorage } from '../utils/saveLoad'
 import { normalizeLoadedAppState } from '../utils/normalizeAppState'
 import type { AppState } from '../types'
 import { AppDataProvider } from '../context/AppDataContext'
+import { SimulationProvider } from '../simulation/SimulationContext'
 
 /** Flush SQLite → IndexedDB when the tab hides or the user closes the browser (best-effort). */
 function PersistenceUnloadFlush() {
   useEffect(() => {
-    const flush = () => {
+        /**
+     * Implements flush for this module.
+     */
+const flush = () => {
       void flushPersistenceNow()
     }
-    const onVisibility = () => {
+        /**
+     * Implements on visibility for this module.
+     */
+const onVisibility = () => {
       if (document.visibilityState === 'hidden') flush()
     }
     window.addEventListener('pagehide', flush)
@@ -38,6 +45,9 @@ interface PersistenceRootProps {
   removeProgress?: (taskId: string) => void
 }
 
+/**
+ * Renders the Persistence Root UI section.
+ */
 export function PersistenceRoot({ children, updateProgress, removeProgress }: PersistenceRootProps) {
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState<string | null>(null)
@@ -105,8 +115,10 @@ export function PersistenceRoot({ children, updateProgress, removeProgress }: Pe
       updateProgress={updateProgress}
       removeProgress={removeProgress}
     >
-      <PersistenceUnloadFlush />
-      {children}
+      <SimulationProvider>
+        <PersistenceUnloadFlush />
+        {children}
+      </SimulationProvider>
     </AppDataProvider>
   )
 }

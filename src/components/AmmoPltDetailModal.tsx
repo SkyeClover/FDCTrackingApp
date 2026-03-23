@@ -16,6 +16,9 @@ interface AmmoPltDetailModalProps {
   onClose: () => void
 }
 
+/**
+ * Renders the Ammo Plt Detail Modal UI section.
+ */
 export default function AmmoPltDetailModal({ ammoPlatoon, pods, rsvs, isOpen, onClose }: AmmoPltDetailModalProps) {
   const { roundTypes } = useAppData()
   const isMobile = useIsMobile()
@@ -90,6 +93,7 @@ export default function AmmoPltDetailModal({ ammoPlatoon, pods, rsvs, isOpen, on
   const roundsOnGround = calculateRoundsByType(podsOnGround)
   const roundsTotal = calculateRoundsByType(ammoPltPods)
 
+  // --- Render ---
   return (
     <div
       className="fdc-modal-overlay"

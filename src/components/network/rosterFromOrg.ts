@@ -51,7 +51,7 @@ export function ensureBocPocRosterFromOrg(
       lastSeenMs: null,
       lastError: null,
       sortOrder: maxSort,
-      peerUnitId: null,
+      peerUnitId: role,
       syncAlertsEnabled: true,
       autoAcceptSync: false,
       stationOfflineSinceMs: null,

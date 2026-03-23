@@ -12,11 +12,15 @@ import LauncherDetailModal from '../components/LauncherDetailModal'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useIsTablet } from '../hooks/useIsTablet'
 import { useScopedForce } from '../hooks/useScopedForce'
+import { useSimulation } from '../simulation/SimulationContext'
 import DashboardHierarchyTree from '../components/dashboard/DashboardHierarchyTree'
 import BOCBatteryDashboard from '../components/dashboard/BOCBatteryDashboard'
 import PageShell from '../components/layout/PageShell'
 import { Rocket, FileText, Activity, Package } from 'lucide-react'
 
+/**
+ * Renders the Dashboard UI section.
+ */
 export default function Dashboard() {
   const {
     bocs,
@@ -32,7 +36,10 @@ export default function Dashboard() {
     saveToFile,
     loadFromFile,
     currentUserRole,
+    simulationOverlay,
   } = useAppData()
+  const simConn = useSimulation()
+  // --- Local state and callbacks ---
   const [isFireMissionModalOpen, setIsFireMissionModalOpen] = useState(false)
   const [selectedPOC, setSelectedPOC] = useState<string | null>(null)
   const [selectedAmmoPltId, setSelectedAmmoPltId] = useState<string | null>(null)
@@ -85,24 +92,39 @@ export default function Dashboard() {
     })
   }, [ammoPltsOnDashboard, displayRSVs, displayPods])
 
-  const handleInitiateFireMission = () => {
+    /**
+   * Handles initiate fire mission interactions for this workflow.
+   */
+const handleInitiateFireMission = () => {
     setIsFireMissionModalOpen(true)
   }
 
-  const handleReport = () => {
+    /**
+   * Handles report interactions for this workflow.
+   */
+const handleReport = () => {
     setIsReportModalOpen(true)
   }
 
-  const handleSaveLoad = () => {
+    /**
+   * Handles save load interactions for this workflow.
+   */
+const handleSaveLoad = () => {
     saveToFile()
   }
 
 
-  const handleReloadLauncher = (launcherId: string) => {
+    /**
+   * Handles reload launcher interactions for this workflow.
+   */
+const handleReloadLauncher = (launcherId: string) => {
     setReloadLauncherId(launcherId)
   }
 
-  const handleReloadConfirm = (launcherId: string, podId?: string) => {
+    /**
+   * Handles reload confirm interactions for this workflow.
+   */
+const handleReloadConfirm = (launcherId: string, podId?: string) => {
     reloadLauncher(launcherId, podId)
     setReloadLauncherId(null)
   }
@@ -212,6 +234,7 @@ export default function Dashboard() {
     return 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))'
   }
 
+  // --- Render ---
   return (
     <PageShell title="Dashboard" isMobile={isMobile} hideTitle fill contentMaxWidth="100%">
       <div style={{ flexShrink: 0 }}>
@@ -223,6 +246,32 @@ export default function Dashboard() {
           onLoadFromFile={loadFromFile}
         />
       </div>
+
+      {(simConn.connectionStatus === 'connected' || (simulationOverlay?.unitStates?.length ?? 0) > 0) && (
+        <div
+          style={{
+            flexShrink: 0,
+            marginBottom: '0.5rem',
+            padding: '0.4rem 0.65rem',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'var(--bg-secondary)',
+            fontSize: '0.78rem',
+            color: 'var(--text-secondary)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
+          <strong style={{ color: 'var(--text-primary)' }}>Simulation</strong>
+          <span>
+            {simConn.connectionStatus === 'connected' ? 'live feed' : 'overlay only (disconnected)'}
+          </span>
+          {simulationOverlay?.scenarioId ? <span>scenario: {simulationOverlay.scenarioId}</span> : null}
+          <span>tracked units: {simulationOverlay?.unitStates?.length ?? 0}</span>
+        </div>
+      )}
 
       <div
         style={{
@@ -469,6 +518,7 @@ export default function Dashboard() {
             pocs={
               currentUserRole?.type === 'brigade' || currentUserRole?.type === 'battalion' ? pocs : displayPocs
             }
+            simulationOverlay={simulationOverlay}
             launchers={
               currentUserRole?.type === 'brigade' || currentUserRole?.type === 'battalion'
                 ? launchers

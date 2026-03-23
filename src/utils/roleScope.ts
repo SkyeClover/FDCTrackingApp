@@ -35,16 +35,25 @@ export interface ScopedForceResult {
   scopedRSVs: RSV[]
 }
 
+/**
+ * Implements poc ids under boc ids for this module.
+ */
 function pocIdsUnderBocIds(org: OrgForScope, bocIds: Set<string>): Set<string> {
   return new Set(org.pocs.filter((p) => p.bocId && bocIds.has(p.bocId)).map((p) => p.id))
 }
 
+/**
+ * Implements ammo plt ids under boc ids for this module.
+ */
 function ammoPltIdsUnderBocIds(org: OrgForScope, bocIds: Set<string>): Set<string> {
   return new Set(
     org.ammoPlatoons.filter((ap) => ap.bocId && bocIds.has(ap.bocId)).map((ap) => ap.id)
   )
 }
 
+/**
+ * Implements boc ids under battalion ids for this module.
+ */
 function bocIdsUnderBattalionIds(org: OrgForScope, battalionIds: Set<string>): Set<string> {
   return new Set(
     org.bocs.filter((b) => b.battalionId && battalionIds.has(b.battalionId)).map((b) => b.id)
@@ -59,6 +68,9 @@ function bocIdsUnderBrigade(org: OrgForScope, brigadeId: string): Set<string> {
   return bocIdsUnderBattalionIds(org, bnIds)
 }
 
+/**
+ * Returns scoped force for downstream consumers.
+ */
 export function getScopedForce(org: OrgForScope, role: CurrentUserRole | undefined): ScopedForceResult {
   if (!role) {
     return {
@@ -214,6 +226,9 @@ export function getScopedForce(org: OrgForScope, role: CurrentUserRole | undefin
   }
 }
 
+/**
+ * Determines whether is launcher in role scope is true in the current context.
+ */
 export function isLauncherInRoleScope(org: OrgForScope, role: CurrentUserRole | undefined, launcherId: string): boolean {
   const launcher = org.launchers.find((l) => l.id === launcherId)
   if (!launcher) return false
@@ -248,6 +263,9 @@ export function isLauncherInRoleScope(org: OrgForScope, role: CurrentUserRole | 
   return false
 }
 
+/**
+ * Determines whether is poc in role scope is true in the current context.
+ */
 export function isPocInRoleScope(org: OrgForScope, role: CurrentUserRole | undefined, pocId: string): boolean {
   const poc = org.pocs.find((p) => p.id === pocId)
   if (!poc) return false
@@ -274,6 +292,9 @@ export function isPocInRoleScope(org: OrgForScope, role: CurrentUserRole | undef
   return false
 }
 
+/**
+ * Determines whether is task in role scope is true in the current context.
+ */
 export function isTaskInRoleScope(org: OrgForScope, role: CurrentUserRole | undefined, task: Task): boolean {
   if (!role) return true
   if (task.pocIds?.length) {
@@ -285,6 +306,9 @@ export function isTaskInRoleScope(org: OrgForScope, role: CurrentUserRole | unde
   return true
 }
 
+/**
+ * Implements org slice from state for this module.
+ */
 export function orgSliceFromState(state: {
   brigades: Brigade[]
   battalions: Battalion[]

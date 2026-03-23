@@ -8,6 +8,9 @@ const defaultTemplates: TaskTemplate[] = [
   { id: 'reload-default', name: 'Reload', description: 'Reload launcher', duration: 900, type: 'reload' },
 ]
 
+/**
+ * Implements base state for this module.
+ */
 function baseState(): AppState {
   return {
     brigades: [],
@@ -27,10 +30,16 @@ function baseState(): AppState {
   }
 }
 
+/**
+ * Implements assert for this module.
+ */
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message)
 }
 
+/**
+ * Implements run for this module.
+ */
 function run(): void {
   // Receiver (BOC) local DB with local IDs.
   const bocLocal = baseState()
