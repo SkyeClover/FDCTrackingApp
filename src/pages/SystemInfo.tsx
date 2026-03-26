@@ -284,13 +284,12 @@ export default function SystemInfo() {
         ))}
       </div>
 
-      {/* 1523 SINCGARS Radio Connection Placeholder */}
       <div
         style={{
           backgroundColor: 'var(--bg-secondary)',
           padding: '1.5rem',
           borderRadius: '8px',
-          border: '2px dashed var(--border)',
+          border: '1px solid var(--border)',
           marginTop: '2rem',
         }}
       >
@@ -299,23 +298,19 @@ export default function SystemInfo() {
             {React.createElement(RadioTower, { size: 24 })}
           </div>
           <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>
-            1523 SINCGARS Radio Connection
+            RT-1523 / serial tunnel
           </h3>
         </div>
         <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.6' }}>
-          <p style={{ margin: '0 0 1rem 0' }}>
-            Radio connection interface will be implemented here. This section will allow configuration and monitoring of the 1523 SINCGARS radio system.
+          <p style={{ margin: '0 0 0.75rem 0' }}>
+            Sync over the radio link is handled by the <strong>fdc-radio-tunnel</strong> service (Node, USB serial to the
+            radio data port). The browser talks HTTP to the tunnel on localhost; the tunnel frames traffic over serial to
+            the remote station’s tunnel, which forwards to <code>fdc-peer-server</code> there.
           </p>
-          <div style={{ 
-            padding: '1rem', 
-            backgroundColor: 'var(--bg-primary)', 
-            borderRadius: '4px',
-            border: '1px solid var(--border)',
-          }}>
-            <p style={{ margin: 0, fontStyle: 'italic', color: 'var(--text-secondary)' }}>
-              Placeholder for radio connection functionality
-            </p>
-          </div>
+          <p style={{ margin: 0, fontSize: '0.9rem' }}>
+            Configure baud and device path via environment on the host (see <code>deploy/RADIO-SYNC.md</code>). Radio
+            crypto and waveform settings follow your field manual; they are not set from this app.
+          </p>
         </div>
       </div>
     </PageShell>

@@ -2,6 +2,15 @@ import type { AppState } from '../types'
 import { serializeStateForPeerSync } from '../utils/saveLoad'
 import { hmacSha256Hex } from './hmac'
 import { listNetworkRoster, type NetworkRosterRow, type SyncMetaRow } from '../persistence/sqlite'
+import {
+  isPeerSyncBearerSupported,
+  isRadioBearer,
+  RADIO_PEER_PUSH_MAX_ATTEMPTS,
+  RADIO_PEER_PUSH_RETRY_DELAY_MS,
+  RADIO_PEER_PING_MAX_ATTEMPTS,
+  RADIO_PEER_PING_RETRY_DELAY_MS,
+  radioRetryDelayMs,
+} from './radioPlaceholder'
 
 export interface PushResult {
   ok: boolean
@@ -78,11 +87,11 @@ export async function sendPeerPing(
   if (!base) {
     return { ok: false, path: row.displayName, detail: 'Missing host/port' }
   }
-  if (row.bearer !== 'ip') {
+  if (!isPeerSyncBearerSupported(row.bearer)) {
     return {
       ok: false,
       path: `${base}/fdc/v1/ping`,
-      detail: `Bearer "${row.bearer}" not supported (use IP/LAN).`,
+      detail: `Bearer "${row.bearer}" not supported (use IP/LAN or RT-1523 tunnel).`,
     }
   }
 
@@ -91,37 +100,58 @@ export async function sendPeerPing(
   const secret = meta.syncSharedSecret || ''
   const sig = secret ? await hmacSha256Hex(secret, body) : ''
 
+  const radio = isRadioBearer(row.bearer)
+  const maxAttempts = radio ? RADIO_PEER_PING_MAX_ATTEMPTS : 1
   const t0 = performance.now()
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (sig) headers['X-FDC-Signature'] = sig
 
-    const res = await fetch(path, {
-      method: 'POST',
-      headers,
-      body,
-      credentials: 'omit',
-    })
-    const text = await res.text()
-    const latencyMs = Math.round(performance.now() - t0)
-    if (!res.ok) {
-      return { ok: false, path, detail: text.slice(0, 200), latencyMs }
+  let lastFail: { ok: false; path: string; detail?: string; latencyMs?: number } = {
+    ok: false,
+    path,
+    detail: 'ping failed',
+  }
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0 && radio) {
+      await radioRetryDelayMs(attempt - 1, RADIO_PEER_PING_RETRY_DELAY_MS)
     }
     try {
-      const j = JSON.parse(text) as { pong?: boolean }
-      if (!j.pong) return { ok: false, path, detail: 'Unexpected response', latencyMs }
-    } catch {
-      return { ok: false, path, detail: 'Invalid JSON response', latencyMs }
-    }
-    return { ok: true, path, detail: `pong (${latencyMs} ms)`, latencyMs }
-  } catch (e) {
-    return {
-      ok: false,
-      path,
-      detail: e instanceof Error ? e.message : String(e),
-      latencyMs: Math.round(performance.now() - t0),
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (sig) headers['X-FDC-Signature'] = sig
+
+      const res = await fetch(path, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'omit',
+      })
+      const text = await res.text()
+      const latencyMs = Math.round(performance.now() - t0)
+      if (!res.ok) {
+        lastFail = { ok: false, path, detail: text.slice(0, 200), latencyMs }
+        continue
+      }
+      try {
+        const j = JSON.parse(text) as { pong?: boolean }
+        if (!j.pong) {
+          lastFail = { ok: false, path, detail: 'Unexpected response', latencyMs }
+          continue
+        }
+      } catch {
+        lastFail = { ok: false, path, detail: 'Invalid JSON response', latencyMs }
+        continue
+      }
+      return { ok: true, path, detail: `pong (${latencyMs} ms)${radio && attempt > 0 ? ` after ${attempt + 1} tries` : ''}`, latencyMs }
+    } catch (e) {
+      lastFail = {
+        ok: false,
+        path,
+        detail: e instanceof Error ? e.message : String(e),
+        latencyMs: Math.round(performance.now() - t0),
+      }
     }
   }
+
+  return { ...lastFail, latencyMs: lastFail.latencyMs ?? Math.round(performance.now() - t0) }
 }
 
 /**
@@ -140,56 +170,74 @@ export async function pushSnapshotToPeer(
   if (!base) {
     return { ok: false, path: row.displayName, detail: 'Missing host/port' }
   }
-  if (row.bearer !== 'ip') {
+  if (!isPeerSyncBearerSupported(row.bearer)) {
     return {
       ok: false,
       path: `${base}/fdc/v1/push`,
-      detail: `Bearer "${row.bearer}" not supported in browser MVP (use IP/LAN).`,
+      detail: `Bearer "${row.bearer}" not supported (use IP/LAN or RT-1523 tunnel).`,
     }
   }
 
   const path = `${base}/fdc/v1/push`
-  const snapshotJson = serializeStateForPeerSync(state)
+  const radio = isRadioBearer(row.bearer)
+  const snapshotJson = serializeStateForPeerSync(state, { radioOptimize: radio })
   const bodyObj = {
     kind: 'snapshot' as const,
     fromUnitId: meta.localUnitId,
     stateVersion,
     snapshotJson,
   }
-  const body = JSON.stringify(bodyObj)
   const secret = meta.syncSharedSecret || ''
-  const sig = secret ? await hmacSha256Hex(secret, body) : ''
+  const maxAttempts = radio ? RADIO_PEER_PUSH_MAX_ATTEMPTS : 1
 
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+  let lastDetail = ''
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0 && radio) {
+      await radioRetryDelayMs(attempt - 1, RADIO_PEER_PUSH_RETRY_DELAY_MS)
     }
-    if (sig) headers['X-FDC-Signature'] = sig
+    const body = JSON.stringify(bodyObj)
+    const sig = secret ? await hmacSha256Hex(secret, body) : ''
 
-    const res = await fetch(path, {
-      method: 'POST',
-      headers,
-      body,
-      credentials: 'omit',
-    })
-    const text = await res.text()
-    let ackVersion: number | undefined
     try {
-      const j = JSON.parse(text) as { ok?: boolean; ackStateVersion?: number }
-      if (typeof j.ackStateVersion === 'number') ackVersion = j.ackStateVersion
-    } catch {
-      /* ignore */
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (sig) headers['X-FDC-Signature'] = sig
+
+      const res = await fetch(path, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'omit',
+      })
+      const text = await res.text()
+      let ackVersion: number | undefined
+      try {
+        const j = JSON.parse(text) as { ok?: boolean; ackStateVersion?: number }
+        if (typeof j.ackStateVersion === 'number') ackVersion = j.ackStateVersion
+      } catch {
+        /* ignore */
+      }
+      if (!res.ok) {
+        lastDetail = text.slice(0, 200)
+        continue
+      }
+      return {
+        ok: true,
+        path,
+        ackVersion,
+        detail: radio && attempt > 0 ? `ACK after ${attempt + 1} tries` : 'ACK received',
+      }
+    } catch (e) {
+      lastDetail = e instanceof Error ? e.message : String(e)
     }
-    if (!res.ok) {
-      return { ok: false, path, status: res.status, detail: text.slice(0, 200) }
-    }
-    return { ok: true, path, ackVersion, detail: 'ACK received' }
-  } catch (e) {
-    return {
-      ok: false,
-      path,
-      detail: e instanceof Error ? e.message : String(e),
-    }
+  }
+
+  return {
+    ok: false,
+    path,
+    detail: lastDetail || 'push failed',
   }
 }
 
@@ -484,7 +532,8 @@ export function resolveUpstreamNotifyRosterRow(meta: SyncMetaRow): NetworkRoster
     /**
    * Implements pick for this module.
    */
-const pick = (r: NetworkRosterRow) => Boolean(r.host && r.port != null && r.bearer === 'ip')
+const pick = (r: NetworkRosterRow) =>
+    Boolean(r.host && r.port != null && isPeerSyncBearerSupported(r.bearer))
   const id = meta.upstreamNotifyRosterId?.trim()
   if (id) {
     const row = roster.find((r) => r.id === id)
@@ -588,7 +637,7 @@ export async function notifyUpstreamOffline(
     return {
       ok: false,
       detail:
-        'No upstream for sign-off — pick “Upstream for sign-off” below or add a roster row with host, port, IP/LAN.',
+        'No upstream for sign-off — pick “Upstream for sign-off” below or add a roster row with host, port, IP/LAN or RT-1523.',
     }
   }
   const base = peerBaseUrl(row)

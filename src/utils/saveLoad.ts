@@ -106,24 +106,22 @@ export function stateHasOrgEntities(state: {
 }
 
 // Convert Date objects to ISO strings for JSON serialization
-/** Snapshot JSON for peer sync / ingest — omits device-local Settings → View role. */
-export function serializeStateForPeerSync(state: AppState): string {
-  return serializeState({ ...state, currentUserRole: undefined, simulationOverlay: undefined })
-}
 
 /**
- * Implements serialize state for this module.
+ * Plain JSON-ready snapshot (ISO date strings). Shared by file save (pretty) and peer sync (compact).
  */
-export function serializeState(state: AppState): string {
-  const serialized = {
+export function buildSerializableStatePayload(state: AppState): Record<string, unknown> {
+  return {
     ...state,
     launchers: state.launchers.map((launcher) => ({
       ...launcher,
       lastIdleTime: launcher.lastIdleTime ? launcher.lastIdleTime.toISOString() : undefined,
-      currentTask: launcher.currentTask ? {
-        ...launcher.currentTask,
-        startTime: launcher.currentTask.startTime ? launcher.currentTask.startTime.toISOString() : undefined,
-      } : undefined,
+      currentTask: launcher.currentTask
+        ? {
+            ...launcher.currentTask,
+            startTime: launcher.currentTask.startTime ? launcher.currentTask.startTime.toISOString() : undefined,
+          }
+        : undefined,
     })),
     tasks: state.tasks.map((task) => ({
       ...task,
@@ -139,6 +137,50 @@ export function serializeState(state: AppState): string {
     })),
     lastSaved: new Date().toISOString(),
   }
+}
+
+export interface PeerSyncSerializeOptions {
+  /** Omit simulation overlay (default true for peer). */
+  omitSimulation?: boolean
+  /** Omit current user role (default true for peer). */
+  omitCurrentUserRole?: boolean
+  /**
+   * RT-1523 / narrow RF: compact JSON (no whitespace) and trim payload.
+   * When true, keeps only the last N log entries to shrink the snapshot.
+   */
+  radioOptimize?: boolean
+  /** When radioOptimize: max audit log lines to send (default 40). */
+  radioMaxLogEntries?: number
+}
+
+/**
+ * Snapshot JSON for peer sync / ingest — omits device-local Settings → View role and simulation by default.
+ * Uses **compact** JSON (no indentation) to minimize bytes on wire (LAN + radio tunnel).
+ */
+export function serializeStateForPeerSync(state: AppState, opts: PeerSyncSerializeOptions = {}): string {
+  const omitSimulation = opts.omitSimulation !== false
+  const omitRole = opts.omitCurrentUserRole !== false
+  let working: AppState = state
+  if (opts.radioOptimize) {
+    const maxLogs = Math.max(0, opts.radioMaxLogEntries ?? 40)
+    working = { ...state, logs: state.logs.slice(-maxLogs) }
+  }
+  let base: AppState = working
+  if (omitRole || omitSimulation) {
+    base = {
+      ...working,
+      ...(omitRole ? { currentUserRole: undefined } : {}),
+      ...(omitSimulation ? { simulationOverlay: undefined } : {}),
+    }
+  }
+  return JSON.stringify(buildSerializableStatePayload(base))
+}
+
+/**
+ * Implements serialize state for this module.
+ */
+export function serializeState(state: AppState): string {
+  const serialized = buildSerializableStatePayload(state)
   return JSON.stringify(serialized, null, 2)
 }
 

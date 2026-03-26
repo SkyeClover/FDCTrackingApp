@@ -3,6 +3,7 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import PageShell from '../components/layout/PageShell'
 import { Network as NetworkIcon, Wifi, Server, Globe, Activity, RadioTower } from 'lucide-react'
 import { fetchLocalSystemInfo, shouldAttemptLocalAgentFetch } from '../lib/deviceAgent'
+import { EchelonNetworkGridsSection } from '../components/network/EchelonNetworkGridsSection'
 import { NetworkRosterSection } from '../components/network/NetworkRosterSection'
 import { SyncControlSection } from '../components/network/SyncControlSection'
 import { NetworkLogsSection } from '../components/network/NetworkLogsSection'
@@ -135,6 +136,7 @@ export default function Network() {
             refreshKey={rosterTick}
             onChanged={bumpRoster}
           />
+          <EchelonNetworkGridsSection isMobile={safeIsMobile} refreshKey={rosterTick} />
           <SyncControlSection
             isMobile={safeIsMobile}
             onSyncDone={bumpRoster}
@@ -303,7 +305,10 @@ export default function Network() {
                 </h3>
               </div>
               <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.4 }}>
-                UI when connected. <span style={{ fontStyle: 'italic' }}>Not connected</span>
+                Peer sync over radio uses <code style={{ fontSize: '0.75rem' }}>fdc-radio-tunnel</code> on this machine
+                (serial to the RT-1523 data port). Set roster host/port to the tunnel (usually{' '}
+                <code style={{ fontSize: '0.75rem' }}>127.0.0.1</code> and{' '}
+                <code style={{ fontSize: '0.75rem' }}>FDC_RADIO_TUNNEL_PORT</code>). See deploy/RADIO-SYNC.md.
               </p>
             </div>
           </CollapsibleCard>

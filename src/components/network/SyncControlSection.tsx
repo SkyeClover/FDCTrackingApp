@@ -19,6 +19,7 @@ import {
   resolveUpstreamNotifyRosterRow,
   sendPeerPing,
 } from '../../sync/peerClient'
+import { isPeerSyncBearerSupported } from '../../sync/radioPlaceholder'
 import { isSyncSharedSecretConfigured } from '../../sync/syncGuards'
 import { runSnapshotPush } from '../../sync/syncEngine'
 import {
@@ -64,13 +65,16 @@ export function SyncControlSection({
   const autoBusyRef = useRef(false)
   const anyBusy = busy || pullBusy || pingBusy || cleanDisconnectBusy
 
-  const ipRosterPeers = useMemo(
-    () => listNetworkRoster().filter((r) => r.host && r.port != null && r.bearer === 'ip'),
+  const syncRosterPeers = useMemo(
+    () =>
+      listNetworkRoster().filter(
+        (r) => r.host && r.port != null && isPeerSyncBearerSupported(r.bearer)
+      ),
     [auditTick]
   )
   const resolvedUpstream = useMemo(
     () => resolveUpstreamNotifyRosterRow(getSyncMeta()),
-    [meta.upstreamNotifyRosterId, auditTick, ipRosterPeers.length]
+    [meta.upstreamNotifyRosterId, auditTick, syncRosterPeers.length]
   )
   const secretOk = useMemo(() => isSyncSharedSecretConfigured(meta), [meta])
 
@@ -174,10 +178,12 @@ const tick = async () => {
     setFeedback('info', 'Sending signed test messages to roster peers...')
     try {
       const m = getSyncMeta()
-      const peers = listNetworkRoster().filter((r) => r.host && r.port != null && r.bearer === 'ip')
+      const peers = listNetworkRoster().filter(
+        (r) => r.host && r.port != null && isPeerSyncBearerSupported(r.bearer)
+      )
       if (peers.length === 0) {
-        publishSyncOutput('No roster rows with host, port, and IP/LAN bearer to ping.')
-        setFeedback('warn', 'No IP/LAN peers are configured for test messages.')
+        publishSyncOutput('No roster rows with host, port, and IP/LAN or RT-1523 bearer to ping.')
+        setFeedback('warn', 'No sync peers are configured for test messages.')
         return
       }
       const lines: string[] = []
@@ -515,8 +521,8 @@ const tick = async () => {
             onChange={(e) => saveMeta({ upstreamNotifyRosterId: e.target.value })}
             style={{ maxWidth: '100%', padding: '0.25rem 0.35rem', fontSize: '0.8rem' }}
           >
-            <option value="">Default — first roster row (host + IP/LAN), same order as push</option>
-            {ipRosterPeers.map((r) => (
+            <option value="">Default — first roster row (host + IP/LAN or RT-1523), same order as push</option>
+            {syncRosterPeers.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.displayName} ({r.host}:{r.port})
               </option>
@@ -524,12 +530,12 @@ const tick = async () => {
           </select>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400, lineHeight: 1.35 }}>
             Clean disconnect and closing this tab POST an <code style={{ fontSize: '0.7rem' }}>offline-notify</code> here.
-            {ipRosterPeers.length === 0 ? (
+            {syncRosterPeers.length === 0 ? (
               <strong> Add a network roster row with host/port first.</strong>
             ) : resolvedUpstream ? (
               <> Resolves to: <strong>{resolvedUpstream.displayName}</strong>.</>
             ) : (
-              <strong> No row qualifies — set host, port, bearer IP/LAN on a roster entry.</strong>
+              <strong> No row qualifies — set host, port, and bearer IP/LAN or RT-1523 on a roster entry.</strong>
             )}
           </span>
         </label>

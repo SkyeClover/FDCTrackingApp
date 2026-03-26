@@ -612,7 +612,7 @@ const autosaveIfLeavingEditor = (relatedTarget: EventTarget | null) => {
         <td style={{ padding: '0.35rem' }}>{row.host ?? '—'}</td>
         <td style={{ padding: '0.35rem' }}>{row.port ?? '—'}</td>
         <td style={{ padding: '0.35rem' }}>{row.useTls ? 'yes' : 'no'}</td>
-        <td style={{ padding: '0.35rem' }}>{row.bearer === RADIO_BEARER_ID ? '1523 (placeholder)' : row.bearer}</td>
+        <td style={{ padding: '0.35rem' }}>{row.bearer === RADIO_BEARER_ID ? 'RT-1523' : row.bearer}</td>
         <td style={{ padding: '0.35rem', fontFamily: 'monospace', fontSize: '0.72rem' }}>{row.peerUnitId ?? '—'}</td>
         <td style={{ padding: '0.35rem' }}>{row.syncAlertsEnabled ? 'on' : 'off'}</td>
         <td style={{ padding: '0.35rem' }}>{row.autoAcceptSync ? 'on' : 'off'}</td>
@@ -827,7 +827,7 @@ const autosaveIfLeavingEditor = (relatedTarget: EventTarget | null) => {
           onChange={(e) => setDraft({ ...draft, bearer: e.target.value })}
         >
           <option value="ip">IP / LAN</option>
-          <option value={RADIO_BEARER_ID}>RT-1523 (placeholder)</option>
+          <option value={RADIO_BEARER_ID}>RT-1523 (serial tunnel)</option>
         </select>
       </td>
       <td style={{ padding: '0.35rem' }}>

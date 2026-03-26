@@ -8,6 +8,7 @@ import {
   type NetworkRosterRow,
 } from '../persistence/sqlite'
 import { fetchPeerHealth, pushSnapshotToPeer } from './peerClient'
+import { isPeerSyncBearerSupported } from './radioPlaceholder'
 import { isSyncSharedSecretConfigured } from './syncGuards'
 import {
   applyStationOfflineEscalation,
@@ -59,6 +60,10 @@ export async function runSnapshotPush(state: AppState, forceLabel: string): Prom
   for (const row of roster) {
     if (!row.host || row.port == null) {
       targets.push({ row, result: 'skipped (no host)', path: row.displayName })
+      continue
+    }
+    if (!isPeerSyncBearerSupported(row.bearer)) {
+      targets.push({ row, result: 'skipped (unsupported bearer)', path: row.displayName })
       continue
     }
 
